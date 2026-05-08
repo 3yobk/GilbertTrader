@@ -1,4 +1,5 @@
 # Sensitive API Keys and Tokens
+start.sh
 .env
 *.log
 
