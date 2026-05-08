@@ -1,0 +1,16 @@
+# AI Brain Trading System — Python dependencies
+# Install: pip install -r requirements.txt
+# Then:    playwright install chromium
+
+playwright>=1.44.0
+playwright-stealth>=1.0.6
+discord.py>=2.3.2
+websocket-client>=1.8.0
+yfinance>=0.2.40
+pytz>=2024.1
+rich>=13.7.0
+requests>=2.31.0
+
+# Optional — for Polygon.io real-time data (highly recommended)
+# Sign up free at https://polygon.io  (free tier = 15-min delayed)
+# Set POLYGON_API_KEY env var or pass --polygon-key
