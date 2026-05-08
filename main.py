@@ -13,21 +13,23 @@ Run:
     python main.py --real       # real money — prompts for confirmation
 """
 
-import argparse
-import sys
-import time
-import threading
-import logging
-import os
-from rich.console import Console
-from rich.panel import Panel
-from rich.text import Text
-from rich import print as rprint
+import requests
 
-from webull_engine import WebullEngine
-from discord_listener import DiscordListener
-from market_feed import MarketFeed
-from trade_engine import TradeEngine
+def ask_ai_for_verdict(signal_text):
+    # Use the Local IP address of your AI Computer
+    AI_PC_URL = "http://192.168.1.XX:5000/ask"
+    API_KEY = "your-generated-sk-key"
+
+    payload = {"question": f"Analyze this trade signal: {signal_text}. Reply with 'Approved' or 'Rejected' and a short reason."}
+    headers = {"Authorization": f"Bearer {API_KEY}"}
+
+    try:
+        response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=60)
+        data = response.json()
+        return data.get("answer", "")
+    except Exception as e:
+        print(f"AI Computer unreachable: {e}")
+        return "Rejected: Connection Error"
 
 logging.basicConfig(
     level=logging.INFO,
