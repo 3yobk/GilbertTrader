@@ -1,0 +1,25 @@
+# Sensitive API Keys and Tokens
+.env
+*.log
+
+# Python Environment
+venv/
+__pycache__/
+*.py[cod]
+
+# Browser Automation Data
+webull_profile/
+.auth/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# IDE Settings
+.idea/
+.vscode/
+*.swp
+
+# OS Files
+.DS_Store
+Thumbs.db

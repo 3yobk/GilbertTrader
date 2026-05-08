@@ -26,7 +26,7 @@ console = Console()
 # ── DOM selectors (update here when Webull changes their UI) ──────────────────
 SELECTORS = {
     # Login detection — when this element appears, you're logged in
-    "logged_in_indicator": '[data-testid="portfolio-value"], .account-info, .nav-user-info',
+    "logged_in_indicator": '[data-testid="portfolio-value"], .account-info, .nav-user-info, :text("Net Account Value"), :text("$")',
 
     # Search / ticker
     "search_input":        'input[placeholder*="Symbol"], input[placeholder*="Search"]',
@@ -112,6 +112,7 @@ class WebullEngine:
         console.print("  Waiting for login", end="")
         while True:
             try:
+                # This checks if you are logged in
                 self.page.wait_for_selector(
                     SELECTORS["logged_in_indicator"],
                     timeout=5_000,
@@ -119,8 +120,10 @@ class WebullEngine:
                 console.print("  ✓")
                 return
             except Exception:
-                console.print(".", end="", flush=True)
+                # REMOVED 'flush=True' to fix the Mac crash
+                console.print(".", end="")
                 time.sleep(3)
+
 
     def close(self):
         if self.context:  self.context.close()
