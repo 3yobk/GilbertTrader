@@ -35,11 +35,6 @@ _SIGNAL_RE = re.compile("|".join(SIGNAL_PATTERNS), re.IGNORECASE)
 
 
 class DiscordListener:
-    """
-    Wraps discord.py in a daemon thread so it doesn't block main().
-    Calls on_signal(raw_text: str) for every likely trade message.
-    """
-
     def __init__(self, channel_id: int, token: str, on_signal: Callable[[str], None]):
         self.channel_id = channel_id
         self.token      = token
@@ -47,6 +42,14 @@ class DiscordListener:
         self._client    = None
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        # --- ADD THIS LINE ---
+        self._latest_raw_message = None #
+
+    # --- ADD THIS FUNCTION ---
+    def get_latest_signal(self): #
+        msg = self._latest_raw_message
+        self._latest_raw_message = None # Clear it so we don't double-process
+        return msg
 
     def start_in_thread(self):
         """Start the Discord event loop in a background daemon thread."""
@@ -113,7 +116,6 @@ class _SignalClient:
                                 self_inner.target_channel_id)
 
             async def on_message(self_inner, message):
-                # Ignore own messages and other channels
                 if message.author == self_inner.user:
                     return
                 if message.channel.id != self_inner.target_channel_id:
@@ -123,13 +125,11 @@ class _SignalClient:
                 if not raw:
                     return
 
-                # Filter: only pass through likely trade signals
                 if _SIGNAL_RE.search(raw):
                     log.info("Signal captured from %s: %s", message.author.name, raw[:100])
-                    # Run callback in a thread pool — don't block the event loop
-                    import asyncio
-                    loop = asyncio.get_event_loop()
-                    loop.run_in_executor(None, self_inner._on_signal, raw)
+                    # This triggers the 'on_signal' function we passed in main.py,
+                    # which will save the message into self._latest_raw_message
+                    self_inner._on_signal(raw)
                 else:
                     log.debug("Ignored non-signal message: %s", raw[:60])
 

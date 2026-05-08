@@ -14,13 +14,39 @@ Run:
 """
 
 import requests
+import logging
+import sys
+from rich.console import Console
+from rich.panel import Panel
+import argparse
+import os
+import io
+from rich.text import Text
+from webull_engine import WebullEngine #
+from trade_engine import TradeEngine   #
+from market_feed import MarketFeed     #
+from discord_listener import DiscordListener #
+import time
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 def ask_ai_for_verdict(signal_text):
     # Use the Local IP address of your AI Computer
-    AI_PC_URL = "http://192.168.1.XX:5000/ask"
-    API_KEY = "your-generated-sk-key"
+    AI_PC_URL = "http://192.168.0.15:5000/ask"
+    API_KEY = "sk-7d643db8"
 
-    payload = {"question": f"Analyze this trade signal: {signal_text}. Reply with 'Approved' or 'Rejected' and a short reason."}
+    payload = {
+        "question": (
+            f"Clean this Discord message: '{signal_text}'. "
+            "Remove all emojis, 'everyone' tags, and filler words. "
+            "Reformat it into this EXACT structure: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'. "
+            "Example: 'BTO LULU 330C 5/8'. "
+            "Also, ensure the trade fits our 30% daily budget rule. "
+            "If it's garbage text, just reply 'Rejected'. "
+            "Otherwise, reply with the cleaned BTO string."
+        )
+    }
     headers = {"Authorization": f"Bearer {API_KEY}"}
 
     try:
@@ -114,8 +140,7 @@ def main():
     time.sleep(2)
     console.print(f"  [green]✓[/green] Market feed {'connected' if market.connected else 'using fallback scrape'}")
 
-    # ── Step 3: Trade engine ──────────────────────────────────────────────────
-    console.print("\n[bold cyan]Step 3/4[/bold cyan]  Arming trade engine...")
+    # ... Step 3 was here ...
     engine = TradeEngine(
         webull            = webull,
         market            = market,
@@ -126,21 +151,47 @@ def main():
 
     # ── Step 4: Discord listener ──────────────────────────────────────────────
     console.print("\n[bold cyan]Step 4/4[/bold cyan]  Connecting Discord listener...")
+
+    # Define the helper right before creating the listener
+    def capture_signal(raw_text):
+        listener._latest_raw_message = raw_text
+
     listener = DiscordListener(
         channel_id = args.discord_channel,
         token      = args.discord_token,
-        on_signal  = engine.on_raw_signal,
+        on_signal  = capture_signal,
     )
     listener.start_in_thread()
 
     # ── Live ──────────────────────────────────────────────────────────────────
     console.print("\n[bold green]✅  System ARMED.[/bold green]  Waiting for signals...\n")
-    console.print("[dim]Press Ctrl+C to shut down gracefully.[/dim]\n")
+    # ... the while loop follows ...
 
     try:
         while True:
-            time.sleep(10)
-            engine.print_status()
+            # 1. Get the raw text from Discord
+            raw_text = listener.get_latest_signal()
+
+            if raw_text:
+                console.print(f"🔍 [cyan]New Message:[/cyan] {raw_text[:50]}...")
+
+                # 2. Ask the AI computer to clean the mess and check the 30% budget
+                # This turns "5/8 $LULU 139c @.18 🎯" into "BTO LULU 139C 5/8"
+                cleaned_signal = ask_ai_for_verdict(raw_text)
+
+                if "Rejected" not in cleaned_signal and len(cleaned_signal) > 3:
+                    console.print(f"🤖 [green]AI Cleaned:[/green] {cleaned_signal}")
+                    # 3. Feed the PERFECT text to the engine
+                    engine.on_raw_signal(cleaned_signal)
+                else:
+                    console.print("[yellow]🤖 AI ignored the noise or budget limit hit.[/yellow]")
+
+            time.sleep(1) # Check every second for new Discord messages
+
+            # Optional: Print status every 30 seconds
+            if int(time.time()) % 30 == 0:
+                engine.print_status()
+
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutting down...[/yellow]")
         listener.stop()
