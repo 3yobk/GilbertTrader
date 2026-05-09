@@ -1,5 +1,5 @@
 """
-discord_listener.py — Fixed Signal Bridge
+discord_listener.py — Upgraded with "Talk Back" Alert Capabilities
 """
 
 import re
@@ -19,7 +19,7 @@ SIGNAL_PATTERNS = [
 _SIGNAL_RE = re.compile("|".join(SIGNAL_PATTERNS), re.IGNORECASE)
 
 class DiscordListener:
-    def __init__(self, channel_id: int, token: str, on_signal: Callable[[str], None]):
+    def __init__(self, channel_id: int, token: str, on_signal: Callable[[str], None] = None):
         self.channel_id = channel_id
         self.token      = token
         self.on_signal  = on_signal
@@ -29,10 +29,20 @@ class DiscordListener:
         self._latest_raw_message = None
 
     def get_latest_signal(self):
-        """Returns the message and wipes the buffer to prevent double-processing."""
         msg = self._latest_raw_message
         self._latest_raw_message = None
         return msg
+
+    # --- NEW: TALK BACK CAPABILITY ---
+    def send_status_update(self, message: str):
+        """Thread-safe method to send a message to the Discord channel."""
+        if self._client and self._loop:
+            # We use run_coroutine_threadsafe because the Discord client
+            # lives on its own async loop, but main.py lives on a standard thread.
+            asyncio.run_coroutine_threadsafe(
+                self._client.send_alert(message),
+                self._loop
+            )
 
     def start_in_thread(self):
         self._thread = threading.Thread(
@@ -61,10 +71,9 @@ class DiscordListener:
         intents = discord.Intents.default()
         intents.message_content = True
 
-        # We pass 'self' into the client so the client can update this class directly
         self._client = _SignalClient(
             channel_id = self.channel_id,
-            parent     = self, # Pass the DiscordListener instance
+            parent     = self,
             intents    = intents,
         )
 
@@ -82,15 +91,22 @@ class _SignalClient:
             def __init__(self_inner):
                 super().__init__(intents=intents)
                 self_inner.target_channel_id = channel_id
-                self_inner.parent = parent # Store reference to the Listener class
+                self_inner.parent = parent
+
+            # --- NEW: SENDING LOGIC ---
+            async def send_alert(self_inner, message):
+                """The actual async task that sends the text to Discord."""
+                channel = self_inner.get_channel(self_inner.target_channel_id)
+                if channel:
+                    try:
+                        await channel.send(message)
+                    except Exception as e:
+                        log.error("Failed to send Discord alert: %s", e)
 
             async def on_ready(self_inner):
                 log.info("Discord connected as %s", self_inner.user)
-                channel = self_inner.get_channel(self_inner.target_channel_id)
-                if channel:
-                    log.info("Listening to #%s", channel.name)
-                else:
-                    log.warning("Channel %d not found!", self_inner.target_channel_id)
+                # Let you know the bot is alive right in the chat
+                await self_inner.send_alert("🤖 **GilbertTrader System Online.** Monitoring market for reversals...")
 
             async def on_message(self_inner, message):
                 if message.author == self_inner.user:
@@ -102,12 +118,9 @@ class _SignalClient:
                 if not raw:
                     return
 
-                # --- THE CRITICAL FIX ---
                 if _SIGNAL_RE.search(raw):
                     log.info("Signal captured: %s", raw[:50])
-                    # Update the variable that main.py is actually checking!
                     self_inner.parent._latest_raw_message = raw
-                    # Also trigger the callback if main.py used one
                     if self_inner.parent.on_signal:
                         self_inner.parent.on_signal(raw)
 

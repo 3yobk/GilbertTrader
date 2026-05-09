@@ -212,3 +212,17 @@
 2026-05-08 21:31:50,691  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
 2026-05-08 21:31:51,485  INFO      discord_listener — Discord connected as GilbertTrader#0929
 2026-05-08 21:31:51,485  INFO      discord_listener — Listening to #general
+2026-05-09 16:13:09,040 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 16:13:09,041 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 16:13:09,425 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 16:13:09,425 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 16:13:09,425 [INFO] discord.client — logging in using static token
+2026-05-09 16:13:09,578 [ERROR] discord_listener — Discord error: Improper token has been passed.
+2026-05-09 16:13:11,042 [INFO] discord_listener — Discord listener thread started (channel=123456789012345678)
+2026-05-09 16:14:01,611 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 16:14:01,612 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 16:14:01,798 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 16:14:01,798 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 16:14:01,798 [INFO] discord.client — logging in using static token
+2026-05-09 16:14:01,911 [ERROR] discord_listener — Discord error: Improper token has been passed.
+2026-05-09 16:14:03,613 [INFO] discord_listener — Discord listener thread started (channel=123456789012345678)
