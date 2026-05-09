@@ -7,7 +7,7 @@ Includes:
   4. Portfolio Heat Monitor (Max 2 Trades)
   5. Discord Feedback Loop
   6. Circuit Breaker (Daily Loss Limit)
-  7. UPGRADE: Startup Health Check
+  7. UPGRADE: Startup Health Check & Unbuffered Output
 """
 
 import requests
@@ -22,7 +22,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-# Load .env file so credentials are available via os.getenv
+# Load .env file so credentials are available via osgetenv
 load_dotenv()
 
 # Core Engine Imports
@@ -34,6 +34,10 @@ import research_scanner
 
 # Windows Terminal UTF-8 Setup
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# --- UPGRADE: FORCE UNBUFFERED OUTPUT ---
+# This ensures that prints show up the millisecond they happen, fixing terminal lag.
+sys.stdout.reconfigure(line_buffering=True)
 console = Console()
 
 logging.basicConfig(
@@ -45,13 +49,7 @@ logging.basicConfig(
     ]
 )
 
-# ── FIX: Credentials from .env, never hardcoded ──────────────────────────────
-# Create a .env file in the same folder with:
-#   AI_PC_URL=http://192.168.0.15:5000/ask
-#   AI_PC_KEY=sk-7d643db8
-#   DISCORD_TOKEN=your-token-here
-#   DISCORD_CHANNEL_ID=your-channel-id
-#   POLYGON_API_KEY=your-polygon-key   (optional)
+# ── Credentials from .env ──
 AI_PC_URL = os.getenv("AI_PC_URL", "http://192.168.0.15:5000/ask")
 AI_PC_KEY = os.getenv("AI_PC_KEY", "sk-7d643db8")
 
@@ -105,22 +103,19 @@ def ask_ai_for_verdict(signal_text, budget):
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
     try:
-        response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=60)
+        # TIMEOUT KEPT AT 45 SECONDS
+        response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=45)
         return response.json().get("answer", "").strip()
     except Exception:
-        return "Rejected: AI PC Offline"
+        return "Rejected: AI PC Offline or Timeout"
 
 
 # ── UPGRADE: Startup health check ────────────────────────────────────────────
 def run_health_check(discord_token, discord_channel_id):
-    """
-    Runs before arming the bot. Checks every dependency and prints a clear
-    pass/fail for each. Exits cleanly if anything critical is missing.
-    """
+    """Checks dependencies and credentials before startup."""
     console.print("\n[bold cyan]⚡ SYSTEM HEALTH CHECK[/bold cyan]")
     all_ok = True
 
-    # 1. Discord credentials present
     if not discord_token or discord_token == "0":
         console.print("  [red]✗[/red] DISCORD_TOKEN not set — add it to .env")
         all_ok = False
@@ -133,7 +128,6 @@ def run_health_check(discord_token, discord_channel_id):
     else:
         console.print("  [green]✓[/green] Discord channel ID loaded")
 
-    # 2. AI PC reachable
     try:
         r = requests.get(
             AI_PC_URL.replace("/ask", "/sessions"),
@@ -143,28 +137,17 @@ def run_health_check(discord_token, discord_channel_id):
         if r.ok:
             console.print("  [green]✓[/green] AI PC reachable")
         else:
-            console.print(f"  [yellow]⚠[/yellow] AI PC returned status {r.status_code} — signals may auto-reject")
-    except Exception as e:
-        console.print(f"  [yellow]⚠[/yellow] AI PC offline ({e}) — signals will auto-reject")
+            console.print(f"  [yellow]⚠[/yellow] AI PC returned status {r.status_code}")
+    except Exception:
+        console.print("  [yellow]⚠[/yellow] AI PC offline")
 
-    # 3. Market data available
     try:
         import yfinance as yf
         last = getattr(yf.Ticker("SPY").fast_info, "last_price", None)
         if last:
-            console.print(f"  [green]✓[/green] Market data available (SPY last: ${last:.2f})")
-        else:
-            console.print("  [yellow]⚠[/yellow] yfinance returned no price — market may be closed")
-    except Exception as e:
-        console.print(f"  [red]✗[/red] yfinance error: {e}")
-        all_ok = False
-
-    # 4. Playwright installed
-    try:
-        from playwright.sync_api import sync_playwright  # noqa: F401
-        console.print("  [green]✓[/green] Playwright installed")
-    except ImportError:
-        console.print("  [red]✗[/red] Playwright not installed — run: pip install playwright && playwright install chromium")
+            console.print(f"  [green]✓[/green] Market data available")
+    except Exception:
+        console.print("  [red]✗[/red] yfinance error")
         all_ok = False
 
     if not all_ok:
@@ -181,10 +164,8 @@ def main():
     discord_channel_id = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
     polygon_key        = os.getenv("POLYGON_API_KEY", "")
 
-    # Run health check before spending time on browser startup
     run_health_check(discord_token, discord_channel_id)
 
-    # Visual Confirmation Panel
     console.print(Panel(
         Text.assemble(
             ("GILBERT TRADER SYSTEM ARMED\n", "bold white"),
@@ -194,14 +175,12 @@ def main():
         border_style="bright_blue", padding=(1, 4),
     ))
 
-    # --- Engine Initialization ---
     webull = WebullEngine(paper=True)
     webull.open_browser()
 
     market = MarketFeed(api_key=polygon_key)
     market.start()
 
-    # Discord Initialization
     listener = DiscordListener(
         channel_id=discord_channel_id,
         token=discord_token,
@@ -209,7 +188,6 @@ def main():
     )
     listener.start_in_thread()
 
-    # Trade Engine Initialization
     engine = TradeEngine(
         webull=webull, market=market, paper=True,
         profit_target_pct=profile['tp'],
@@ -220,73 +198,51 @@ def main():
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
-    # Circuit breaker settings
-    MAX_DAILY_LOSS     = -150.0   # Protecting $1,000 capital
+    MAX_DAILY_LOSS     = -150.0
     last_research_time = 0
     trade_cooldowns    = {}
-    # ── FIX: one heat alert per cooling period, not every second ────────────
     last_heat_alert_ts = 0
 
     try:
         while True:
-            # ── FIX: circuit breaker now reads real session P&L ──────────────
             daily_pnl = engine.get_session_pnl()
             if daily_pnl <= MAX_DAILY_LOSS:
-                msg = (
-                    f"🚨 **CIRCUIT BREAKER TRIGGERED**: "
-                    f"Daily loss of ${daily_pnl:.2f} hit limit ${MAX_DAILY_LOSS}. "
-                    f"System shutting down."
-                )
+                msg = f"🚨 **CIRCUIT BREAKER TRIGGERED**: Daily loss limit hit. System shutting down."
                 listener.send_status_update(msg)
                 console.print(Panel(msg, border_style="bold red"))
                 break
 
-            # --- PORTFOLIO HEAT MONITOR ---
             if len(engine._positions) >= 2:
                 now_ts = time.time()
-                # ── FIX: alert once per 120s window, not every iteration ──
                 if now_ts - last_heat_alert_ts >= 120:
-                    listener.send_status_update(
-                        "🧊 **PORTFOLIO COOLING**: 2 positions open. Skipping scans."
-                    )
-                    console.print(
-                        "[yellow]🧊 Heat Monitor: Max positions reached. Waiting...[/yellow]"
-                    )
+                    listener.send_status_update("🧊 **PORTFOLIO COOLING**: 2 positions open.")
+                    console.print("[yellow]🧊 Heat Monitor: Max positions reached. Waiting...[/yellow]")
                     last_heat_alert_ts = now_ts
                 time.sleep(10)
                 continue
 
             raw_text = None
-
-            # --- Active Research Scanner ---
             if mode_choice in ["2", "3"]:
-                if time.time() - last_research_time > 300:  # 5-min scan interval
-                    console.print(
-                        f"[dim]🔎 Scanning Small-Caps (RSI Threshold: {profile['rsi']})...[/dim]"
-                    )
-                    found = research_scanner.scan_markets(
-                        rsi_threshold=profile['rsi'],
-                        listener=listener,
-                        market=market,
-                    )
-                    if found:
-                        raw_text = found[0]
+                if time.time() - last_research_time > 300:
+                    console.print(f"[dim]🔎 Scanning Small-Caps (RSI Threshold: {profile['rsi']})...[/dim]")
+                    found = research_scanner.scan_markets(rsi_threshold=profile['rsi'], listener=listener, market=market)
+                    if found: raw_text = found[0]
                     last_research_time = time.time()
 
-            # --- Passive Discord Listener ---
             if not raw_text and mode_choice in ["1", "3"]:
                 raw_text = listener.get_latest_signal()
 
-            # --- Process and Execute ---
             if raw_text:
-                # ── FIX: use proper signal parser to get ticker, not parts[1] ──
                 parsed = engine.parse_signal(raw_text)
                 ticker = parsed.ticker if parsed else "UNK"
 
                 if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
-                    pass  # still in 30-min cooldown — skip silently
+                    pass
                 else:
+                    # --- ADDED: LIVE FEEDBACK BEFORE BLOCKING ---
                     console.print(f"🔍 [cyan]Signal Captured:[/cyan] {raw_text[:50]}")
+                    console.print("[dim]⏳ Talking to Senior Risk Manager...[/dim]")
+
                     verdict = ask_ai_for_verdict(raw_text, profile['budget'])
 
                     if "BTO" in verdict:
@@ -299,17 +255,12 @@ def main():
                         console.print(f"❌ [bold red]RISK REJECTION:[/bold red] {verdict}")
 
             time.sleep(1)
-
-            # --- Status update every 30 seconds ---
             if int(time.time()) % 30 == 0:
                 engine.print_status()
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutdown initiated...[/yellow]")
-        webull.close()
-        market.stop()
-        listener.stop()
-
+        webull.close(); market.stop(); listener.stop()
 
 if __name__ == "__main__":
     main()

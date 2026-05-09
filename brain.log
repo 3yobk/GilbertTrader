@@ -235,3 +235,47 @@
 2026-05-09 16:35:21,512 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
 2026-05-09 16:35:22,446 [INFO] discord_listener — Discord connected as GilbertTrader#0929
 2026-05-09 16:36:03,321 [INFO] discord_listener — Signal captured: BTO MARA 20C 05/22
+2026-05-09 16:52:38,258 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 16:52:38,259 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 16:52:38,466 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 16:52:38,466 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 16:52:38,466 [INFO] discord.client — logging in using static token
+2026-05-09 16:52:39,200 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 135d33e69014687855664262d16450a6).
+2026-05-09 16:52:40,260 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-09 16:52:41,218 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-09 16:55:24,845 [INFO] discord_listener — Signal captured: BTO MARA 20C 05/22
+2026-05-09 16:56:35,168 [INFO] discord_listener — Signal captured: BTO MARA 20C 05/22
+2026-05-09 17:09:08,062 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 17:09:08,063 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 17:09:08,469 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 17:09:08,469 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 17:09:08,470 [INFO] discord.client — logging in using static token
+2026-05-09 17:09:09,007 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 21959a1e36d5e49b7408dbb79151ca52).
+2026-05-09 17:09:10,064 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-09 17:09:11,019 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-09 17:09:36,219 [INFO] discord_listener — Signal captured: BTO MARA 20C 05/22
+2026-05-09 17:11:57,471 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 17:11:57,472 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 17:11:57,678 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 17:11:57,678 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 17:11:57,678 [INFO] discord.client — logging in using static token
+2026-05-09 17:11:58,404 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 8521d808a7a5a9dbfe8b7268660a3496).
+2026-05-09 17:11:59,473 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-09 17:12:00,408 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-09 17:12:37,245 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 17:12:37,246 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 17:12:37,448 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 17:12:37,448 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 17:12:37,448 [INFO] discord.client — logging in using static token
+2026-05-09 17:12:38,024 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 33892aaf714ef000d534b6d18bd577fa).
+2026-05-09 17:12:39,247 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-09 17:12:40,040 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-09 17:12:56,791 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 17:12:56,792 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 17:12:56,985 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 17:12:56,986 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 17:12:56,986 [INFO] discord.client — logging in using static token
+2026-05-09 17:12:58,573 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 120e29d0f5f85b3cbf23d07d8d78382f).
+2026-05-09 17:12:58,792 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-09 17:13:00,583 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-09 17:13:15,897 [INFO] discord_listener — Signal captured: BTO MARA 20C 05/22
