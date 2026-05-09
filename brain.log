@@ -226,3 +226,12 @@
 2026-05-09 16:14:01,798 [INFO] discord.client — logging in using static token
 2026-05-09 16:14:01,911 [ERROR] discord_listener — Discord error: Improper token has been passed.
 2026-05-09 16:14:03,613 [INFO] discord_listener — Discord listener thread started (channel=123456789012345678)
+2026-05-09 16:35:19,511 [WARNING] market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-09 16:35:19,512 [INFO] market_feed — yfinance fallback feed started (30s poll)
+2026-05-09 16:35:19,706 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-09 16:35:19,706 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-09 16:35:19,706 [INFO] discord.client — logging in using static token
+2026-05-09 16:35:20,431 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 7a015b32379348082f16cc776d08dfe1).
+2026-05-09 16:35:21,512 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-09 16:35:22,446 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-09 16:36:03,321 [INFO] discord_listener — Signal captured: BTO MARA 20C 05/22
