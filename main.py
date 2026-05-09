@@ -1,204 +1,172 @@
 """
-main.py  —  AI Brain Trading System · Launch Entry Point
-
-Sequence:
-  1. Open Webull web app in a real, stealthy Chromium session
-  2. Wait for YOU to log in manually (no credentials stored here)
-  3. Arm the Discord listener on your paid signal channel
-  4. Start the live market data feed (Polygon.io WebSocket)
-  5. Hand every incoming signal to the AI parser + trade engine
-
-Run:
-    python main.py              # paper trading (safe default)
-    python main.py --real       # real money — prompts for confirmation
+main.py — GilbertTrader: AI Brain Trading System (Final Version)
+Includes: 1. Risk Profiles, 2. AI Budgeting, 3. Custom Injection, 4. RSI Patching
 """
 
 import requests
 import logging
 import sys
-from rich.console import Console
-from rich.panel import Panel
 import argparse
 import os
 import io
-from rich.text import Text
-from webull_engine import WebullEngine #
-from trade_engine import TradeEngine   #
-from market_feed import MarketFeed     #
-from discord_listener import DiscordListener #
 import time
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
+# Core Engine Imports
+from webull_engine import WebullEngine
+from trade_engine import TradeEngine
+from market_feed import MarketFeed
+from discord_listener import DiscordListener
+import research_scanner
+
+# Windows Terminal UTF-8 Setup
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+console = Console()
 
-def ask_ai_for_verdict(signal_text):
-    # Use the Local IP address of your AI Computer
+# --- FEATURE 1 & 4: RISK PROFILES & RSI LOGIC ---
+def get_risk_profile():
+    """Interactive menu to choose the 'Strategy Brain' for the session."""
+    console.print("\n[bold yellow]🛡️  SELECT RISK PROFILE[/bold yellow]")
+    table = Table(show_header=True, header_style="bold magenta")
+    table.add_column("Option", style="dim")
+    table.add_column("Profile")
+    table.add_column("Target (TP)")
+    table.add_column("Stop (SL)")
+    table.add_column("RSI Trigger")
+    table.add_column("Max Trade")
+
+    table.add_row("1", "Safe", "+15%", "-10%", "< 25", "$150")
+    table.add_row("2", "Normal", "+30%", "-20%", "< 30", "$300")
+    table.add_row("3", "Risky", "+100%", "-40%", "< 35", "$500")
+    table.add_row("4", "CUSTOM", "???", "???", "???", "???")
+
+    console.print(table)
+    choice = input("\nChoose Profile (1/2/3/4): ").strip()
+
+    # --- FEATURE 3: CUSTOM PARAMETER INJECTION ---
+    if choice == "4":
+        console.print("\n[bold cyan]🛠️  CUSTOM STRATEGY CONFIGURATION[/bold cyan]")
+        tp = float(input("Enter Profit Target % (e.g. 20): "))
+        sl = float(input("Enter Stop Loss % (e.g. 15): "))
+        rsi = int(input("Enter RSI Trigger Level (0-100): "))
+        budget = int(input("Enter Max Trade Budget $: "))
+        return {"name": "CUSTOM", "tp": tp, "sl": sl, "rsi": rsi, "budget": budget}
+    elif choice == "1":
+        return {"name": "SAFE", "tp": 15.0, "sl": 10.0, "rsi": 25, "budget": 150}
+    elif choice == "3":
+        return {"name": "RISKY", "tp": 100.0, "sl": 40.0, "rsi": 35, "budget": 500}
+    else:
+        return {"name": "NORMAL", "tp": 30.0, "sl": 20.0, "rsi": 30, "budget": 300}
+
+# --- FEATURE 2: AI BUDGET GUARDRAILS ---
+def ask_ai_for_verdict(signal_text, budget):
+    """Signals verified by AI PC based on the current profile's budget."""
     AI_PC_URL = "http://192.168.0.15:5000/ask"
     API_KEY = "sk-7d643db8"
 
     payload = {
         "question": (
-            f"Clean this Discord message: '{signal_text}'. "
-            "Remove all emojis, 'everyone' tags, and filler words. "
-            "Reformat it into this EXACT structure: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'. "
-            "Example: 'BTO LULU 330C 5/8'. "
-            "Also, ensure the trade fits our 30% daily budget rule. "
-            "If it's garbage text, just reply 'Rejected'. "
-            "Otherwise, reply with the cleaned BTO string."
+            f"Senior Risk Manager Role. INPUT: '{signal_text}'\n"
+            f"1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'\n"
+            f"2. BUDGET LIMIT: Max ${budget} for this trade.\n"
+            "3. REJECT if strike is >20% away or doesn't fit budget.\n"
+            "OUTPUT: ONLY the cleaned BTO string or 'Rejected' + reason."
         )
     }
     headers = {"Authorization": f"Bearer {API_KEY}"}
-
     try:
         response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=60)
-        data = response.json()
-        return data.get("answer", "")
-    except Exception as e:
-        print(f"AI Computer unreachable: {e}")
-        return "Rejected: Connection Error"
-
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s  %(levelname)-8s  %(name)s — %(message)s",
-    handlers=[
-        logging.FileHandler("brain.log"),
-        logging.StreamHandler(sys.stdout),
-    ]
-)
-log = logging.getLogger("main")
-console = Console()
-
-
-def parse_args():
-    p = argparse.ArgumentParser(description="AI Brain Trading System")
-    p.add_argument("--real", action="store_true",
-                   help="⚠️  Trade with real money. Paper mode is the default.")
-    p.add_argument("--profit-target", type=float, default=15.0,
-                   help="Auto-sell profit target %% (default: 15)")
-    p.add_argument("--stop-loss", type=float, default=20.0,
-                   help="Auto-sell stop-loss %% (default: 20)")
-    p.add_argument("--discord-channel", type=int,
-                   default=int(os.getenv("DISCORD_CHANNEL_ID", "0")),
-                   help="Discord channel ID to listen on")
-    p.add_argument("--discord-token", type=str,
-                   default=os.getenv("DISCORD_TOKEN", ""),
-                   help="Discord bot/user token (or set DISCORD_TOKEN env var)")
-    p.add_argument("--polygon-key", type=str,
-                   default=os.getenv("POLYGON_API_KEY", ""),
-                   help="Polygon.io API key for live market data")
-    return p.parse_args()
-
-
-def confirm_real_money() -> bool:
-    console.print("\n[bold red]⚠️  REAL MONEY MODE[/bold red]")
-    console.print("This will place ACTUAL options orders with your Webull account.")
-    console.print("Type [bold]CONFIRM REAL MONEY[/bold] to proceed, or anything else to exit.\n")
-    answer = input("→ ").strip()
-    return answer == "CONFIRM REAL MONEY"
-
+        return response.json().get("answer", "").strip()
+    except Exception:
+        return "Rejected: AI PC Offline"
 
 def main():
-    args = parse_args()
-    paper = not args.real
+    profile = get_risk_profile()
 
-    # ── Pre-flight checks ─────────────────────────────────────────────────────
-    if not paper and not confirm_real_money():
-        console.print("[yellow]Aborted. Running in paper mode instead.[/yellow]")
-        paper = True
-
-    if not args.discord_token:
-        console.print("[red]ERROR: Discord token missing.[/red]\n"
-                      "Set DISCORD_TOKEN env var or pass --discord-token")
-        sys.exit(1)
-
-    if not args.discord_channel:
-        console.print("[red]ERROR: Discord channel ID missing.[/red]\n"
-                      "Set DISCORD_CHANNEL_ID env var or pass --discord-channel")
-        sys.exit(1)
-
-    # ── Banner ────────────────────────────────────────────────────────────────
+    # Visual Confirmation Panel
     console.print(Panel(
         Text.assemble(
-            ("AI BRAIN TRADING SYSTEM\n", "bold white"),
-            (f"Mode: {'📄 PAPER' if paper else '💵 REAL MONEY'}\n", "bold yellow" if not paper else "bold cyan"),
-            (f"Profit target: +{args.profit_target}%  |  Stop-loss: -{args.stop_loss}%\n", "dim"),
-            (f"Discord channel: {args.discord_channel}", "dim"),
+            ("GILBERT TRADER SYSTEM ARMED\n", "bold white"),
+            (f"Active Strategy: {profile['name']}\n", "bold green"),
+            (f"Parameters: TP {profile['tp']}% | SL {profile['sl']}% | RSI <{profile['rsi']} | Budget ${profile['budget']}", "dim"),
         ),
-        border_style="bright_blue",
-        padding=(1, 4),
+        border_style="bright_blue", padding=(1, 4),
     ))
 
-    # ── Step 1: Launch Webull ─────────────────────────────────────────────────
-    console.print("\n[bold cyan]Step 1/4[/bold cyan]  Launching Webull in Chromium...")
-    webull = WebullEngine(paper=paper)
-    webull.open_browser()   # opens browser, goes to Webull, then WAITS for you
+    # --- Engine Initialization ---
+    webull = WebullEngine(paper=True)
+    webull.open_browser()
 
-    # ── Step 2: Market data feed ──────────────────────────────────────────────
-    console.print("\n[bold cyan]Step 2/4[/bold cyan]  Connecting to live market data...")
-    market = MarketFeed(api_key=args.polygon_key)
+    market = MarketFeed()
     market.start()
-    time.sleep(2)
-    console.print(f"  [green]✓[/green] Market feed {'connected' if market.connected else 'using fallback scrape'}")
 
-    # ... Step 3 was here ...
     engine = TradeEngine(
-        webull            = webull,
-        market            = market,
-        paper             = paper,
-        profit_target_pct = args.profit_target,
-        stop_loss_pct     = args.stop_loss,
+        webull=webull, market=market, paper=True,
+        profit_target_pct=profile['tp'], stop_loss_pct=profile['sl']
     )
 
-    # ── Step 4: Discord listener ──────────────────────────────────────────────
-    console.print("\n[bold cyan]Step 4/4[/bold cyan]  Connecting Discord listener...")
-
-    # Define the helper right before creating the listener
-    def capture_signal(raw_text):
-        listener._latest_raw_message = raw_text
+    console.print("\n1. Discord | 2. Research | 3. Hybrid")
+    mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
     listener = DiscordListener(
-        channel_id = args.discord_channel,
-        token      = args.discord_token,
-        on_signal  = capture_signal,
+        channel_id=int(os.getenv("DISCORD_CHANNEL_ID", "0")),
+        token=os.getenv("DISCORD_TOKEN", ""),
+        on_signal=lambda x: None
     )
     listener.start_in_thread()
 
-    # ── Live ──────────────────────────────────────────────────────────────────
-    console.print("\n[bold green]✅  System ARMED.[/bold green]  Waiting for signals...\n")
-    # ... the while loop follows ...
+    last_research_time = 0
+    trade_cooldowns = {}
 
     try:
         while True:
-            # 1. Get the raw text from Discord
-            raw_text = listener.get_latest_signal()
+            raw_text = None
 
+            # --- Active Research Scanner ---
+            if mode_choice in ["2", "3"]:
+                if time.time() - last_research_time > 300: # 5 min scan
+                    console.print(f"[dim]🔎 Scanning Small-Caps (RSI Threshold: {profile['rsi']})...[/dim]")
+                    found = research_scanner.scan_markets(rsi_threshold=profile['rsi'])
+                    if found:
+                        raw_text = found[0]
+                    last_research_time = time.time()
+
+            # --- Passive Discord Listener ---
+            if not raw_text and mode_choice in ["1", "3"]:
+                raw_text = listener.get_latest_signal()
+
+            # --- Process and Execute ---
             if raw_text:
-                console.print(f"🔍 [cyan]New Message:[/cyan] {raw_text[:50]}...")
+                parts = raw_text.split()
+                ticker = parts[1].upper() if len(parts) > 1 else "UNK"
 
-                # 2. Ask the AI computer to clean the mess and check the 30% budget
-                # This turns "5/8 $LULU 139c @.18 🎯" into "BTO LULU 139C 5/8"
-                cleaned_signal = ask_ai_for_verdict(raw_text)
-
-                if "Rejected" not in cleaned_signal and len(cleaned_signal) > 3:
-                    console.print(f"🤖 [green]AI Cleaned:[/green] {cleaned_signal}")
-                    # 3. Feed the PERFECT text to the engine
-                    engine.on_raw_signal(cleaned_signal)
+                # Check 30-minute ticker cooldown
+                if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
+                    pass
                 else:
-                    console.print("[yellow]🤖 AI ignored the noise or budget limit hit.[/yellow]")
+                    console.print(f"🔍 [cyan]Signal Captured:[/cyan] {raw_text[:50]}")
+                    # Send to AI with Profile-Specific Budget
+                    verdict = ask_ai_for_verdict(raw_text, profile['budget'])
 
-            time.sleep(1) # Check every second for new Discord messages
+                    if "BTO" in verdict:
+                        console.print(f"✅ [bold green]TRADE APPROVED:[/bold green] {verdict}")
+                        trade_cooldowns[ticker] = time.time()
+                        engine.on_raw_signal(verdict)
+                    else:
+                        console.print(f"❌ [bold red]RISK REJECTION:[/bold red] {verdict}")
 
-            # Optional: Print status every 30 seconds
+            time.sleep(1)
             if int(time.time()) % 30 == 0:
                 engine.print_status()
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Shutting down...[/yellow]")
-        listener.stop()
-        market.stop()
+        console.print("\n[yellow]Shutdown initiated...[/yellow]")
         webull.close()
-        console.print("[green]Clean exit.[/green]")
-
+        market.stop()
+        listener.stop()
 
 if __name__ == "__main__":
     main()

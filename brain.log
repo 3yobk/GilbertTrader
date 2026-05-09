@@ -98,3 +98,117 @@
 2026-05-08 19:40:22,645  INFO      discord_listener — Discord connected as GilbertTrader#0929
 2026-05-08 19:40:22,645  INFO      discord_listener — Listening to #general
 2026-05-08 19:42:49,924  INFO      discord_listener — Signal captured from eyobk_: BTO NVDA 110C 5/15 x1
+2026-05-08 19:47:10,350  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 19:47:10,843  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 19:47:12,589  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 19:47:12,589  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 19:47:12,589  INFO      discord.client — logging in using static token
+2026-05-08 19:47:13,497  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 8be1f3fb652e061d23f6364b6950bb3d).
+2026-05-08 19:47:14,353  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 19:47:15,506  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 19:47:15,507  INFO      discord_listener — Listening to #general
+2026-05-08 19:47:22,756  INFO      discord_listener — Signal captured from eyobk_: BTO NVDA 110C 5/15 x1
+2026-05-08 19:50:44,486  INFO      discord_listener — Signal captured from eyobk_: BTO NVDA 125C 5/22 x1
+2026-05-08 19:56:20,103  INFO      discord_listener — Signal captured from eyobk_: BTO NVDA 125C 5/22 x1
+2026-05-08 19:59:15,109  INFO      discord_listener — Signal captured from eyobk_: BTO NVDA 100C 6/19 x1
+2026-05-08 20:03:53,901  INFO      discord_listener — Signal captured from eyobk_: 5/8 $HD 340c @.13
+2026-05-08 20:09:19,255  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 20:09:19,858  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 20:09:21,506  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 20:09:21,506  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 20:09:21,506  INFO      discord.client — logging in using static token
+2026-05-08 20:09:22,871  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 3a55ad12e38205617366442fad734deb).
+2026-05-08 20:09:23,258  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 20:09:24,884  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 20:09:24,884  INFO      discord_listener — Listening to #general
+2026-05-08 20:09:53,531  INFO      discord_listener — Signal captured from eyobk_: 5/8 $HD 340c @.13
+2026-05-08 20:11:35,626  INFO      discord_listener — Signal captured from eyobk_: BTO HD 340C 5/15
+2026-05-08 20:36:44,556  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 20:36:45,048  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 20:36:46,740  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 20:36:46,741  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 20:36:46,741  INFO      discord.client — logging in using static token
+2026-05-08 20:36:47,420  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 0e7339fafd979e975376ef824aa16199).
+2026-05-08 20:36:48,560  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 20:36:49,428  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 20:36:49,428  INFO      discord_listener — Listening to #general
+2026-05-08 20:37:42,334  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 20:37:42,825  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 20:37:44,521  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 20:37:44,521  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 20:37:44,521  INFO      discord.client — logging in using static token
+2026-05-08 20:37:45,082  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: b4c3cec61f9ca8344b9e4c9f7039c556).
+2026-05-08 20:37:46,337  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 20:37:47,092  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 20:37:47,092  INFO      discord_listener — Listening to #general
+2026-05-08 20:40:28,324  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 20:40:28,848  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 20:40:40,732  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 20:40:40,732  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 20:40:40,732  INFO      discord.client — logging in using static token
+2026-05-08 20:40:41,533  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 01639b3f93c2419edc9e877378d9045e).
+2026-05-08 20:40:42,520  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 20:59:35,071  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 20:59:35,072  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 20:59:48,437  ERROR     discord_listener — discord.py not installed.  Run: pip install discord.py
+2026-05-08 20:59:50,437  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:00:43,533  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:00:43,534  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:00:54,210  ERROR     discord_listener — discord.py not installed.  Run: pip install discord.py
+2026-05-08 21:00:56,209  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:03:14,288  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:03:14,288  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:03:19,280  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 21:03:19,280  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 21:03:19,281  INFO      discord.client — logging in using static token
+2026-05-08 21:03:20,026  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 751fb1e95f7d3bf082061df7a865e05c).
+2026-05-08 21:03:20,837  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:03:22,027  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 21:03:22,028  INFO      discord_listener — Listening to #general
+2026-05-08 21:03:34,729  INFO      discord_listener — Signal captured from eyobk_: BTO HD 340C 5/15
+2026-05-08 21:04:06,180  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:04:06,181  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:04:10,933  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 21:04:10,934  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 21:04:10,934  INFO      discord.client — logging in using static token
+2026-05-08 21:04:11,838  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 6d39791dd26ddf1977e442865e48dae3).
+2026-05-08 21:04:12,756  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:04:13,855  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 21:04:13,856  INFO      discord_listener — Listening to #general
+2026-05-08 21:05:29,045  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:05:29,046  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:05:33,863  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 21:05:33,864  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 21:05:33,864  INFO      discord.client — logging in using static token
+2026-05-08 21:05:34,627  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 55a3baa79f66d9b040e20fd4fcabb38b).
+2026-05-08 21:05:35,680  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:05:36,641  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 21:05:36,641  INFO      discord_listener — Listening to #general
+2026-05-08 21:10:25,308  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:10:25,309  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:10:31,578  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 21:10:31,578  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 21:10:31,578  INFO      discord.client — logging in using static token
+2026-05-08 21:10:32,263  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: ef3d70c7bae2b2f3c9999c22e2548cb1).
+2026-05-08 21:10:33,396  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:10:34,268  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 21:10:34,268  INFO      discord_listener — Listening to #general
+2026-05-08 21:11:28,632  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:11:28,632  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:11:33,421  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 21:11:33,421  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 21:11:33,422  INFO      discord.client — logging in using static token
+2026-05-08 21:11:34,025  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 2a4f1c48b698a6fe0427a45bf3b79300).
+2026-05-08 21:11:35,238  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:11:36,029  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 21:11:36,029  INFO      discord_listener — Listening to #general
+2026-05-08 21:11:46,643  INFO      discord_listener — Signal captured from eyobk_: BTO HD 340C 5/15
+2026-05-08 21:31:43,810  WARNING   market_feed — No Polygon API key — using yfinance fallback (delayed)
+2026-05-08 21:31:43,810  INFO      market_feed — yfinance fallback feed started (30s poll)
+2026-05-08 21:31:48,874  WARNING   discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-08 21:31:48,874  WARNING   discord.client — davey is not installed, voice will NOT be supported
+2026-05-08 21:31:48,875  INFO      discord.client — logging in using static token
+2026-05-08 21:31:49,468  INFO      discord.gateway — Shard ID None has connected to Gateway (Session ID: 11a2b88317607a5818a8d6f48aae58de).
+2026-05-08 21:31:50,691  INFO      discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-08 21:31:51,485  INFO      discord_listener — Discord connected as GilbertTrader#0929
+2026-05-08 21:31:51,485  INFO      discord_listener — Listening to #general

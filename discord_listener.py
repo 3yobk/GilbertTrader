@@ -1,16 +1,5 @@
 """
-discord_listener.py  —  Paid Signal Channel Lurker
-
-Connects to Discord as a bot (recommended) or user token,
-listens to ONE specific channel, and fires on_signal(raw_text)
-for every message that looks like a trade signal.
-
-Discord setup (recommended — bot token, not user token):
-  1. Go to https://discord.com/developers/applications
-  2. Create an app → Bot → copy the token
-  3. Under OAuth2 → URL Generator: scopes=bot, permissions=Read Messages
-  4. Paste the invite URL in your browser to add the bot to the server
-  5. The signal channel owner must give the bot Read Messages permission
+discord_listener.py — Fixed Signal Bridge
 """
 
 import re
@@ -22,17 +11,12 @@ from typing import Callable, Optional
 
 log = logging.getLogger("discord_listener")
 
-# Patterns that suggest a message is a trade signal, not chat noise
 SIGNAL_PATTERNS = [
-    r"\b(BTO|STC|BTC|STO)\b",           # options action verbs
-    r"\b[A-Z]{2,5}\s+\d+[CP]\b",        # e.g. "NVDA 110C"
-    r"\b\d+[CP]\s+\d+/\d+\b",           # e.g. "110C 5/15"
-    r"\b(CALL|PUT)\b",
-    r"\b(SELL|BUY)\s+TO\s+(OPEN|CLOSE)\b",
-    r"\bx\d+\b",                          # quantity e.g. "x3"
+    r"\b(BTO|STC|BTC|STO)\b", # Action
+    r"\b[A-Z]{2,5}\s+\d+[CP]\b", # Ticker + Strike
+    r"\b\d+[CP]\s+\d+/\d+\b", # Strike + Expiry
 ]
 _SIGNAL_RE = re.compile("|".join(SIGNAL_PATTERNS), re.IGNORECASE)
-
 
 class DiscordListener:
     def __init__(self, channel_id: int, token: str, on_signal: Callable[[str], None]):
@@ -42,24 +26,22 @@ class DiscordListener:
         self._client    = None
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
-        # --- ADD THIS LINE ---
-        self._latest_raw_message = None #
+        self._latest_raw_message = None
 
-    # --- ADD THIS FUNCTION ---
-    def get_latest_signal(self): #
+    def get_latest_signal(self):
+        """Returns the message and wipes the buffer to prevent double-processing."""
         msg = self._latest_raw_message
-        self._latest_raw_message = None # Clear it so we don't double-process
+        self._latest_raw_message = None
         return msg
 
     def start_in_thread(self):
-        """Start the Discord event loop in a background daemon thread."""
         self._thread = threading.Thread(
             target=self._run_loop,
             daemon=True,
             name="DiscordListener",
         )
         self._thread.start()
-        time.sleep(2)   # give the event loop a moment to connect
+        time.sleep(2)
         log.info("Discord listener thread started (channel=%d)", self.channel_id)
 
     def stop(self):
@@ -67,11 +49,10 @@ class DiscordListener:
             asyncio.run_coroutine_threadsafe(self._client.close(), self._loop)
 
     def _run_loop(self):
-        """Entry point for the daemon thread — owns its own event loop."""
         try:
             import discord
         except ImportError:
-            log.error("discord.py not installed.  Run: pip install discord.py")
+            log.error("discord.py not installed.")
             return
 
         self._loop = asyncio.new_event_loop()
@@ -79,9 +60,11 @@ class DiscordListener:
 
         intents = discord.Intents.default()
         intents.message_content = True
+
+        # We pass 'self' into the client so the client can update this class directly
         self._client = _SignalClient(
             channel_id = self.channel_id,
-            on_signal  = self.on_signal,
+            parent     = self, # Pass the DiscordListener instance
             intents    = intents,
         )
 
@@ -92,19 +75,14 @@ class DiscordListener:
         finally:
             self._loop.close()
 
-
 class _SignalClient:
-    """Internal discord.Client subclass."""
-
-    def __new__(cls, channel_id, on_signal, intents):
-        # Import here so the module loads even without discord installed
+    def __new__(cls, channel_id, parent, intents):
         import discord
-        # Dynamically create the class that inherits from discord.Client
         class _Inner(discord.Client):
             def __init__(self_inner):
                 super().__init__(intents=intents)
                 self_inner.target_channel_id = channel_id
-                self_inner._on_signal        = on_signal
+                self_inner.parent = parent # Store reference to the Listener class
 
             async def on_ready(self_inner):
                 log.info("Discord connected as %s", self_inner.user)
@@ -112,8 +90,7 @@ class _SignalClient:
                 if channel:
                     log.info("Listening to #%s", channel.name)
                 else:
-                    log.warning("Channel %d not found — check ID and bot permissions",
-                                self_inner.target_channel_id)
+                    log.warning("Channel %d not found!", self_inner.target_channel_id)
 
             async def on_message(self_inner, message):
                 if message.author == self_inner.user:
@@ -125,13 +102,13 @@ class _SignalClient:
                 if not raw:
                     return
 
+                # --- THE CRITICAL FIX ---
                 if _SIGNAL_RE.search(raw):
-                    log.info("Signal captured from %s: %s", message.author.name, raw[:100])
-                    # This triggers the 'on_signal' function we passed in main.py,
-                    # which will save the message into self._latest_raw_message
-                    self_inner._on_signal(raw)
-                else:
-                    log.debug("Ignored non-signal message: %s", raw[:60])
+                    log.info("Signal captured: %s", raw[:50])
+                    # Update the variable that main.py is actually checking!
+                    self_inner.parent._latest_raw_message = raw
+                    # Also trigger the callback if main.py used one
+                    if self_inner.parent.on_signal:
+                        self_inner.parent.on_signal(raw)
 
-        instance = _Inner()
-        return instance
+        return _Inner()
