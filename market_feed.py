@@ -1,23 +1,36 @@
 """
-market_feed.py  —  Live Market Data Feed
+market_feed.py  —  Live Market Data Feed (Tradier Edition)
+===========================================================
 
-Primary:  Polygon.io WebSocket (free tier = 15-min delayed; paid = real-time)
-Fallback: yfinance scrape (delayed, no WebSocket, but zero cost)
+PRIMARY:   Tradier WebSocket — FREE with brokerage account, TRUE real-time
+FALLBACK:  yfinance poll — used automatically when TRADIER_TOKEN is not set
 
-Provides:
-  market.get_quote(ticker)          → {bid, ask, last, volume, timestamp}
-  market.get_option_greeks(...)     → {iv, delta, theta, gamma} via Polygon REST
-  market.is_market_open()          → bool
-  market.subscribe(ticker, cb)      → register a callback for live ticks
+TO ENABLE TRADIER (one-time setup):
+  1. Free account at https://brokerage.tradier.com
+  2. Token at https://dash.tradier.com/settings/api
+  3. Add to your .env:
+       TRADIER_TOKEN=your_token_here
+       TRADIER_SANDBOX=false
+
+Drop-in replacement — same public API as the original Polygon version:
+  market.start()
+  market.stop()
+  market.get_quote(ticker)               → {bid, ask, last, volume, timestamp}
+  market.get_option_greeks(ticker, ...)  → {iv, delta, theta, gamma}
+  market.is_market_open()               → bool
+  market.subscribe(ticker, cb)           → callback on every live tick
+  market.subscribe_option(occ_sym, cb)   → callback on every option tick
 """
 
 import threading
 import logging
 import time
 import json
+import os
+import requests as _requests
 from datetime import datetime, time as dtime
+from typing import Optional, Dict, Callable, List
 import pytz
-from typing import Optional, Dict, Callable, Any
 
 log = logging.getLogger("market_feed")
 
@@ -25,29 +38,46 @@ MARKET_OPEN  = dtime(9, 30)
 MARKET_CLOSE = dtime(16, 0)
 ET           = pytz.timezone("America/New_York")
 
+_TRADIER_REST_LIVE    = "https://api.tradier.com/v1"
+_TRADIER_REST_SANDBOX = "https://sandbox.tradier.com/v1"
+_TRADIER_STREAM_URL   = "wss://stream.tradier.com/v1/markets/events"
+
 
 class MarketFeed:
-    def __init__(self, api_key: str = ""):
-        self.api_key   = api_key
-        self.connected = False
-        self._quotes: Dict[str, dict]   = {}   # ticker → latest quote
-        self._callbacks: Dict[str, list] = {}  # ticker → [callback, ...]
-        self._ws       = None
-        self._thread: Optional[threading.Thread] = None
-        self._stop     = threading.Event()
 
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
+    def __init__(self, api_key: str = ""):
+        self._token   = os.getenv("TRADIER_TOKEN", api_key or "").strip()
+        self._sandbox = os.getenv("TRADIER_SANDBOX", "false").lower() == "true"
+        self._rest    = _TRADIER_REST_SANDBOX if self._sandbox else _TRADIER_REST_LIVE
+
+        self.connected   = False
+        self._quotes:    Dict[str, dict] = {}
+        self._callbacks: Dict[str, List] = {}
+        self._ws         = None
+        self._session_id = None
+        self._thread:    Optional[threading.Thread] = None
+        self._stop       = threading.Event()
+        self._subscribed: List[str] = []
+
+        if not self._token:
+            log.warning(
+                "TRADIER_TOKEN not set — running on yfinance fallback (delayed data). "
+                "Add TRADIER_TOKEN to .env for live WebSocket feed. "
+                "Free token: https://dash.tradier.com/settings/api"
+            )
+
+    # ── Lifecycle ──────────────────────────────────────────────────────────────
 
     def start(self):
-        if self.api_key:
+        if self._token:
             self._thread = threading.Thread(
-                target=self._polygon_connect, daemon=True, name="MarketFeed")
-            self._thread.start()
+                target=self._tradier_connect_loop,
+                daemon=True, name="MarketFeed-Tradier")
         else:
-            log.warning("No Polygon API key — using yfinance fallback (delayed)")
             self._thread = threading.Thread(
-                target=self._yfinance_poll_loop, daemon=True, name="MarketFeed-yf")
-            self._thread.start()
+                target=self._yfinance_poll_loop,
+                daemon=True, name="MarketFeed-yf")
+        self._thread.start()
 
     def stop(self):
         self._stop.set()
@@ -55,215 +85,300 @@ class MarketFeed:
             try: self._ws.close()
             except: pass
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ── Public API ─────────────────────────────────────────────────────────────
 
     def get_quote(self, ticker: str) -> Optional[dict]:
-        """Return the latest cached quote, or fetch immediately if not cached."""
         ticker = ticker.upper()
         if ticker in self._quotes:
             return self._quotes[ticker]
-        # On-demand fetch via REST
-        return self._fetch_rest(ticker)
+        return self._tradier_rest_quote(ticker) if self._token else self._yf_quote(ticker)
 
     def get_option_greeks(self, ticker: str, expiry: str,
-                           strike: float, option_type: str) -> Optional[dict]:
-        """Fetch option greeks from Polygon REST API."""
-        if not self.api_key:
+                          strike: float, option_type: str) -> Optional[dict]:
+        if not self._token:
             return None
         try:
-            import requests
-            # Polygon option ticker format: O:NVDA250515C00110000
-            dt  = datetime.strptime(expiry, "%Y-%m-%d")
-            exp = dt.strftime("%y%m%d")
-            cp  = "C" if option_type.upper() == "C" else "P"
-            k   = int(strike * 1000)
-            sym = f"O:{ticker}{exp}{cp}{k:08d}"
-            url = f"https://api.polygon.io/v3/snapshot/options/{ticker}/{sym}"
-            r   = requests.get(url, params={"apiKey": self.api_key}, timeout=5)
-            if r.ok:
-                d = r.json().get("results", {})
-                g = d.get("greeks", {})
-                return {
-                    "iv":    d.get("implied_volatility"),
-                    "delta": g.get("delta"),
-                    "theta": g.get("theta"),
-                    "gamma": g.get("gamma"),
-                    "bid":   d.get("day", {}).get("close"),
-                }
+            r = _requests.get(
+                f"{self._rest}/markets/options/chains",
+                headers=self._headers(),
+                params={"symbol": ticker, "expiration": expiry, "greeks": "true"},
+                timeout=5,
+            )
+            r.raise_for_status()
+            chain = r.json().get("options", {}).get("option", [])
+            if isinstance(chain, dict):
+                chain = [chain]
+            for opt in chain:
+                if (abs(float(opt.get("strike", 0)) - strike) < 0.01 and
+                        opt.get("option_type", "").upper()[0] == option_type.upper()[0]):
+                    g = opt.get("greeks") or {}
+                    return {
+                        "iv":    opt.get("implied_volatility"),
+                        "delta": g.get("delta"),
+                        "theta": g.get("theta"),
+                        "gamma": g.get("gamma"),
+                        "bid":   opt.get("bid"),
+                        "ask":   opt.get("ask"),
+                        "last":  opt.get("last"),
+                    }
         except Exception as exc:
             log.debug("get_option_greeks error: %s", exc)
         return None
 
     def subscribe(self, ticker: str, callback: Callable[[dict], None]):
-        """Register a callback to be fired on every new tick for this ticker."""
         ticker = ticker.upper()
         self._callbacks.setdefault(ticker, []).append(callback)
-        log.info("Subscribed to live ticks: %s", ticker)
-        if self.api_key and self._ws:
-            self._polygon_subscribe(ticker)
+        log.info("Subscribed equity: %s", ticker)
+        self._ws_subscribe([ticker])
+
+    def subscribe_option(self, occ_symbol: str, callback: Callable[[dict], None]):
+        sym = occ_symbol.upper()
+        self._callbacks.setdefault(sym, []).append(callback)
+        log.info("Subscribed option: %s", sym)
+        self._ws_subscribe([sym])
 
     def is_market_open(self) -> bool:
         now = datetime.now(ET).time()
         return MARKET_OPEN <= now <= MARKET_CLOSE and datetime.now(ET).weekday() < 5
 
     def minutes_to_open(self) -> int:
-        """Return minutes until next market open (0 if already open)."""
         if self.is_market_open():
             return 0
+        from datetime import timedelta
         now = datetime.now(ET)
-        # Simple: calculate to today's open (doesn't handle weekends perfectly)
         open_today = now.replace(hour=9, minute=30, second=0, microsecond=0)
         if now > open_today:
-            # Already past open today — skip to tomorrow
-            from datetime import timedelta
             open_today += timedelta(days=1)
-        delta = open_today - now
-        return max(0, int(delta.total_seconds() / 60))
+        return max(0, int((open_today - now).total_seconds() / 60))
 
-    # ── Polygon WebSocket ─────────────────────────────────────────────────────
+    # ── Tradier REST ───────────────────────────────────────────────────────────
 
-    def _polygon_connect(self):
+    def _headers(self) -> dict:
+        return {"Authorization": f"Bearer {self._token}", "Accept": "application/json"}
+
+    def _tradier_rest_quote(self, ticker: str) -> Optional[dict]:
         try:
-            import websocket   # pip install websocket-client
+            r = _requests.get(
+                f"{self._rest}/markets/quotes",
+                headers=self._headers(),
+                params={"symbols": ticker, "greeks": "false"},
+                timeout=5,
+            )
+            r.raise_for_status()
+            raw = r.json().get("quotes", {}).get("quote", {})
+            if isinstance(raw, list):
+                raw = raw[0]
+            q = {
+                "ticker":    ticker,
+                "bid":       raw.get("bid"),
+                "ask":       raw.get("ask"),
+                "last":      raw.get("last"),
+                "volume":    raw.get("volume"),
+                "timestamp": time.time(),
+            }
+            self._quotes[ticker] = q
+            return q
+        except Exception as exc:
+            log.debug("Tradier REST quote error: %s", exc)
+            return self._yf_quote(ticker)
+
+    def _create_stream_session(self) -> Optional[str]:
+        """Create a Tradier streaming session. Returns None cleanly on failure."""
+        try:
+            r = _requests.post(
+                "https://stream.tradier.com/v1/markets/events/session",
+                headers=self._headers(),
+                timeout=10,
+            )
+            r.raise_for_status()
+            sid = r.json()["stream"]["sessionid"]
+            log.info("Tradier stream session: %s...", sid[:12])
+            return sid
+        except _requests.exceptions.HTTPError as exc:
+            status = exc.response.status_code if exc.response is not None else "?"
+            if status == 500:
+                log.error(
+                    "Tradier session 500 — token is invalid or missing. "
+                    "Check TRADIER_TOKEN in your .env. "
+                    "Falling back to yfinance until token is fixed."
+                )
+            else:
+                log.error("Tradier session HTTP %s: %s", status, exc)
+        except Exception as exc:
+            log.error("Tradier session error: %s", exc)
+        return None
+
+    # ── Tradier WebSocket ──────────────────────────────────────────────────────
+
+    def _tradier_connect_loop(self):
+        try:
+            import websocket as ws_lib
         except ImportError:
-            log.warning("websocket-client not installed. Falling back to yfinance.")
+            log.error("websocket-client not installed — run: pip install websocket-client")
             self._yfinance_poll_loop()
             return
 
-        url = "wss://socket.polygon.io/stocks"
+        # Try to get a session. If we get 3 consecutive failures, drop to yfinance.
+        fail_count = 0
+        MAX_FAILS  = 3
 
-        def on_open(ws):
-            log.info("Polygon WebSocket connected")
-            ws.send(json.dumps({"action": "auth", "params": self.api_key}))
-
-        def on_message(ws, message):
-            try:
-                events = json.loads(message)
-                for ev in events:
-                    ev_type = ev.get("ev")
-                    if ev_type == "status":
-                        if ev.get("status") == "auth_success":
-                            log.info("Polygon auth success")
-                            self.connected = True
-                    elif ev_type in ("Q", "T"):   # Quote or Trade tick
-                        ticker = ev.get("sym", "")
-                        quote  = {
-                            "ticker":    ticker,
-                            "bid":       ev.get("bp", ev.get("p")),
-                            "ask":       ev.get("ap", ev.get("p")),
-                            "last":      ev.get("p", ev.get("bp")),
-                            "volume":    ev.get("s", 0),
-                            "timestamp": ev.get("t", 0),
-                        }
-                        self._quotes[ticker] = quote
-                        for cb in self._callbacks.get(ticker, []):
-                            try: cb(quote)
-                            except Exception as e: log.debug("Tick callback error: %s", e)
-            except Exception as exc:
-                log.debug("Polygon message error: %s", exc)
-
-        def on_error(ws, error):
-            log.error("Polygon WS error: %s", error)
-            self.connected = False
-
-        def on_close(ws, *args):
-            log.warning("Polygon WS closed — reconnecting in 5s...")
-            self.connected = False
-
-        import websocket as ws_lib
         while not self._stop.is_set():
+            self._session_id = self._create_stream_session()
+
+            if not self._session_id:
+                fail_count += 1
+                if fail_count >= MAX_FAILS:
+                    log.warning(
+                        "Tradier session failed %d times — switching to yfinance fallback. "
+                        "Bot will keep running with delayed data. "
+                        "Fix TRADIER_TOKEN in .env and restart to get live feed.",
+                        MAX_FAILS
+                    )
+                    self._yfinance_poll_loop()
+                    return
+                wait = 10 * fail_count   # back off: 10s, 20s, 30s
+                log.warning("Tradier session failed (%d/%d) — retrying in %ds",
+                            fail_count, MAX_FAILS, wait)
+                self._stop.wait(wait)
+                continue
+
+            fail_count = 0   # reset on success
+
+            def on_open(ws):
+                log.info("Tradier WebSocket connected")
+                self.connected = True
+                syms = list(self._callbacks.keys())
+                if syms:
+                    self._ws_send_subscribe(ws, syms)
+
+            def on_message(ws, raw):
+                try:
+                    self._dispatch_tick(json.loads(raw))
+                except Exception:
+                    pass
+
+            def on_error(ws, error):
+                log.error("Tradier WS error: %s", error)
+                self.connected = False
+
+            def on_close(ws, code, msg):
+                log.warning("Tradier WS closed — reconnecting...")
+                self.connected = False
+
             try:
                 self._ws = ws_lib.WebSocketApp(
-                    url,
+                    _TRADIER_STREAM_URL,
+                    header=[f"Authorization: Bearer {self._token}"],
                     on_open=on_open,
                     on_message=on_message,
                     on_error=on_error,
                     on_close=on_close,
                 )
-                self._ws.run_forever(ping_interval=30)
+                self._ws.run_forever(ping_interval=25, ping_timeout=10)
             except Exception as exc:
-                log.error("Polygon connect error: %s", exc)
+                log.error("Tradier WS connect error: %s", exc)
+                self.connected = False
+
             if not self._stop.is_set():
-                time.sleep(5)
+                self._stop.wait(5)
 
-    def _polygon_subscribe(self, ticker: str):
-        """Send subscribe message for a ticker after auth."""
-        if self._ws:
-            try:
-                self._ws.send(json.dumps({
-                    "action": "subscribe",
-                    "params": f"Q.{ticker},T.{ticker}"
-                }))
-                log.info("Polygon subscribed: %s", ticker)
-            except Exception as exc:
-                log.debug("Subscribe error: %s", exc)
+    def _ws_send_subscribe(self, ws, symbols: List[str]):
+        if not self._session_id:
+            return
+        try:
+            ws.send(json.dumps({
+                "symbols":   symbols,
+                "sessionid": self._session_id,
+                "linebreak": True,
+                "filter":    ["quote", "trade", "summary"],
+            }))
+            log.info("Tradier subscribed: %s", symbols)
+        except Exception as exc:
+            log.debug("Subscribe error: %s", exc)
 
-    # ── yfinance fallback ─────────────────────────────────────────────────────
+    def _ws_subscribe(self, symbols: List[str]):
+        new = [s for s in symbols if s not in self._subscribed]
+        if not new:
+            return
+        self._subscribed.extend(new)
+        if self._ws and self.connected:
+            self._ws_send_subscribe(self._ws, new)
+
+    def _dispatch_tick(self, tick: dict):
+        t_type = tick.get("type")
+        symbol = tick.get("symbol", "").upper()
+
+        if t_type == "quote":
+            bid = float(tick.get("bid") or 0)
+            ask = float(tick.get("ask") or 0)
+            quote = {
+                "ticker":    symbol,
+                "bid":       bid,
+                "ask":       ask,
+                "last":      round((bid + ask) / 2, 4) if bid and ask else bid or ask,
+                "spread":    round(ask - bid, 4),
+                "volume":    tick.get("bidsize"),
+                "timestamp": tick.get("timestamp", time.time() * 1000) / 1000,
+                "raw":       tick,
+            }
+            self._quotes[symbol] = quote
+            for cb in self._callbacks.get(symbol, []):
+                try:    cb(quote)
+                except Exception as e: log.debug("Callback error: %s", e)
+
+        elif t_type == "trade":
+            price = float(tick.get("price") or 0)
+            trade = {
+                "ticker":    symbol,
+                "bid":       price,
+                "ask":       price,
+                "last":      price,
+                "volume":    tick.get("size"),
+                "cumvol":    tick.get("cvol"),
+                "timestamp": tick.get("timestamp", time.time() * 1000) / 1000,
+                "raw":       tick,
+            }
+            self._quotes.setdefault(symbol, trade)
+            for cb in self._callbacks.get(symbol, []):
+                try:    cb(trade)
+                except Exception as e: log.debug("Callback error: %s", e)
+
+    # ── yfinance fallback ──────────────────────────────────────────────────────
 
     def _yfinance_poll_loop(self):
-        """Poll yfinance every 30 seconds for all subscribed tickers."""
         try:
             import yfinance as yf
         except ImportError:
-            log.error("yfinance not installed. Run: pip install yfinance")
+            log.error("yfinance not installed — run: pip install yfinance")
             return
 
         self.connected = True
-        log.info("yfinance fallback feed started (30s poll)")
+        log.info("yfinance fallback feed active (30s poll, delayed data)")
         while not self._stop.is_set():
-            tickers = list(self._callbacks.keys()) + list(self._quotes.keys())
-            for ticker in set(tickers):
-                try:
-                    data = yf.Ticker(ticker).fast_info
-                    quote = {
-                        "ticker": ticker,
-                        "bid":    getattr(data, "bid",  None) or getattr(data, "last_price", None),
-                        "ask":    getattr(data, "ask",  None) or getattr(data, "last_price", None),
-                        "last":   getattr(data, "last_price", None),
-                        "volume": getattr(data, "three_month_average_volume", None),
-                        "timestamp": time.time(),
-                    }
-                    self._quotes[ticker] = quote
+            equity = [t for t in set(list(self._callbacks) + list(self._quotes))
+                      if len(t) <= 5 and t.isalpha()]
+            for ticker in equity:
+                q = self._yf_quote(ticker)
+                if q:
                     for cb in self._callbacks.get(ticker, []):
-                        try: cb(quote)
-                        except Exception as e: log.debug("Tick callback error: %s", e)
-                except Exception as exc:
-                    log.debug("yfinance fetch error for %s: %s", ticker, exc)
-            time.sleep(30)
+                        try:    cb(q)
+                        except Exception as e: log.debug("Callback error: %s", e)
+            self._stop.wait(30)
 
-    def _fetch_rest(self, ticker: str) -> Optional[dict]:
-        """One-off REST fetch for an uncached ticker."""
-        if self.api_key:
-            try:
-                import requests
-                r = requests.get(
-                    f"https://api.polygon.io/v2/last/trade/{ticker}",
-                    params={"apiKey": self.api_key},
-                    timeout=5,
-                )
-                if r.ok:
-                    res = r.json().get("results", {})
-                    q   = {"ticker": ticker, "last": res.get("p"),
-                           "bid": None, "ask": None,
-                           "volume": res.get("s"), "timestamp": res.get("t")}
-                    self._quotes[ticker] = q
-                    return q
-            except Exception as exc:
-                log.debug("REST fetch error: %s", exc)
-
-        # yfinance fallback for single fetch
+    def _yf_quote(self, ticker: str) -> Optional[dict]:
         try:
             import yfinance as yf
             data = yf.Ticker(ticker).fast_info
             q = {
-                "ticker": ticker,
-                "bid":    getattr(data, "bid", None),
-                "ask":    getattr(data, "ask", None),
-                "last":   getattr(data, "last_price", None),
-                "volume": None,
+                "ticker":    ticker,
+                "bid":       getattr(data, "bid",  None) or getattr(data, "last_price", None),
+                "ask":       getattr(data, "ask",  None) or getattr(data, "last_price", None),
+                "last":      getattr(data, "last_price", None),
+                "volume":    getattr(data, "three_month_average_volume", None),
                 "timestamp": time.time(),
             }
             self._quotes[ticker] = q
             return q
-        except Exception:
+        except Exception as exc:
+            log.debug("yfinance error for %s: %s", ticker, exc)
             return None
