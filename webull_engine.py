@@ -435,64 +435,77 @@ class WebullEngine:
 
     def _get_option_id_api(self, ticker, expiry, strike, option_type) -> Optional[str]:
         """
-        Look up optionId via webull API.
-        Chain structure confirmed from debug:
-          group = {"strikePrice": "500", "call": {...}, "put": {...}}
-          call/put are DICTS (not lists) with keys:
-            expireDate, tickerId, strikePrice, direction, symbol
+        Look up optionId via Webull API.
+        IMPORTANT: Only match the requested expiry.
+        Never fall back to another expiry.
         """
         try:
             chain = self._wb.get_options(stock=ticker)
-            side  = "call" if option_type.upper() == "C" else "put"
-            log.info("get_options returned %d groups for %s", len(chain) if chain else 0, ticker)
+            side = "call" if option_type.upper() == "C" else "put"
 
-            best_id    = None
+            log.info(
+                "get_options returned %d groups for %s",
+                len(chain) if chain else 0,
+                ticker
+            )
+
+            best_id = None
             best_delta = 999
 
             for group in (chain or []):
                 opt = group.get(side)
+
                 if not opt or not isinstance(opt, dict):
                     continue
 
-                # expireDate and tickerId are inside the call/put dict
-                exp        = opt.get("expireDate", "")
-                s          = float(opt.get("strikePrice", 0))
-                ticker_id  = str(opt.get("tickerId", ""))
-                delta      = abs(s - strike)
+                exp = opt.get("expireDate", "")
+                s = float(opt.get("strikePrice", 0))
+                ticker_id = str(opt.get("tickerId", ""))
+                delta = abs(s - strike)
 
-                # Exact match
-                if exp == expiry and delta < 0.01:
-                    log.info("Exact match: %s %s%s %s tickerId=%s",
-                             ticker, s, side[0].upper(), exp, ticker_id)
+                log.info("Chain expiry found: %s strike=%s", exp, s)
+
+                # Skip wrong expiration completely
+                if exp != expiry:
+                    continue
+
+                # Exact strike match
+                if delta < 0.01:
+                    log.info(
+                        "Exact match: %s %s%s %s tickerId=%s",
+                        ticker,
+                        s,
+                        side[0].upper(),
+                        exp,
+                        ticker_id
+                    )
                     return ticker_id
 
-                # Track best match for fallback
-                if exp == expiry and delta < best_delta:
-                    best_delta = delta
-                    best_id    = ticker_id
-
-            # Return closest strike for correct expiry
-            if best_id:
-                log.info("Best match (delta=%.2f): tickerId=%s", best_delta, best_id)
-                return best_id
-
-            # Final fallback: closest strike on any expiry
-            for group in (chain or []):
-                opt = group.get(side)
-                if not opt or not isinstance(opt, dict):
-                    continue
-                s     = float(opt.get("strikePrice", 0))
-                delta = abs(s - strike)
+                # Same expiry fallback only
                 if delta < best_delta:
                     best_delta = delta
-                    best_id    = str(opt.get("tickerId", ""))
+                    best_id = ticker_id
 
+            # Return closest strike WITH SAME EXPIRY ONLY
             if best_id:
-                log.info("Expiry fallback match (delta=%.2f): tickerId=%s", best_delta, best_id)
+                log.info(
+                    "Same-expiry best match (delta=%.2f): tickerId=%s",
+                    best_delta,
+                    best_id
+                )
                 return best_id
+
+            log.error(
+                "No option found for exact expiry: %s %s%s %s",
+                ticker,
+                strike,
+                option_type,
+                expiry
+            )
 
         except Exception as e:
             log.warning("get_option_id_api error: %s", e)
+
         return None
 
     def _navigate_browser(self, ticker, expiry_str, strike, option_type) -> bool:
@@ -697,48 +710,56 @@ class WebullEngine:
                 log.error("Live order error: %s", e)
         return None
 
-    # ── Position monitoring (browser) ─────────────────────────────────────────
+        # ── Position monitoring (browser) ─────────────────────────────────────────
 
     def get_position_pnl(self, ticker: str, strike: float,
                          option_type: str) -> Optional[dict]:
         """Check P&L via API first, browser as fallback."""
-        # Try API
         if self._api_ready:
             try:
                 positions = self._wb.get_positions()
                 for pos in positions:
                     sym = pos.get("ticker", {}).get("symbol", "")
                     if sym == ticker:
-                        unr  = pos.get("unrealizedProfitLoss")
+                        unr = pos.get("unrealizedProfitLoss")
                         cost = pos.get("cost")
-                        val  = pos.get("marketValue")
-                        pnl  = (float(unr)/float(cost)*100
-                                if unr and cost and float(cost) != 0 else None)
-                        return {"pnl_pct": round(pnl, 2) if pnl else None,
-                                "market_value": float(val) if val else None}
+                        val = pos.get("marketValue")
+                        pnl = (float(unr) / float(cost) * 100
+                               if unr and cost and float(cost) != 0 else None)
+                        return {
+                            "pnl_pct": round(pnl, 2) if pnl else None,
+                            "market_value": float(val) if val else None,
+                        }
             except Exception as e:
                 log.debug("API position error: %s", e)
 
-        # Browser fallback
         if not self.page:
             return None
+
         try:
             self.page.click(SELECTORS["positions_tab"], timeout=5_000)
             time.sleep(1.2)
-            rows  = self.page.locator(SELECTORS["position_row"])
+            rows = self.page.locator(SELECTORS["position_row"])
             count = rows.count()
+
             for i in range(count):
-                row  = rows.nth(i)
+                row = rows.nth(i)
                 text = row.inner_text()
                 if ticker in text and (str(int(strike)) in text or option_type in text):
                     pnl_text = self._safe_inner_text(
-                        row.locator(SELECTORS["position_pnl_pct"]))
+                        row.locator(SELECTORS["position_pnl_pct"])
+                    )
                     val_text = self._safe_inner_text(
-                        row.locator(SELECTORS["position_mkt_value"]))
-                    return {"pnl_pct":      self._parse_pct(pnl_text),
-                            "market_value": self._parse_float(val_text)}
+                        row.locator(SELECTORS["position_mkt_value"])
+                    )
+                    return {
+                        "pnl_pct": self._parse_pct(pnl_text),
+                        "market_value": self._parse_float(val_text),
+                    }
+
         except Exception as exc:
             log.debug("Browser position error: %s", exc)
+
         return None
 
     def get_option_quote(self, ticker: str) -> Optional[dict]:
@@ -746,29 +767,48 @@ class WebullEngine:
         if self._api_ready and self._pending_option_id:
             try:
                 q = self._wb.get_option_quote(
-                    stock=ticker, optionId=self._pending_option_id)
+                    stock=ticker,
+                    optionId=self._pending_option_id,
+                )
+
                 log.info("Raw option quote response: %s", q)
+
+                data = q.get("data", [])
+                if not data:
+                    return None
+
+                opt = data[0]
+                bid_list = opt.get("bidList", [])
+                ask_list = opt.get("askList", [])
+
+                bid = float(bid_list[0]["price"]) if bid_list else 0
+                ask = float(ask_list[0]["price"]) if ask_list else 0
+                last = float(opt.get("close", 0) or 0)
+
                 return {
-                    "bid":  float(q.get("bidPrice", 0) or 0),
-                    "ask":  float(q.get("askPrice", 0) or 0),
-                    "last": float(q.get("close", 0) or 0),
+                    "bid": bid,
+                    "ask": ask,
+                    "last": last,
                 }
+
             except Exception as e:
                 log.debug("API quote error: %s", e)
 
         if not self.page:
             return None
+
         try:
             return {
-                "bid":  self._parse_float(self._safe_inner_text(
+                "bid": self._parse_float(self._safe_inner_text(
                     self.page.locator(SELECTORS["current_bid"]).first)),
-                "ask":  self._parse_float(self._safe_inner_text(
+                "ask": self._parse_float(self._safe_inner_text(
                     self.page.locator(SELECTORS["current_ask"]).first)),
                 "last": self._parse_float(self._safe_inner_text(
                     self.page.locator(SELECTORS["current_last"]).first)),
             }
         except Exception as e:
             log.debug("Browser quote error: %s", e)
+
         return None
 
     def get_quote(self, ticker: str) -> Optional[dict]:

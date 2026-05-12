@@ -2000,3 +2000,276 @@ aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gatewa
 2026-05-12 11:25:29,439 [INFO] webull — Raw option quote response: {'tickerId': 950186274, 'name': 'Robinhood Markets, Inc.', 'symbol': 'HOOD', 'disSymbol': 'HOOD', 'exchangeCode': 'NSQ', 'disExchangeCode': 'NASDAQ', 'tickerType': 2, 'data': [{'open': '2.06', 'high': '2.49', 'low': '0.94', 'strikePrice': '80', 'isStdSettle': 1, 'preClose': '2.90', 'openInterest': 13855, 'volume': '3286', 'latestPriceVol': '1', 'delta': '0.2921', 'vega': '0.0247', 'impVol': '0.7635', 'gamma': '0.0623', 'theta': '-0.3086', 'rho': '0.0029', 'close': '0.94', 'change': '-1.96', 'changeRatio': '-0.6759', 'expireDate': '2026-05-15', 'tickerId': 1053728678, 'belongTickerId': 950186274, 'openIntChange': 942, 'activeLevel': 50, 'cycle': 3, 'weekly': 0, 'executionType': 'A', 'direction': 'call', 'derivativeStatus': 0, 'currency': 'USD', 'currencyId': 247, 'regionId': 6, 'exchangeId': 189, 'exchangeCode': 'OPRA', 'disExchangeCode': 'OPRA', 'symbol': 'HOOD260515C00080000', 'unSymbol': 'HOOD', 'askList': [{'price': '0.98', 'volume': '77'}], 'bidList': [{'price': '0.94', 'volume': '197', 'quoteEx': 'XCBO'}], 'quoteMultiplier': 100, 'quoteLotSize': 100, 'tradeTime': '2026-05-12T15:25:19.210+0000', 'tradeStatus': 'T', 'tradeStamp': 1778599529038, 'hiv': '0.70', 'iv5': '0.62'}]}
 2026-05-12 11:25:29,439 [INFO] webull — Option premium quote: bid=0.0 ask=0.0
 2026-05-12 11:25:29,439 [ERROR] webull — Invalid option bid/ask — refusing order
+2026-05-12 11:35:46,353 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:36:31,508 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:36:31,525 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:36:31,525 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:36:33,014 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:36:33,502 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:36:33,502 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:36:33,502 [INFO] discord.client — logging in using static token
+2026-05-12 11:36:33,659 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:36:34,039 [INFO] market_feed — Tradier stream session: 40b2d6e5-749...
+2026-05-12 11:36:34,287 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: b05d56f92410a4b3916072cea352adc4).
+2026-05-12 11:36:34,328 [INFO] websocket — Websocket connected
+2026-05-12 11:36:34,329 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:36:35,016 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:36:36,297 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:36:45,310 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:37:21,465 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:37:21,465 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:37:21,465 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:37:22,230 [INFO] webull — Raw option quote response: {'tickerId': 950186274, 'name': 'Robinhood Markets, Inc.', 'symbol': 'HOOD', 'disSymbol': 'HOOD', 'exchangeCode': 'NSQ', 'disExchangeCode': 'NASDAQ', 'tickerType': 2, 'data': [{'open': '2.06', 'high': '2.49', 'low': '0.94', 'strikePrice': '80', 'isStdSettle': 1, 'preClose': '2.90', 'openInterest': 13855, 'volume': '3870', 'latestPriceVol': '10', 'delta': '0.3158', 'vega': '0.0257', 'impVol': '0.7455', 'gamma': '0.0657', 'theta': '-0.3177', 'rho': '0.0032', 'close': '1.05', 'change': '-1.85', 'changeRatio': '-0.6379', 'expireDate': '2026-05-15', 'tickerId': 1053728678, 'belongTickerId': 950186274, 'openIntChange': 942, 'activeLevel': 50, 'cycle': 3, 'weekly': 0, 'executionType': 'A', 'direction': 'call', 'derivativeStatus': 0, 'currency': 'USD', 'currencyId': 247, 'regionId': 6, 'exchangeId': 189, 'exchangeCode': 'OPRA', 'disExchangeCode': 'OPRA', 'symbol': 'HOOD260515C00080000', 'unSymbol': 'HOOD', 'askList': [{'price': '1.05', 'volume': '24', 'quoteEx': 'XBXO'}], 'bidList': [{'price': '1.01', 'volume': '171', 'quoteEx': 'XCBO'}], 'quoteMultiplier': 100, 'quoteLotSize': 100, 'tradeTime': '2026-05-12T15:37:18.613+0000', 'tradeStatus': 'T', 'tradeStamp': 1778600242128, 'hiv': '0.70', 'iv5': '0.62'}]}
+2026-05-12 11:37:22,230 [INFO] webull — API order: BTO x1 optionId=1053728678 @ 1.08 (paper=False)
+2026-05-12 11:37:22,831 [ERROR] webull — Live order error: ('place_option_order failed', 500, '')
+2026-05-12 11:37:22,834 [INFO] trade_engine — P&L monitor started: HOOD_80.0C_2026-05-22 @ entry $1.08
+2026-05-12 11:37:40,407 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:37:40,407 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:37:40,407 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:37:41,091 [INFO] webull — Raw option quote response: {'tickerId': 950186274, 'name': 'Robinhood Markets, Inc.', 'symbol': 'HOOD', 'disSymbol': 'HOOD', 'exchangeCode': 'NSQ', 'disExchangeCode': 'NASDAQ', 'tickerType': 2, 'data': [{'open': '2.06', 'high': '2.49', 'low': '0.94', 'strikePrice': '80', 'isStdSettle': 1, 'preClose': '2.90', 'openInterest': 13855, 'volume': '3870', 'latestPriceVol': '10', 'delta': '0.3189', 'vega': '0.0258', 'impVol': '0.7386', 'gamma': '0.0666', 'theta': '-0.3167', 'rho': '0.0032', 'close': '1.05', 'change': '-1.85', 'changeRatio': '-0.6379', 'expireDate': '2026-05-15', 'tickerId': 1053728678, 'belongTickerId': 950186274, 'openIntChange': 942, 'activeLevel': 50, 'cycle': 3, 'weekly': 0, 'executionType': 'A', 'direction': 'call', 'derivativeStatus': 0, 'currency': 'USD', 'currencyId': 247, 'regionId': 6, 'exchangeId': 189, 'exchangeCode': 'OPRA', 'disExchangeCode': 'OPRA', 'symbol': 'HOOD260515C00080000', 'unSymbol': 'HOOD', 'askList': [{'price': '1.07', 'volume': '40', 'quoteEx': 'XBOX'}], 'bidList': [{'price': '1.01', 'volume': '226', 'quoteEx': 'XCBO'}], 'quoteMultiplier': 100, 'quoteLotSize': 100, 'tradeTime': '2026-05-12T15:37:18.613+0000', 'tradeStatus': 'T', 'tradeStamp': 1778600260950, 'hiv': '0.70', 'iv5': '0.62'}]}
+2026-05-12 11:37:41,091 [INFO] webull — API order: STC x1 optionId=1053728678 @ 1.04 (paper=False)
+2026-05-12 11:37:41,462 [ERROR] webull — Live order error: ('place_option_order failed', 500, '')
+2026-05-12 11:37:43,060 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:37:43,060 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:37:43,061 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:37:44,206 [INFO] webull — Raw option quote response: {'tickerId': 950186274, 'name': 'Robinhood Markets, Inc.', 'symbol': 'HOOD', 'disSymbol': 'HOOD', 'exchangeCode': 'NSQ', 'disExchangeCode': 'NASDAQ', 'tickerType': 2, 'data': [{'open': '2.06', 'high': '2.49', 'low': '0.94', 'strikePrice': '80', 'isStdSettle': 1, 'preClose': '2.90', 'openInterest': 13855, 'volume': '3870', 'latestPriceVol': '10', 'delta': '0.3189', 'vega': '0.0258', 'impVol': '0.7386', 'gamma': '0.0666', 'theta': '-0.3167', 'rho': '0.0032', 'close': '1.05', 'change': '-1.85', 'changeRatio': '-0.6379', 'expireDate': '2026-05-15', 'tickerId': 1053728678, 'belongTickerId': 950186274, 'openIntChange': 942, 'activeLevel': 50, 'cycle': 3, 'weekly': 0, 'executionType': 'A', 'direction': 'call', 'derivativeStatus': 0, 'currency': 'USD', 'currencyId': 247, 'regionId': 6, 'exchangeId': 189, 'exchangeCode': 'OPRA', 'disExchangeCode': 'OPRA', 'symbol': 'HOOD260515C00080000', 'unSymbol': 'HOOD', 'askList': [{'price': '1.07', 'volume': '40', 'quoteEx': 'XBOX'}], 'bidList': [{'price': '1.01', 'volume': '232', 'quoteEx': 'XCBO'}], 'quoteMultiplier': 100, 'quoteLotSize': 100, 'tradeTime': '2026-05-12T15:37:18.613+0000', 'tradeStatus': 'T', 'tradeStamp': 1778600263525, 'hiv': '0.70', 'iv5': '0.62'}]}
+2026-05-12 11:37:44,207 [INFO] webull — API order: STC x0 optionId=1053728678 @ 0.96 (paper=False)
+2026-05-12 11:37:44,540 [ERROR] webull — Live order error: ('place_option_order failed', 500, '')
+2026-05-12 11:39:02,589 [INFO] discord_listener — Signal captured: HOOD 80C 5/22
+2026-05-12 11:48:49,849 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:48:49,853 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:48:49,853 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:48:50,614 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:48:50,867 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:48:50,867 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:48:50,867 [INFO] discord.client — logging in using static token
+2026-05-12 11:48:51,086 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:48:51,442 [INFO] market_feed — Tradier stream session: cf16d5b8-de0...
+2026-05-12 11:48:51,589 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: e2453ceddf248f39e4a690ec2dee2b4e).
+2026-05-12 11:48:51,666 [INFO] websocket — Websocket connected
+2026-05-12 11:48:51,668 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:48:52,615 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:48:53,595 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:50:30,684 [INFO] discord_listener — Signal captured: BTO HOOD 80C 5/22 x1
+2026-05-12 11:50:43,895 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:50:43,895 [ERROR] webull — No option found for exact expiry: HOOD 80.0C 2026-05-22
+2026-05-12 11:50:43,895 [INFO] webull — API lookup failed — using browser navigation for monitoring
+2026-05-12 11:50:43,895 [INFO] webull — Browser nav: HOOD 80.0C 2026-05-22
+2026-05-12 11:51:00,756 [WARNING] webull — Could not select expiry 2026-05-22 — using default
+2026-05-12 11:51:07,673 [ERROR] webull — Cannot place order: API not ready or optionId not found. Set WEBULL_EMAIL + WEBULL_PASSWORD in .env and restart.
+2026-05-12 11:54:20,453 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:54:20,459 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:54:20,460 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:54:21,208 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:54:21,455 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:54:21,455 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:54:21,455 [INFO] discord.client — logging in using static token
+2026-05-12 11:54:21,737 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:54:22,153 [INFO] market_feed — Tradier stream session: 757d3a53-8fc...
+2026-05-12 11:54:22,444 [INFO] websocket — Websocket connected
+2026-05-12 11:54:22,445 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:54:23,210 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:54:25,418 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 50eba853521b1fff01a4216dcfeba5c3).
+2026-05-12 11:54:27,423 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:55:03,689 [INFO] discord_listener — Signal captured: BTO HOOD 80C 5/22 x1
+2026-05-12 11:55:15,230 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:55:15,231 [INFO] webull — Chain expiry found: 2026-05-15 strike=10.0
+2026-05-12 11:55:15,231 [INFO] webull — Chain expiry found: 2026-05-15 strike=100.0
+2026-05-12 11:55:15,231 [INFO] webull — Chain expiry found: 2026-05-15 strike=101.0
+2026-05-12 11:55:15,231 [INFO] webull — Chain expiry found: 2026-05-15 strike=102.0
+2026-05-12 11:55:15,231 [INFO] webull — Chain expiry found: 2026-05-15 strike=103.0
+2026-05-12 11:55:15,231 [INFO] webull — Chain expiry found: 2026-05-15 strike=104.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=105.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=110.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=115.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=120.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=125.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=130.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=135.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=140.0
+2026-05-12 11:55:15,232 [INFO] webull — Chain expiry found: 2026-05-15 strike=145.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=15.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=150.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=155.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=160.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=165.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=170.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=175.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=180.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=185.0
+2026-05-12 11:55:15,233 [INFO] webull — Chain expiry found: 2026-05-15 strike=190.0
+2026-05-12 11:55:15,234 [INFO] webull — Chain expiry found: 2026-05-15 strike=195.0
+2026-05-12 11:55:15,234 [INFO] webull — Chain expiry found: 2026-05-15 strike=20.0
+2026-05-12 11:55:15,234 [INFO] webull — Chain expiry found: 2026-05-15 strike=200.0
+2026-05-12 11:55:15,234 [INFO] webull — Chain expiry found: 2026-05-15 strike=210.0
+2026-05-12 11:55:15,234 [INFO] webull — Chain expiry found: 2026-05-15 strike=220.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=230.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=240.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=25.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=250.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=260.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=270.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=280.0
+2026-05-12 11:55:15,235 [INFO] webull — Chain expiry found: 2026-05-15 strike=290.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=30.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=35.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=40.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=45.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=5.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=50.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=55.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=60.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=63.0
+2026-05-12 11:55:15,236 [INFO] webull — Chain expiry found: 2026-05-15 strike=64.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=65.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=66.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=67.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=68.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=69.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=70.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=71.0
+2026-05-12 11:55:15,237 [INFO] webull — Chain expiry found: 2026-05-15 strike=72.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=73.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=74.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=75.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=76.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=77.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=78.0
+2026-05-12 11:55:15,238 [INFO] webull — Chain expiry found: 2026-05-15 strike=79.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=80.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=81.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=82.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=83.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=84.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=85.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=86.0
+2026-05-12 11:55:15,239 [INFO] webull — Chain expiry found: 2026-05-15 strike=87.0
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=88.0
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=89.0
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=90.0
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=91.0
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=91.5
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=92.0
+2026-05-12 11:55:15,240 [INFO] webull — Chain expiry found: 2026-05-15 strike=93.0
+2026-05-12 11:55:15,241 [INFO] webull — Chain expiry found: 2026-05-15 strike=94.0
+2026-05-12 11:55:15,241 [INFO] webull — Chain expiry found: 2026-05-15 strike=95.0
+2026-05-12 11:55:15,241 [INFO] webull — Chain expiry found: 2026-05-15 strike=96.0
+2026-05-12 11:55:15,241 [INFO] webull — Chain expiry found: 2026-05-15 strike=97.0
+2026-05-12 11:55:15,241 [INFO] webull — Chain expiry found: 2026-05-15 strike=98.0
+2026-05-12 11:55:15,241 [INFO] webull — Chain expiry found: 2026-05-15 strike=99.0
+2026-05-12 11:55:15,241 [ERROR] webull — No option found for exact expiry: HOOD 80.0C 2026-05-22
+2026-05-12 11:55:15,242 [INFO] webull — API lookup failed — using browser navigation for monitoring
+2026-05-12 11:55:15,242 [INFO] webull — Browser nav: HOOD 80.0C 2026-05-22
+2026-05-12 11:55:32,053 [WARNING] webull — Could not select expiry 2026-05-22 — using default
+2026-05-12 11:55:39,056 [ERROR] webull — Cannot place order: API not ready or optionId not found. Set WEBULL_EMAIL + WEBULL_PASSWORD in .env and restart.
+2026-05-12 11:56:53,178 [INFO] discord_listener — Signal captured: BTO HOOD 80C 5/15 x1
+2026-05-12 11:59:55,074 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 12:00:35,518 [INFO] discord_listener — Duplicate signal ignored: BTO HOOD 80C 5/15 x1
+2026-05-12 12:02:44,195 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 12:02:44,200 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 12:02:44,200 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 12:02:44,935 [INFO] webull — Webull API ready via cookie token
+2026-05-12 12:02:45,161 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 12:02:45,162 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 12:02:45,162 [INFO] discord.client — logging in using static token
+2026-05-12 12:02:45,466 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 12:02:45,835 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: ba058da013e779ae6ceb8f70214e79a1).
+2026-05-12 12:02:45,884 [INFO] market_feed — Tradier stream session: bed4b97e-252...
+2026-05-12 12:02:46,124 [INFO] websocket — Websocket connected
+2026-05-12 12:02:46,125 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 12:02:46,936 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 12:02:47,848 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 12:03:18,883 [INFO] discord_listener — Signal captured: BTO HOOD 80C 5/15 x1
+2026-05-12 12:08:20,094 [INFO] news_filter — News check RBLX: score=75 verdict=clean bad=0 good=1
+2026-05-12 12:24:14,168 [INFO] news_filter — News check RBLX: score=75 verdict=clean bad=0 good=1
+2026-05-12 12:34:11,374 [INFO] discord.gateway — Shard ID None has successfully RESUMED session ba058da013e779ae6ceb8f70214e79a1.
+2026-05-12 12:53:33,012 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 12:53:33,017 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 12:53:33,017 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 12:53:33,708 [INFO] webull — Webull API ready via cookie token
+2026-05-12 12:53:34,062 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 12:53:34,062 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 12:53:34,063 [INFO] discord.client — logging in using static token
+2026-05-12 12:53:34,387 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 12:53:34,652 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: b61ffb4c50d2692fdfba4c771a248336).
+2026-05-12 12:53:34,777 [INFO] market_feed — Tradier stream session: 5445430e-690...
+2026-05-12 12:53:35,009 [INFO] websocket — Websocket connected
+2026-05-12 12:53:35,009 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 12:53:35,710 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 12:53:36,668 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 12:58:08,004 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 12:58:10,200 [INFO] news_filter — News check COIN: score=60 verdict=caution bad=1 good=1
+2026-05-12 13:10:02,138 [INFO] news_filter — News check COIN: score=60 verdict=caution bad=1 good=1
+2026-05-12 13:27:37,321 [INFO] discord_listener — Signal captured: BTO RIOT 25C 5/22 x2
+2026-05-12 14:07:55,583 [INFO] discord_listener — Signal captured: 5/13 $META 620c @.55 x10
+2026-05-12 14:08:36,553 [INFO] discord_listener — Signal captured: BTO SOFI 16C 5/29 x1
+2026-05-12 14:08:48,042 [INFO] webull — get_options returned 62 groups for SOFI
+2026-05-12 14:08:48,042 [INFO] webull — Chain expiry found: 2026-05-15 strike=1.0
+2026-05-12 14:08:48,042 [INFO] webull — Chain expiry found: 2026-05-15 strike=10.0
+2026-05-12 14:08:48,042 [INFO] webull — Chain expiry found: 2026-05-15 strike=11.0
+2026-05-12 14:08:48,042 [INFO] webull — Chain expiry found: 2026-05-15 strike=11.5
+2026-05-12 14:08:48,042 [INFO] webull — Chain expiry found: 2026-05-15 strike=12.0
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=12.5
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=13.0
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=13.5
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=14.0
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=14.5
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=15.0
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=15.5
+2026-05-12 14:08:48,043 [INFO] webull — Chain expiry found: 2026-05-15 strike=16.0
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=16.5
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=17.0
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=17.5
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=18.0
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=18.5
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=19.0
+2026-05-12 14:08:48,044 [INFO] webull — Chain expiry found: 2026-05-15 strike=19.5
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=2.0
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=20.0
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=20.5
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=21.0
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=21.5
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=22.0
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=22.5
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=23.0
+2026-05-12 14:08:48,045 [INFO] webull — Chain expiry found: 2026-05-15 strike=23.5
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=24.0
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=24.5
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=25.0
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=25.5
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=26.0
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=27.0
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=28.0
+2026-05-12 14:08:48,046 [INFO] webull — Chain expiry found: 2026-05-15 strike=29.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=3.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=30.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=31.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=32.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=33.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=34.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=35.0
+2026-05-12 14:08:48,047 [INFO] webull — Chain expiry found: 2026-05-15 strike=36.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=37.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=38.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=39.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=4.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=40.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=41.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=42.0
+2026-05-12 14:08:48,048 [INFO] webull — Chain expiry found: 2026-05-15 strike=43.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=44.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=45.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=46.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=47.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=5.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=6.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=7.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=8.0
+2026-05-12 14:08:48,049 [INFO] webull — Chain expiry found: 2026-05-15 strike=9.0
+2026-05-12 14:08:48,049 [ERROR] webull — No option found for exact expiry: SOFI 16.0C 2026-05-29
+2026-05-12 14:08:48,050 [INFO] webull — API lookup failed — using browser navigation for monitoring
+2026-05-12 14:08:48,050 [INFO] webull — Browser nav: SOFI 16.0C 2026-05-29
+2026-05-12 14:09:05,256 [WARNING] webull — Could not select expiry 2026-05-29 — using default
+2026-05-12 14:09:12,202 [ERROR] webull — Cannot place order: API not ready or optionId not found. Set WEBULL_EMAIL + WEBULL_PASSWORD in .env and restart.
+2026-05-12 14:09:32,337 [INFO] discord.gateway — Shard ID None has successfully RESUMED session b61ffb4c50d2692fdfba4c771a248336.
+2026-05-12 14:44:09,608 [INFO] discord.gateway — Shard ID None has successfully RESUMED session b61ffb4c50d2692fdfba4c771a248336.
