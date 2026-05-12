@@ -1567,3 +1567,436 @@ aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gatewa
 2026-05-11 22:07:19,163 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 3e6c0dcb537df1fec67e8a5d30938bc6).
 2026-05-11 22:07:19,978 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
 2026-05-11 22:07:21,178 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 00:32:10,387 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 00:32:10,394 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 00:32:10,395 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 00:32:11,185 [INFO] webull — Webull API ready via cookie token
+2026-05-12 00:32:11,187 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-12 00:32:11,187 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 00:32:11,711 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 00:32:11,711 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 00:32:11,712 [INFO] discord.client — logging in using static token
+2026-05-12 00:32:12,377 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 7b72362fe2c4df591bb69f037d16d39e).
+2026-05-12 00:32:13,187 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 00:32:14,390 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 00:49:22,753 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 00:49:22,759 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 00:49:22,759 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 00:49:23,559 [INFO] webull — Webull API ready via cookie token
+2026-05-12 00:49:23,560 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-12 00:49:23,561 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 00:49:23,797 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 00:49:23,798 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 00:49:23,798 [INFO] discord.client — logging in using static token
+2026-05-12 00:49:24,388 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 1e1a0012ca175f58bac37117ee6b8df9).
+2026-05-12 00:49:25,560 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 00:49:26,405 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 01:19:35,179 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 02:47:40,893 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 03:04:57,199 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 03:23:54,350 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 04:18:07,299 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 07:07:34,607 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 08:40:16,163 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 09:26:01,881 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1e1a0012ca175f58bac37117ee6b8df9.
+2026-05-12 09:30:41,582 [ERROR] yfinance — $GRTX: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:30:41,587 [ERROR] yfinance — 
+1 Failed download:
+2026-05-12 09:30:41,587 [ERROR] yfinance — ['GRTX']: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:30:41,863 [ERROR] yfinance — $GRTX: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:30:41,864 [ERROR] yfinance — 
+1 Failed download:
+2026-05-12 09:30:41,864 [ERROR] yfinance — ['GRTX']: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:32:33,044 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:32:33,060 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:32:33,061 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:32:33,716 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:32:33,717 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-12 09:32:33,717 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:32:34,218 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:32:34,219 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:32:34,219 [INFO] discord.client — logging in using static token
+2026-05-12 09:32:34,854 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: fe4ef8f3e1ec25e821b18b95c65f2e0b).
+2026-05-12 09:32:35,717 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:32:36,855 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:32:45,915 [ERROR] yfinance — $GRTX: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:32:45,917 [ERROR] yfinance — 
+1 Failed download:
+2026-05-12 09:32:45,917 [ERROR] yfinance — ['GRTX']: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:32:46,169 [ERROR] yfinance — $GRTX: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:32:46,173 [ERROR] yfinance — 
+1 Failed download:
+2026-05-12 09:32:46,173 [ERROR] yfinance — ['GRTX']: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:32:50,590 [INFO] news_filter — News check NVDA: score=55 verdict=caution bad=1 good=0
+2026-05-12 09:38:03,817 [ERROR] yfinance — $GRTX: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:38:03,818 [ERROR] yfinance — 
+1 Failed download:
+2026-05-12 09:38:03,818 [ERROR] yfinance — ['GRTX']: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:38:04,142 [ERROR] yfinance — $GRTX: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:38:04,144 [ERROR] yfinance — 
+1 Failed download:
+2026-05-12 09:38:04,144 [ERROR] yfinance — ['GRTX']: possibly delisted; no price data found  (period=1d)
+2026-05-12 09:41:31,527 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:41:31,532 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:41:31,532 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:41:32,249 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:41:32,503 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:41:32,504 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:41:32,504 [INFO] discord.client — logging in using static token
+2026-05-12 09:41:32,775 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:41:33,202 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 0f005140c85120f460e3e33e8932d225).
+2026-05-12 09:41:33,225 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:41:33,226 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:41:33,226 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:41:34,250 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:41:35,206 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:42:50,542 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:42:50,547 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:42:50,548 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:42:51,311 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:42:51,540 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:42:51,541 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:42:51,541 [INFO] discord.client — logging in using static token
+2026-05-12 09:42:51,775 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:42:52,157 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:42:52,158 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:42:52,158 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:42:52,269 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: e03eb86c54852325fb5f5172e80194e3).
+2026-05-12 09:42:53,313 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:42:54,281 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:49:36,635 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:49:36,640 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:49:36,641 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:49:37,432 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:49:37,656 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:49:37,657 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:49:37,657 [INFO] discord.client — logging in using static token
+2026-05-12 09:49:37,972 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:49:38,369 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:49:38,370 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:49:38,370 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:49:38,477 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 33e9ecf473cbcd30bd6a84c612f1ef06).
+2026-05-12 09:49:39,434 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:49:40,490 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:54:43,752 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:54:43,758 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:54:43,758 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:54:44,562 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:54:44,759 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:54:44,759 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:54:44,759 [INFO] discord.client — logging in using static token
+2026-05-12 09:54:45,065 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:54:45,429 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 4681e1116e3cac9220a32df16136a4de).
+2026-05-12 09:54:45,505 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:54:45,506 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:54:45,506 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:54:46,563 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:54:47,442 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:56:25,176 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:56:25,181 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:56:25,181 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:56:25,886 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:56:26,098 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:56:26,098 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:56:26,098 [INFO] discord.client — logging in using static token
+2026-05-12 09:56:26,397 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:56:26,805 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 46190b604dcb4c8aca97f1b9b16c35cc).
+2026-05-12 09:56:26,964 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:56:26,966 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:56:26,966 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:56:27,887 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:56:28,814 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:57:06,723 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:57:06,728 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:57:06,728 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:57:07,438 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:57:07,680 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:57:07,680 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:57:07,680 [INFO] discord.client — logging in using static token
+2026-05-12 09:57:07,971 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:57:08,340 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: abc2b3da896eb36c92f3cb2f763ad35c).
+2026-05-12 09:57:08,395 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:57:08,396 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:57:08,396 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:57:09,440 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:57:10,347 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 09:58:31,381 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 09:58:31,386 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 09:58:31,386 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 09:58:32,214 [INFO] webull — Webull API ready via cookie token
+2026-05-12 09:58:32,427 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 09:58:32,427 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 09:58:32,427 [INFO] discord.client — logging in using static token
+2026-05-12 09:58:32,650 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 09:58:33,093 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: f351146737755eb8593380f1b8113ec5).
+2026-05-12 09:58:33,116 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 09:58:33,117 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 09:58:33,117 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 09:58:34,215 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 09:58:35,101 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:04:39,799 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:04:39,803 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:04:39,804 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:04:40,452 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:04:40,734 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:04:40,735 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:04:40,735 [INFO] discord.client — logging in using static token
+2026-05-12 10:04:41,006 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:04:41,309 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 9e5b419f17045f7e664696f52bab2ef8).
+2026-05-12 10:04:41,531 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 10:04:41,532 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 10:04:41,532 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 10:04:42,453 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:04:43,312 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:06:55,897 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:06:55,902 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:06:55,902 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:06:56,656 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:06:56,892 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:06:56,892 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:06:56,893 [INFO] discord.client — logging in using static token
+2026-05-12 10:06:57,106 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:06:57,529 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 10:06:57,530 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 10:06:57,530 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 10:06:57,551 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: eb32904077bb6dada5349079bf2d95df).
+2026-05-12 10:06:58,657 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:06:59,559 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:08:03,240 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:08:03,245 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:08:03,245 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:08:03,940 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:08:04,115 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:08:04,115 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:08:04,115 [INFO] discord.client — logging in using static token
+2026-05-12 10:08:04,410 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:08:04,796 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 707e2bc92a6bf3913231dcc9c587bea9).
+2026-05-12 10:08:04,802 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 10:08:04,803 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 10:08:04,803 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 10:08:05,941 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:08:06,806 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:29:39,201 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:29:39,215 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:29:39,215 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:29:39,858 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:29:40,118 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:29:40,118 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:29:40,118 [INFO] discord.client — logging in using static token
+2026-05-12 10:29:40,335 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:29:40,748 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 10:29:40,749 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 10:29:40,749 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 10:29:41,553 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 86650b372d8975afca5423d7dfc906bc).
+2026-05-12 10:29:41,859 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:29:43,556 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:30:19,227 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:30:19,232 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:30:19,233 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:30:19,921 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:30:20,158 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:30:20,158 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:30:20,158 [INFO] discord.client — logging in using static token
+2026-05-12 10:30:20,437 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:30:20,846 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: de90245cd3f691e12e711b8e56c5e9ee).
+2026-05-12 10:30:20,893 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-12 10:30:20,894 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-12 10:30:20,895 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-12 10:30:21,922 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:30:22,856 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:41:56,001 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:41:56,005 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:41:56,006 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:41:56,876 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:41:57,124 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:41:57,124 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:41:57,124 [INFO] discord.client — logging in using static token
+2026-05-12 10:41:57,351 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:41:57,803 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 26e8e02438cd7bc6afc2d911cc2a56ab).
+2026-05-12 10:41:57,819 [INFO] market_feed — Tradier stream session: 140b3c63-b6f...
+2026-05-12 10:41:57,976 [INFO] websocket — Websocket connected
+2026-05-12 10:41:57,977 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 10:41:58,877 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:41:59,821 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:44:30,266 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:44:30,270 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:44:30,271 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:44:30,965 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:44:31,196 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:44:31,196 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:44:31,196 [INFO] discord.client — logging in using static token
+2026-05-12 10:44:31,543 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:44:31,941 [INFO] market_feed — Tradier stream session: c12311b9-0f7...
+2026-05-12 10:44:32,039 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 1192bb5a5778fbf9defc3ba23759dae5).
+2026-05-12 10:44:32,229 [INFO] websocket — Websocket connected
+2026-05-12 10:44:32,229 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 10:44:32,967 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:44:34,041 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:45:49,740 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:45:49,745 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:45:49,745 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:45:50,389 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:45:50,602 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:45:50,602 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:45:50,602 [INFO] discord.client — logging in using static token
+2026-05-12 10:45:50,864 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:45:51,265 [INFO] market_feed — Tradier stream session: 32eb216b-bfe...
+2026-05-12 10:45:51,473 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: b0534565b0f2b4d8950baedec70bbffe).
+2026-05-12 10:45:51,482 [INFO] websocket — Websocket connected
+2026-05-12 10:45:51,483 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 10:45:52,390 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:45:53,482 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:48:24,117 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:48:24,122 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:48:24,123 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:48:24,853 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:48:25,066 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:48:25,066 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:48:25,066 [INFO] discord.client — logging in using static token
+2026-05-12 10:48:25,355 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:48:25,707 [INFO] market_feed — Tradier stream session: ebacb97c-12b...
+2026-05-12 10:48:25,787 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 9cf6f4de3a1d9f8be6345f80e87efbfa).
+2026-05-12 10:48:26,004 [INFO] websocket — Websocket connected
+2026-05-12 10:48:26,005 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 10:48:26,854 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:48:27,801 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:48:40,089 [INFO] news_filter — News check SOFI: score=70 verdict=clean bad=0 good=0
+2026-05-12 10:48:42,372 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 10:53:54,056 [INFO] news_filter — News check CHPT: score=80 verdict=clean bad=0 good=2
+2026-05-12 10:56:37,979 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:56:37,984 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:56:37,984 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:56:38,685 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:56:38,946 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:56:38,947 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:56:38,947 [INFO] discord.client — logging in using static token
+2026-05-12 10:56:39,174 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:56:39,587 [INFO] market_feed — Tradier stream session: 38503f1e-445...
+2026-05-12 10:56:39,805 [INFO] websocket — Websocket connected
+2026-05-12 10:56:39,805 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 10:56:39,912 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 29e70c42315516f7795165c157859ce9).
+2026-05-12 10:56:40,686 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:56:41,916 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:58:19,510 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 10:58:19,515 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 10:58:19,515 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 10:58:20,228 [INFO] webull — Webull API ready via cookie token
+2026-05-12 10:58:20,492 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 10:58:20,492 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 10:58:20,492 [INFO] discord.client — logging in using static token
+2026-05-12 10:58:20,826 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 10:58:21,097 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: d59b4818fe10ecabd0b76a4c29f8cc2a).
+2026-05-12 10:58:21,178 [INFO] market_feed — Tradier stream session: 450ddcef-a1f...
+2026-05-12 10:58:21,395 [INFO] websocket — Websocket connected
+2026-05-12 10:58:21,396 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 10:58:22,229 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 10:58:23,103 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 10:58:31,998 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 10:58:38,986 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 10:59:04,174 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 10:59:04,174 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 10:59:04,174 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 10:59:04,906 [INFO] webull — API order: BTO x1 optionId=1053728678 @ None (paper=True)
+2026-05-12 10:59:06,023 [INFO] webull — Paper order response: 417 {"msg":"This ticker is not tradable","traceId":"46473573d1754fd59eec1968326a4983","code":"paper.ticker.untradable","success":false}
+2026-05-12 10:59:06,024 [ERROR] webull — Paper order rejected: {"msg":"This ticker is not tradable","traceId":"46473573d1754fd59eec1968326a4983","code":"paper.ticker.untradable","success":false} — market may be closed
+2026-05-12 11:00:44,085 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:00:44,091 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:00:44,091 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:00:44,763 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:00:45,009 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:00:45,009 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:00:45,009 [INFO] discord.client — logging in using static token
+2026-05-12 11:00:45,279 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:00:45,696 [INFO] market_feed — Tradier stream session: c96c8d50-f03...
+2026-05-12 11:00:46,386 [INFO] websocket — Websocket connected
+2026-05-12 11:00:46,387 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:00:46,467 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 85b1d14ee1b179328b58b8b9fec8197e).
+2026-05-12 11:00:46,764 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:00:48,480 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:01:00,461 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:01:06,746 [INFO] news_filter — News check RBLX: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:01:09,545 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:01:34,983 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:01:34,984 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:01:34,984 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:01:35,633 [INFO] webull — API order: BTO x1 optionId=1053728678 @ None (paper=True)
+2026-05-12 11:01:36,676 [INFO] webull — Paper order response: 417 {"msg":"This ticker is not tradable","traceId":"be21542e48794808b1bd0d578f8f8a69","code":"paper.ticker.untradable","success":false}
+2026-05-12 11:01:36,677 [ERROR] webull — Paper order rejected: {"msg":"This ticker is not tradable","traceId":"be21542e48794808b1bd0d578f8f8a69","code":"paper.ticker.untradable","success":false} — market may be closed
+2026-05-12 11:05:14,756 [INFO] discord_listener — Signal captured: BTO SPY 590C 5/22 x1
+2026-05-12 11:05:39,710 [INFO] discord_listener — Signal captured: BTO QQQ 520C 5/22 x1
+2026-05-12 11:06:00,938 [INFO] discord_listener — Signal captured: BTO QQQ 500C 5/22 x1
+2026-05-12 11:06:59,490 [INFO] discord_listener — Signal captured: BTO SOFI 15C 5/22 x1
+2026-05-12 11:07:19,051 [INFO] webull — get_options returned 62 groups for SOFI
+2026-05-12 11:07:19,052 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053875699
+2026-05-12 11:07:19,052 [INFO] webull — Option found via API: SOFI 15.0C 2026-05-22 -> id=1053875699
+2026-05-12 11:07:19,718 [INFO] webull — API order: BTO x1 optionId=1053875699 @ None (paper=True)
+2026-05-12 11:07:20,207 [INFO] webull — Paper order response: 417 {"msg":"This ticker is not tradable","traceId":"bb197d49509543a59e7ff8380aed7e1c","code":"paper.ticker.untradable","success":false}
+2026-05-12 11:07:20,207 [ERROR] webull — Paper order rejected: {"msg":"This ticker is not tradable","traceId":"bb197d49509543a59e7ff8380aed7e1c","code":"paper.ticker.untradable","success":false} — market may be closed
+2026-05-12 11:10:37,017 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:10:37,022 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:10:37,022 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:10:38,223 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:10:38,422 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:10:38,422 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:10:38,423 [INFO] discord.client — logging in using static token
+2026-05-12 11:10:38,736 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:10:39,111 [INFO] market_feed — Tradier stream session: ae0f10f0-a0f...
+2026-05-12 11:10:39,327 [INFO] websocket — Websocket connected
+2026-05-12 11:10:39,328 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:10:39,864 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6c0f40728e49ebc2e8f25a00f3169569).
+2026-05-12 11:10:40,225 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:10:41,875 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:10:52,660 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:10:58,791 [INFO] news_filter — News check RBLX: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:11:01,780 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:11:23,293 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:11:23,293 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:11:23,294 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:11:24,066 [INFO] webull — API order: BTO x1 optionId=1053728678 @ None (paper=False)
+2026-05-12 11:11:24,598 [ERROR] webull — Live order error: ('place_option_order failed', 500, '')
+2026-05-12 11:21:30,239 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:21:30,245 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:21:30,245 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:21:31,364 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:21:31,581 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:21:31,581 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:21:31,581 [INFO] discord.client — logging in using static token
+2026-05-12 11:21:31,855 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:21:32,170 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: eb41b7136096e65ab9eabdc7576d9365).
+2026-05-12 11:21:32,231 [INFO] market_feed — Tradier stream session: 81eca448-681...
+2026-05-12 11:21:32,402 [INFO] websocket — Websocket connected
+2026-05-12 11:21:32,402 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:21:33,365 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:21:34,185 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:21:59,136 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:22:05,451 [INFO] news_filter — News check RBLX: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:22:08,093 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:22:34,541 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:22:34,541 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:22:34,541 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:22:35,917 [INFO] webull — Option premium quote: bid=0.0 ask=0.0
+2026-05-12 11:22:35,917 [ERROR] webull — Invalid option bid/ask — refusing order
+2026-05-12 11:24:40,438 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-12 11:24:40,443 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-12 11:24:40,443 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-12 11:24:41,311 [INFO] webull — Webull API ready via cookie token
+2026-05-12 11:24:41,583 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-12 11:24:41,584 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-12 11:24:41,584 [INFO] discord.client — logging in using static token
+2026-05-12 11:24:41,819 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-12 11:24:42,229 [INFO] market_feed — Tradier stream session: 7bbb07fe-f2f...
+2026-05-12 11:24:42,266 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: a780734ab05af05de0fc46ee8eacfea8).
+2026-05-12 11:24:42,461 [INFO] websocket — Websocket connected
+2026-05-12 11:24:42,461 [INFO] market_feed — Tradier WebSocket connected
+2026-05-12 11:24:43,313 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-12 11:24:44,277 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-12 11:24:53,767 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:24:59,666 [INFO] news_filter — News check RBLX: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:25:03,324 [INFO] news_filter — News check RIOT: score=75 verdict=clean bad=0 good=1
+2026-05-12 11:25:28,183 [INFO] webull — get_options returned 84 groups for HOOD
+2026-05-12 11:25:28,183 [INFO] webull — Expiry fallback match (delta=0.00): tickerId=1053728678
+2026-05-12 11:25:28,183 [INFO] webull — Option found via API: HOOD 80.0C 2026-05-22 -> id=1053728678
+2026-05-12 11:25:28,809 [INFO] webull — Raw option quote response: {'tickerId': 950186274, 'name': 'Robinhood Markets, Inc.', 'symbol': 'HOOD', 'disSymbol': 'HOOD', 'exchangeCode': 'NSQ', 'disExchangeCode': 'NASDAQ', 'tickerType': 2, 'data': [{'open': '2.06', 'high': '2.49', 'low': '0.94', 'strikePrice': '80', 'isStdSettle': 1, 'preClose': '2.90', 'openInterest': 13855, 'volume': '3286', 'latestPriceVol': '1', 'delta': '0.2857', 'vega': '0.0244', 'impVol': '0.7647', 'gamma': '0.0616', 'theta': '-0.3047', 'rho': '0.0029', 'close': '0.94', 'change': '-1.96', 'changeRatio': '-0.6759', 'expireDate': '2026-05-15', 'tickerId': 1053728678, 'belongTickerId': 950186274, 'openIntChange': 942, 'activeLevel': 50, 'cycle': 3, 'weekly': 0, 'executionType': 'A', 'direction': 'call', 'derivativeStatus': 0, 'currency': 'USD', 'currencyId': 247, 'regionId': 6, 'exchangeId': 189, 'exchangeCode': 'OPRA', 'disExchangeCode': 'OPRA', 'symbol': 'HOOD260515C00080000', 'unSymbol': 'HOOD', 'askList': [{'price': '0.97', 'volume': '34', 'quoteEx': 'BATO'}], 'bidList': [{'price': '0.94', 'volume': '158', 'quoteEx': 'XCBO'}], 'quoteMultiplier': 100, 'quoteLotSize': 100, 'tradeTime': '2026-05-12T15:25:19.210+0000', 'tradeStatus': 'T', 'tradeStamp': 1778599527998, 'hiv': '0.70', 'iv5': '0.62'}]}
+2026-05-12 11:25:29,439 [INFO] webull — Raw option quote response: {'tickerId': 950186274, 'name': 'Robinhood Markets, Inc.', 'symbol': 'HOOD', 'disSymbol': 'HOOD', 'exchangeCode': 'NSQ', 'disExchangeCode': 'NASDAQ', 'tickerType': 2, 'data': [{'open': '2.06', 'high': '2.49', 'low': '0.94', 'strikePrice': '80', 'isStdSettle': 1, 'preClose': '2.90', 'openInterest': 13855, 'volume': '3286', 'latestPriceVol': '1', 'delta': '0.2921', 'vega': '0.0247', 'impVol': '0.7635', 'gamma': '0.0623', 'theta': '-0.3086', 'rho': '0.0029', 'close': '0.94', 'change': '-1.96', 'changeRatio': '-0.6759', 'expireDate': '2026-05-15', 'tickerId': 1053728678, 'belongTickerId': 950186274, 'openIntChange': 942, 'activeLevel': 50, 'cycle': 3, 'weekly': 0, 'executionType': 'A', 'direction': 'call', 'derivativeStatus': 0, 'currency': 'USD', 'currencyId': 247, 'regionId': 6, 'exchangeId': 189, 'exchangeCode': 'OPRA', 'disExchangeCode': 'OPRA', 'symbol': 'HOOD260515C00080000', 'unSymbol': 'HOOD', 'askList': [{'price': '0.98', 'volume': '77'}], 'bidList': [{'price': '0.94', 'volume': '197', 'quoteEx': 'XCBO'}], 'quoteMultiplier': 100, 'quoteLotSize': 100, 'tradeTime': '2026-05-12T15:25:19.210+0000', 'tradeStatus': 'T', 'tradeStamp': 1778599529038, 'hiv': '0.70', 'iv5': '0.62'}]}
+2026-05-12 11:25:29,439 [INFO] webull — Option premium quote: bid=0.0 ask=0.0
+2026-05-12 11:25:29,439 [ERROR] webull — Invalid option bid/ask — refusing order

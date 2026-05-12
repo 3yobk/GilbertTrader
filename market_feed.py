@@ -222,7 +222,7 @@ class MarketFeed:
         """Create a Tradier streaming session. Returns None cleanly on failure."""
         try:
             r = _requests.post(
-                "https://stream.tradier.com/v1/markets/events/session",
+                f"{self._rest}/markets/events/session",
                 headers=self._headers(),
                 timeout=10,
             )

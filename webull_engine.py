@@ -579,6 +579,38 @@ class WebullEngine:
         use_paper = paper if paper is not None else self.paper
         is_buy    = action.upper() in ("BTO", "BUY")
 
+        # ── Auto-fetch option premium if no limit price provided ──
+        if limit_price is None and self._pending_option_id:
+            try:
+                quote = self.get_option_quote(self._pending_ticker)
+
+                if quote:
+                    bid = float(quote.get("bid") or 0)
+                    ask = float(quote.get("ask") or 0)
+
+                    log.info(
+                        "Option premium quote: bid=%s ask=%s",
+                        bid, ask
+                    )
+
+                    if bid > 0 and ask > 0:
+                        # Buy near midpoint
+                        limit_price = round((bid + ask) / 2, 2)
+
+                        log.info(
+                            "Auto limit price set to %s",
+                            limit_price
+                        )
+                    else:
+                        log.error(
+                            "Invalid option bid/ask — refusing order"
+                        )
+                        return None
+
+            except Exception as e:
+                log.error("Option quote fetch failed: %s", e)
+                return None
+
         if not use_paper:
             console.print(f"\n[bold red]REAL ORDER[/bold red]  "
                           f"{action} {quantity}x {self._pending_ticker} "
@@ -715,6 +747,7 @@ class WebullEngine:
             try:
                 q = self._wb.get_option_quote(
                     stock=ticker, optionId=self._pending_option_id)
+                log.info("Raw option quote response: %s", q)
                 return {
                     "bid":  float(q.get("bidPrice", 0) or 0),
                     "ask":  float(q.get("askPrice", 0) or 0),

@@ -40,12 +40,23 @@ except ImportError:
 
 # ── Watchlist — expanded with large caps + ETFs ───────────────────────────────
 MY_SMALL_STOCKS = [
-    # Original small caps
-    "AMC", "GME", "CVNA", "FUBO", "RBLX", "TLRY", "CHPT", "LCID", "GRTX", "MARA",
-    # Large caps (upgrade 4 — high liquidity, tighter spreads)
-    "AAPL", "NVDA", "TSLA", "AMZN", "META",
-    # Sector ETFs (upgrade 4 — market regime aware)
-    "QQQ", "SPY", "XLF", "XBI", "SOXS",
+    # High-volume AI / momentum
+    "NVDA", "AMD", "PLTR", "TSLA", "SOFI", "HOOD",
+
+    # Big tech with constant options flow
+    "AAPL", "AMZN", "META", "MSFT", "GOOGL",
+
+    # Volatile retail favorites
+    "CVNA", "RBLX", "MARA", "RIOT", "COIN",
+
+    # ETFs for frequent setups
+    "SPY", "QQQ", "SOXL", "TQQQ", "IWM",
+
+    # Semiconductor momentum
+    "SMCI", "MU", "AVGO", "ARM",
+
+    # High gamma / news-sensitive
+    "HIMS", "AFRM", "UPST", "SHOP"
 ]
 
 # ── Tradier headers for options flow ─────────────────────────────────────────
@@ -383,8 +394,8 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             # Volume surge
             vol          = df["Volume"].dropna()
             avg_vol      = float(vol.rolling(20).mean().iloc[-2]) if len(vol) >= 21 else float(vol.mean())
-            current_vol  = float(vol.iloc[-1])
-            volume_surge = current_vol > avg_vol * 1.5 if avg_vol > 0 else False
+            current_vol  = float(vol.iloc[-2])
+            volume_surge = current_vol > avg_vol * 0.3 if avg_vol > 0 else False
             vol_ratio    = current_vol / avg_vol if avg_vol > 0 else 1
 
             rt_tag = "[RT]" if (_HAS_TRADIER and rt_price) else "[DL]"
@@ -411,14 +422,14 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 continue
 
             # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
-            if not is_trend_bullish(ticker):
+            #if not is_trend_bullish(ticker):
                 print(f"    [Skip] {ticker}: Below SMA-200")
                 _session_stats["skipped"] += 1
                 continue
 
             # ── Gate 3: Volume surge ──────────────────────────────────────────
             if not volume_surge:
-                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 1.5x)")
+                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 0.3x)")
                 _session_stats["skipped"] += 1
                 continue
 
@@ -440,8 +451,22 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 continue
 
             # ── Upgrade 3: Kelly position sizing ─────────────────────────────
-            # Estimate option price as ~3% of stock price (rough ATM proxy)
-            est_option_price = round(current_price * 0.03, 2)
+            # Estimate ATM option price more accurately:
+            # For stocks > $100: ~1.5-2% of price (tighter IV)
+            # For stocks < $20:  ~5-8% of price (wider IV)
+            if current_price > 200:
+                est_option_price = round(current_price * 0.015, 2)
+            elif current_price > 50:
+                est_option_price = round(current_price * 0.025, 2)
+            else:
+                est_option_price = round(current_price * 0.06, 2)
+
+            est_cost = est_option_price * 100  # 1 contract = 100 shares
+            if est_cost > budget:
+                print(f"    [Skip] {ticker}: Est. option cost ${est_cost:.0f} > budget ${budget:.0f}")
+                _session_stats["skipped"] += 1
+                continue
+
             contracts = kelly_contracts(
                 rsi=current_rsi,
                 flow_score=flow["score"],
