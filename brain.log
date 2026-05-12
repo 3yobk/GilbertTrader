@@ -593,3 +593,977 @@
 2026-05-11 10:48:27,504 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
 2026-05-11 10:48:27,505 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
 2026-05-11 10:48:27,505 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 10:50:36,735 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 10:50:36,735 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 10:50:36,735 [INFO] discord.client — logging in using static token
+2026-05-11 10:50:36,945 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:50:36,946 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 10:50:37,578 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 1b2fc2e478cfb133d88ca71dcee0dab3).
+2026-05-11 10:50:38,551 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 10:50:39,592 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 10:50:47,334 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:50:47,335 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 10:51:07,783 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:51:07,784 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 10:51:07,784 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 10:51:33,043 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 10:51:33,043 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 10:51:33,043 [INFO] discord.client — logging in using static token
+2026-05-11 10:51:33,227 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:51:33,228 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 10:51:33,719 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: d0899bc09776ee2f549c886f23b0428d).
+2026-05-11 10:51:34,865 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 10:51:35,735 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 10:51:43,665 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:51:43,666 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 10:52:04,084 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:52:04,086 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 10:52:04,086 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 10:54:21,593 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 10:54:21,593 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 10:54:21,593 [INFO] discord.client — logging in using static token
+2026-05-11 10:54:21,863 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:54:21,864 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 10:54:22,116 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: aa9a08d4b2357f6f9145c7c428128b33).
+2026-05-11 10:54:23,423 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 10:54:24,118 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 10:54:32,309 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:54:32,310 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 10:54:52,743 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 10:54:52,744 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 10:54:52,744 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 11:05:55,677 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 11:05:55,677 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 11:05:55,677 [INFO] discord.client — logging in using static token
+2026-05-11 11:05:55,963 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:05:55,964 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 11:05:57,353 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 4c3d05a70e855a1ddbc8067041fe626a).
+2026-05-11 11:05:57,469 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 11:05:59,362 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 11:06:06,437 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:06:06,438 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 11:06:26,896 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:06:26,897 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 11:06:26,897 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 11:25:33,317 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 11:25:33,317 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 11:25:33,318 [INFO] discord.client — logging in using static token
+2026-05-11 11:25:33,476 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:25:33,477 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 11:25:35,058 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 11:25:35,155 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: b7ccb46d262ffb2262400c913d42daec).
+2026-05-11 11:25:37,166 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 11:25:43,934 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:25:43,935 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 11:26:15,988 [ERROR] market_feed — Tradier session error: HTTPSConnectionPool(host='stream.tradier.com', port=443): Max retries exceeded with url: /v1/markets/events/session (Caused by NameResolutionError("HTTPSConnection(host='stream.tradier.com', port=443): Failed to resolve 'stream.tradier.com' ([Errno 11001] getaddrinfo failed)"))
+2026-05-11 11:26:15,989 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 11:26:15,989 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 11:26:48,666 [ERROR] discord.client — Attempting a reconnect in 0.09s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:27:00,853 [ERROR] discord.client — Attempting a reconnect in 1.05s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:27:13,965 [ERROR] discord.client — Attempting a reconnect in 7.05s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:27:21,035 [ERROR] discord.client — Attempting a reconnect in 4.67s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:27:37,753 [ERROR] discord.client — Attempting a reconnect in 30.17s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:28:19,975 [ERROR] discord.client — Attempting a reconnect in 54.06s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:29:26,074 [ERROR] discord.client — Attempting a reconnect in 60.81s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:30:38,955 [ERROR] discord.client — Attempting a reconnect in 66.88s
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1574, in _create_direct_connection
+    hosts = await self._resolve_host(host, port, traces=traces)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1190, in _resolve_host
+    return await asyncio.shield(resolved_host_task)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1221, in _resolve_host_with_throttle
+    addrs = await self._resolver.resolve(host, port, family=self._family)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\resolver.py", line 40, in resolve
+    infos = await self._loop.getaddrinfo(
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\base_events.py", line 939, in getaddrinfo
+    return await self.run_in_executor(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        None, getaddr_func, host, port, family, type, proto, flags)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\concurrent\futures\thread.py", line 59, in run
+    result = self.fn(*self.args, **self.kwargs)
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\socket.py", line 977, in getaddrinfo
+    for res in _socket.getaddrinfo(host, port, family, type, proto, flags):
+               ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+socket.gaierror: [Errno 11001] getaddrinfo failed
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\client.py", line 728, in connect
+    self.ws = await asyncio.wait_for(coro, timeout=60.0)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\AppData\Local\Programs\Python\Python313\Lib\asyncio\tasks.py", line 507, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\gateway.py", line 392, in from_client
+    socket = await client.http.ws_connect(str(url))
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\discord\http.py", line 571, in ws_connect
+    return await self.__session.ws_connect(url, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 1087, in _ws_connect
+    resp = await self.request(
+           ^^^^^^^^^^^^^^^^^^^
+    ...<11 lines>...
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 788, in _request
+    resp = await handler(req)
+           ^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\client.py", line 742, in _connect_and_send_request
+    conn = await self._connector.connect(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        req, traces=traces, timeout=real_timeout
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 672, in connect
+    proto = await self._create_connection(req, traces, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1251, in _create_connection
+    _, proto = await self._create_direct_connection(req, traces, timeout)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\EyobK\OneDrive - Georgia Gwinnett College\Desktop\WebullTrader\.venv\Lib\site-packages\aiohttp\connector.py", line 1580, in _create_direct_connection
+    raise ClientConnectorDNSError(req.connection_key, exc) from exc
+aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gateway-us-east1-c.discord.gg:443 ssl:default [getaddrinfo failed]
+2026-05-11 11:51:16,701 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 11:51:16,701 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 11:51:16,701 [INFO] discord.client — logging in using static token
+2026-05-11 11:51:16,746 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:51:16,748 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 11:51:17,375 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: a9873fb30f7335a0d6ce062bebaf8f02).
+2026-05-11 11:51:18,271 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 11:51:19,378 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 11:51:27,149 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 11:51:27,150 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 13:14:00,393 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 13:14:00,393 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 13:14:00,393 [INFO] discord.client — logging in using static token
+2026-05-11 13:14:00,713 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:14:00,715 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 13:14:01,046 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 71e55ce3efad1e32abf62b72aee6d610).
+2026-05-11 13:14:02,168 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 13:14:03,061 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 13:14:11,095 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:14:11,096 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 13:14:31,519 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:14:31,521 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 13:14:31,521 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 13:23:10,011 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 13:23:10,011 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 13:23:10,011 [INFO] discord.client — logging in using static token
+2026-05-11 13:23:10,034 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:23:10,035 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 13:23:11,637 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 13:23:12,042 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 36f267fb5d5ef1f2e3603f305fed4598).
+2026-05-11 13:23:14,063 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 13:23:20,432 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:23:20,433 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 13:23:40,893 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:23:40,894 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 13:23:40,894 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 13:31:36,217 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 13:31:36,217 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 13:31:36,217 [INFO] discord.client — logging in using static token
+2026-05-11 13:31:36,317 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:31:36,318 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 13:31:36,941 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 256b434713007e1823e7e597b919d8cf).
+2026-05-11 13:31:37,882 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 13:31:38,942 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 13:31:46,703 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:31:46,704 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 13:32:07,136 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 13:32:07,138 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 13:32:07,138 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 14:03:21,575 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 256b434713007e1823e7e597b919d8cf.
+2026-05-11 14:20:54,843 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 14:20:54,844 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 14:20:54,844 [INFO] discord.client — logging in using static token
+2026-05-11 14:20:55,162 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 14:20:55,163 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 14:20:55,596 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6975c631ec2f1a7b8350c616bcc5208b).
+2026-05-11 14:20:56,629 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 14:20:57,600 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 14:21:05,605 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 14:21:05,606 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 14:21:26,050 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 14:21:26,052 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 14:21:26,052 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 14:42:32,023 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 14:42:32,023 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 14:42:32,024 [INFO] discord.client — logging in using static token
+2026-05-11 14:42:32,291 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 14:42:32,292 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 14:42:32,700 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: bae11f540841567c531c2ab4e58b0c91).
+2026-05-11 14:42:33,822 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 14:42:34,725 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 14:42:42,693 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 14:42:42,694 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 14:43:03,074 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 14:43:03,076 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 14:43:03,076 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:00:29,310 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:00:29,310 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:00:29,310 [INFO] discord.client — logging in using static token
+2026-05-11 15:00:29,579 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 15:00:29,580 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 15:00:30,244 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: edb9793847127bd053b67877c34d9e6d).
+2026-05-11 15:00:31,120 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:00:32,259 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:00:39,974 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 15:00:39,975 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 15:01:00,456 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 15:01:00,457 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 15:01:00,457 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:02:26,480 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:02:26,480 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:02:26,481 [INFO] discord.client — logging in using static token
+2026-05-11 15:02:26,781 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 15:02:26,783 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 15:02:27,135 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: e4b2f51a1069cc1576562343fdd29afe).
+2026-05-11 15:02:28,286 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:02:29,144 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:02:37,208 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 15:02:37,209 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 15:02:57,675 [ERROR] market_feed — Tradier session 500 — token is invalid or missing. Check TRADIER_TOKEN in your .env. Falling back to yfinance until token is fixed.
+2026-05-11 15:02:57,676 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 15:02:57,677 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:03:47,382 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:03:47,382 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:03:47,382 [INFO] discord.client — logging in using static token
+2026-05-11 15:03:47,678 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:03:48,060 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: d8697753e46dd2e85ca300367cea95bd).
+2026-05-11 15:03:48,127 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 15:03:49,184 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:03:50,068 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:03:58,593 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 15:04:18,969 [WARNING] market_feed — Tradier session failed 3 times — switching to yfinance fallback. Bot will keep running with delayed data. Fix TRADIER_TOKEN in .env and restart to get live feed.
+2026-05-11 15:04:18,969 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:05:45,725 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:05:45,725 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:05:45,725 [INFO] discord.client — logging in using static token
+2026-05-11 15:05:45,916 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:05:46,377 [WARNING] market_feed — Tradier session failed (1/3) — retrying in 10s
+2026-05-11 15:05:46,757 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 5d21728f725b3ad4290fc080674b0a69).
+2026-05-11 15:05:47,553 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:05:48,763 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:05:56,775 [WARNING] market_feed — Tradier session failed (2/3) — retrying in 20s
+2026-05-11 15:06:20,017 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:06:20,017 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:06:20,017 [INFO] discord.client — logging in using static token
+2026-05-11 15:06:20,287 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:06:20,700 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: dc5f9cb25d2d4bcafbf515be8a8d1078).
+2026-05-11 15:06:20,718 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:06:20,720 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:06:20,720 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:06:21,819 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:06:22,705 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:11:00,342 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:11:00,343 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:11:00,343 [INFO] discord.client — logging in using static token
+2026-05-11 15:11:00,589 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:11:00,997 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: e6786c8fe32f989b43280c8c86c0005d).
+2026-05-11 15:11:01,106 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:11:01,107 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:11:01,107 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:11:02,122 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:11:03,008 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:24:17,411 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:24:17,412 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:24:17,413 [INFO] discord.client — logging in using static token
+2026-05-11 15:24:17,650 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:24:18,179 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:24:18,180 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:24:18,180 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:24:18,297 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 191fe40d066c0e8bb95621be6d3cd1fb).
+2026-05-11 15:24:19,154 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:24:20,308 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:26:07,040 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:26:07,040 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:26:07,040 [INFO] discord.client — logging in using static token
+2026-05-11 15:26:07,360 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:26:07,767 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: f7eb7419057cf4014166ebaafbe1d757).
+2026-05-11 15:26:07,810 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:26:07,811 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:26:07,812 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:26:08,823 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:26:09,781 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:27:25,028 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:27:25,028 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:27:25,028 [INFO] discord.client — logging in using static token
+2026-05-11 15:27:25,349 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:27:25,674 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6047c089a135aeea0590f380730cfc34).
+2026-05-11 15:27:25,810 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:27:25,811 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:27:25,811 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:27:26,832 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:27:27,684 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:33:31,659 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:33:31,659 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:33:31,660 [INFO] discord.client — logging in using static token
+2026-05-11 15:33:31,926 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:33:32,293 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:33:32,294 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:33:32,294 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:33:32,584 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: a2a9ed5f679fff2152e5df93eb92e5a4).
+2026-05-11 15:33:33,434 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:33:34,597 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:45:33,828 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:45:33,828 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:45:33,828 [INFO] discord.client — logging in using static token
+2026-05-11 15:45:34,081 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:45:34,581 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:45:34,582 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:45:34,583 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:45:34,852 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 85e65cce9216e1cdb48eb6893f2f9d47).
+2026-05-11 15:45:35,594 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:45:36,866 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 15:53:25,713 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 15:53:25,713 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 15:53:25,713 [INFO] discord.client — logging in using static token
+2026-05-11 15:53:25,962 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 15:53:26,462 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 15:53:26,464 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 15:53:26,464 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 15:53:26,480 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 81e0ff36052c3dc0a2d36688bb1f8b7a).
+2026-05-11 15:53:27,468 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 15:53:28,503 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:00:31,111 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:00:31,111 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:00:31,112 [INFO] discord.client — logging in using static token
+2026-05-11 16:00:31,374 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:00:31,771 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: f551716c35d500a6cea52942aa043ea6).
+2026-05-11 16:00:31,876 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:00:31,877 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:00:31,877 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:00:32,887 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:00:33,784 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:01:43,906 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:01:43,906 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:01:43,906 [INFO] discord.client — logging in using static token
+2026-05-11 16:01:44,242 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:01:44,465 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 7007a0ec798c267e859cabba843f8069).
+2026-05-11 16:01:44,687 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:01:44,688 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:01:44,689 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:01:45,645 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:01:46,493 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:03:05,365 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:03:05,365 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:03:05,365 [INFO] discord.client — logging in using static token
+2026-05-11 16:03:05,659 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:03:06,095 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:03:06,096 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:03:06,096 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:03:06,141 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 2fcd6fd74b067741ce9a83bbd4e0a708).
+2026-05-11 16:03:07,145 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:03:08,152 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:05:59,586 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:05:59,586 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:05:59,586 [INFO] discord.client — logging in using static token
+2026-05-11 16:05:59,886 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:06:00,273 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 28dc57838b8b180989f6aa1ec5905f6d).
+2026-05-11 16:06:00,388 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:06:00,389 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:06:00,389 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:06:01,379 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:06:02,290 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:12:56,498 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:12:56,498 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:12:56,498 [INFO] discord.client — logging in using static token
+2026-05-11 16:12:56,867 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:12:57,322 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:12:57,324 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:12:57,324 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:12:57,392 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 604b9582988250d55b961522810ce7db).
+2026-05-11 16:12:58,281 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:12:59,402 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:30:27,499 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:30:27,499 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:30:27,499 [INFO] discord.client — logging in using static token
+2026-05-11 16:30:27,743 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:30:28,121 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:30:28,122 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:30:28,123 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:30:28,185 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6c45c7a3f464e0d488c8e442a379658f).
+2026-05-11 16:30:29,261 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:30:30,199 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:34:16,709 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:34:16,710 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:34:16,710 [INFO] discord.client — logging in using static token
+2026-05-11 16:34:16,997 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:34:17,386 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: eb3d1739ddd89386c61c3793fefef318).
+2026-05-11 16:34:17,392 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:34:17,393 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:34:17,393 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:34:18,477 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:34:19,403 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:37:32,361 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:37:32,361 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:37:32,362 [INFO] discord.client — logging in using static token
+2026-05-11 16:37:32,706 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:37:33,171 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:37:33,173 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:37:33,173 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:37:33,178 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 149f8b3e4ebdcab46e4f4055a643d3f5).
+2026-05-11 16:37:34,140 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:37:35,183 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 16:41:41,011 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 16:41:41,012 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 16:41:41,012 [INFO] discord.client — logging in using static token
+2026-05-11 16:41:41,319 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 16:41:41,569 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: cdd00e382fa18359340602da3c6b0fe4).
+2026-05-11 16:41:41,781 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 16:41:41,782 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 16:41:41,782 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 16:41:42,784 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 16:41:43,615 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 17:55:11,506 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-11 17:55:11,512 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-11 17:55:11,512 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-11 17:55:12,254 [INFO] webull — Webull API ready via cookie token
+2026-05-11 17:55:12,578 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 17:55:12,579 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 17:55:12,579 [INFO] discord.client — logging in using static token
+2026-05-11 17:55:12,749 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 17:55:13,198 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 17:55:13,199 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 17:55:13,200 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 17:55:13,406 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 683740a8b58bb16e21ca19123c89477d).
+2026-05-11 17:55:14,255 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 17:55:15,411 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 18:02:43,671 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-11 18:02:43,679 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e187ff805-f...
+2026-05-11 18:02:43,680 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-11 18:02:44,401 [INFO] webull — Webull API ready via cookie token
+2026-05-11 18:02:44,613 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 18:02:44,614 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 18:02:44,614 [INFO] discord.client — logging in using static token
+2026-05-11 18:02:44,907 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-11 18:02:45,327 [ERROR] market_feed — TRADIER STREAM NOT ENABLED (500). Go to web.tradier.com, scroll to bottom right, click [Get API Access!] button, then restart the bot. Switching to yfinance fallback — no further retries.
+2026-05-11 18:02:45,329 [WARNING] market_feed — Tradier streaming unavailable — running on yfinance fallback. Enable API streaming on web.tradier.com and restart.
+2026-05-11 18:02:45,329 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 18:02:45,480 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6bd479989028218023d17398c64861b6).
+2026-05-11 18:02:46,402 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 18:02:47,483 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 18:22:33,709 [WARNING] webull — webull not installed — run: pip install webull
+2026-05-11 18:22:33,711 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-11 18:22:33,711 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 18:22:34,191 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 18:22:34,191 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 18:22:34,192 [INFO] discord.client — logging in using static token
+2026-05-11 18:22:35,095 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: f04450b2b58fe32615e4f83933f6e38a).
+2026-05-11 18:22:35,711 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 18:22:37,109 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 19:10:33,276 [WARNING] webull — webull not installed — run: pip install webull
+2026-05-11 19:10:33,278 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-11 19:10:33,278 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 19:10:33,496 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 19:10:33,496 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 19:10:33,496 [INFO] discord.client — logging in using static token
+2026-05-11 19:10:34,189 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: b21da89010980ae55438902e899aeb5c).
+2026-05-11 19:10:35,278 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 19:10:36,197 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 21:13:50,829 [WARNING] webull — webull not installed — run: pip install webull
+2026-05-11 21:13:50,830 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-11 21:13:50,830 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 21:13:51,084 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 21:13:51,084 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 21:13:51,085 [INFO] discord.client — logging in using static token
+2026-05-11 21:13:51,772 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 1218ba347c072cdb96a1914d8f504637).
+2026-05-11 21:13:52,830 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 21:13:53,789 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-11 21:42:58,775 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 1218ba347c072cdb96a1914d8f504637.
+2026-05-11 22:07:17,977 [WARNING] webull — webull not installed — run: pip install webull
+2026-05-11 22:07:17,978 [ERROR] market_feed — websocket-client not installed — run: pip install websocket-client
+2026-05-11 22:07:17,978 [INFO] market_feed — yfinance fallback feed active (30s poll, delayed data)
+2026-05-11 22:07:18,163 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-11 22:07:18,163 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-11 22:07:18,163 [INFO] discord.client — logging in using static token
+2026-05-11 22:07:19,163 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 3e6c0dcb537df1fec67e8a5d30938bc6).
+2026-05-11 22:07:19,978 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-11 22:07:21,178 [INFO] discord_listener — Discord connected as GilbertTrader#0929

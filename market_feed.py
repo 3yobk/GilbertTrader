@@ -15,11 +15,11 @@ TO ENABLE TRADIER (one-time setup):
 Drop-in replacement — same public API as the original Polygon version:
   market.start()
   market.stop()
-  market.get_quote(ticker)               → {bid, ask, last, volume, timestamp}
-  market.get_option_greeks(ticker, ...)  → {iv, delta, theta, gamma}
-  market.is_market_open()               → bool
-  market.subscribe(ticker, cb)           → callback on every live tick
-  market.subscribe_option(occ_sym, cb)   → callback on every option tick
+  market.get_quote(ticker)               -> {bid, ask, last, volume, timestamp}
+  market.get_option_greeks(ticker, ...)  -> {iv, delta, theta, gamma}
+  market.is_market_open()               -> bool
+  market.subscribe(ticker, cb)           -> callback on every live tick
+  market.subscribe_option(occ_sym, cb)   -> callback on every option tick
 """
 
 import threading
@@ -182,6 +182,42 @@ class MarketFeed:
             log.debug("Tradier REST quote error: %s", exc)
             return self._yf_quote(ticker)
 
+    def validate_token(self) -> bool:
+        """
+        Hits the Tradier profile endpoint to confirm the token works.
+        Logs a clear actionable message on failure.
+        Called once at startup before attempting WebSocket.
+        """
+        if not self._token:
+            return False
+        try:
+            r = _requests.get(
+                f"{self._rest}/user/profile",
+                headers=self._headers(),
+                timeout=8,
+            )
+            if r.status_code == 200:
+                name = r.json().get("profile", {}).get("name", "unknown")
+                log.info("Tradier token valid — account: %s", name)
+                return True
+            elif r.status_code == 401:
+                log.error(
+                    "TRADIER TOKEN INVALID (401 Unauthorized). "
+                    "Go to dash.tradier.com/settings/api and regenerate your token, "
+                    "then update TRADIER_TOKEN in your .env."
+                )
+            elif r.status_code == 403:
+                log.error(
+                    "TRADIER TOKEN FORBIDDEN (403). "
+                    "Your account may not have API access enabled. "
+                    "Go to your Tradier dashboard and click 'Get API Access!' to enable it."
+                )
+            else:
+                log.error("Tradier token check failed: HTTP %s", r.status_code)
+        except Exception as exc:
+            log.error("Tradier token validation error: %s", exc)
+        return False
+
     def _create_stream_session(self) -> Optional[str]:
         """Create a Tradier streaming session. Returns None cleanly on failure."""
         try:
@@ -198,10 +234,15 @@ class MarketFeed:
             status = exc.response.status_code if exc.response is not None else "?"
             if status == 500:
                 log.error(
-                    "Tradier session 500 — token is invalid or missing. "
-                    "Check TRADIER_TOKEN in your .env. "
-                    "Falling back to yfinance until token is fixed."
+                    "TRADIER STREAM NOT ENABLED (500). "
+                    "Go to web.tradier.com, scroll to bottom right, "
+                    "click [Get API Access!] button, then restart the bot. "
+                    "Switching to yfinance fallback — no further retries."
                 )
+                self._stream_disabled = True   # signal to stop retrying
+            elif status == 401:
+                log.error("Tradier stream 401 — token rejected. Check TRADIER_TOKEN in .env.")
+                self._stream_disabled = True
             else:
                 log.error("Tradier session HTTP %s: %s", status, exc)
         except Exception as exc:
@@ -218,7 +259,18 @@ class MarketFeed:
             self._yfinance_poll_loop()
             return
 
-        # Try to get a session. If we get 3 consecutive failures, drop to yfinance.
+
+        # Validate token first — gives a clear error if API access is not enabled
+        if not self.validate_token():
+            log.warning(
+                "Tradier token validation failed — falling back to yfinance. "
+                "Fix the issue above and restart to enable live feed."
+            )
+            self._yfinance_poll_loop()
+            return
+
+        # Try to get a session. On hard failures (500/401) bail immediately to yfinance.
+        self._stream_disabled = False
         fail_count = 0
         MAX_FAILS  = 3
 
@@ -226,17 +278,23 @@ class MarketFeed:
             self._session_id = self._create_stream_session()
 
             if not self._session_id:
+                # Hard stop — streaming API not enabled or token rejected
+                if self._stream_disabled:
+                    log.warning(
+                        "Tradier streaming unavailable — running on yfinance fallback. "
+                        "Enable API streaming on web.tradier.com and restart."
+                    )
+                    self._yfinance_poll_loop()
+                    return
                 fail_count += 1
                 if fail_count >= MAX_FAILS:
                     log.warning(
-                        "Tradier session failed %d times — switching to yfinance fallback. "
-                        "Bot will keep running with delayed data. "
-                        "Fix TRADIER_TOKEN in .env and restart to get live feed.",
+                        "Tradier session failed %d times — switching to yfinance fallback.",
                         MAX_FAILS
                     )
                     self._yfinance_poll_loop()
                     return
-                wait = 10 * fail_count   # back off: 10s, 20s, 30s
+                wait = 10 * fail_count
                 log.warning("Tradier session failed (%d/%d) — retrying in %ds",
                             fail_count, MAX_FAILS, wait)
                 self._stop.wait(wait)

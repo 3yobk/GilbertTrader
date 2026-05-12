@@ -36,7 +36,7 @@ _SIGNAL_RE = re.compile(
     r"(?:/(?P<expiry_year>\d{2,4}))?"
     r"(?:.*?x(?P<qty>\d+))?",
     re.IGNORECASE | re.DOTALL,
-)
+    )
 
 ACTION_MAP = {
     "BTO": "BTO", "BUY TO OPEN": "BTO", "BUY": "BTO",
@@ -248,41 +248,69 @@ class TradeEngine:
             signal.ticker, signal.expiry, signal.strike, signal.option_type
         )
         if not ok:
-            console.print("  [red]✗ Navigation to option failed[/red]")
+            console.print("  [red]x Option lookup failed[/red]")
             return
+
+        # Smart limit price: mid + buffer
         quote       = self.webull.get_option_quote(signal.ticker)
         limit_price = None
-        if quote and quote.get("bid") and quote.get("ask"):
-            limit_price = round((quote["bid"] + quote["ask"]) / 2, 2)
+        if quote:
+            bid = float(quote.get("bid") or 0)
+            ask = float(quote.get("ask") or 0)
+            if bid > 0 and ask > 0:
+                spread_pct = (ask - bid) / ask * 100 if ask > 0 else 0
+                if spread_pct > self.max_spread_pct:
+                    console.print(f"  [red]x Spread too wide: {spread_pct:.1f}%[/red]")
+                    return
+                limit_price = round((bid + ask) / 2 + 0.05, 2)
+            elif ask > 0:
+                limit_price = round(ask + 0.05, 2)
+
         fill_price = self.webull.place_order(
             action=signal.action, quantity=signal.quantity,
             limit_price=limit_price, paper=self.paper,
         )
         if fill_price is None:
             fill_price = limit_price
+
         if fill_price is not None:
             pos = OpenPosition(signal=signal, entry_price=fill_price, paper=self.paper)
             with self._lock:
                 self._positions[position_key] = pos
-            console.print(f"  [green]✓ Filled @ ${fill_price:.2f}[/green]")
+            console.print(f"  [green]Filled {signal.quantity}x @ ${fill_price:.2f}[/green]")
+            if self.listener:
+                self.listener.send_status_update(
+                    f"BTO filled: {signal.ticker} {signal.strike}{signal.option_type} "
+                    f"{signal.expiry} @ ${fill_price:.2f} x{signal.quantity}"
+                )
             self._start_monitor(position_key, pos)
         else:
-            console.print("  [yellow]Order submitted but fill price unknown — monitor manually[/yellow]")
+            console.print("  [yellow]Order submitted — fill unknown, monitoring manually[/yellow]")
 
     def _close_position(self, signal: TradeSignal, position_key: str):
-        console.print(f"  [bold yellow]→ Closing {position_key}[/bold yellow]")
+        console.print(f"  [bold yellow]Closing {position_key}[/bold yellow]")
         ok = self.webull.navigate_to_option(
             signal.ticker, signal.expiry, signal.strike, signal.option_type
         )
         if ok:
+            quote = self.webull.get_option_quote(signal.ticker)
+            lp = None
+            if quote:
+                bid = float(quote.get("bid") or 0)
+                if bid > 0:
+                    lp = round(bid - 0.05, 2)
             fill = self.webull.place_order(
-                action="STC", quantity=signal.quantity, paper=self.paper
+                action="STC", quantity=signal.quantity,
+                limit_price=lp, paper=self.paper
             )
             with self._lock:
                 pos = self._positions.get(position_key)
                 if pos and fill:
                     self.log_trade(pos, fill, reason="Manual STC")
                 self._positions.pop(position_key, None)
+            if self.listener and fill:
+                self.listener.send_status_update(
+                    f"STC closed: {position_key} @ ${fill:.2f}")
 
     def _start_monitor(self, position_key: str, pos: OpenPosition):
         t = threading.Thread(
@@ -415,22 +443,27 @@ class TradeEngine:
                 return
 
     def _auto_close(self, position_key: str, pos: OpenPosition, reason: str):
-        close_signal = TradeSignal(
-            ticker=pos.signal.ticker, strike=pos.signal.strike,
-            option_type=pos.signal.option_type, expiry=pos.signal.expiry,
-            action="STC", quantity=pos.signal.quantity,
-        )
         ok = self.webull.navigate_to_option(
-            close_signal.ticker, close_signal.expiry,
-            close_signal.strike, close_signal.option_type,
+            pos.signal.ticker, pos.signal.expiry,
+            pos.signal.strike, pos.signal.option_type,
         )
         if ok:
+            quote = self.webull.get_option_quote(pos.signal.ticker)
+            lp = None
+            if quote:
+                bid = float(quote.get("bid") or 0)
+                if bid > 0:
+                    lp = round(bid - 0.05, 2)
             fill = self.webull.place_order(
-                action="STC", quantity=close_signal.quantity, paper=pos.paper
+                action="STC", quantity=pos.signal.quantity,
+                limit_price=lp, paper=pos.paper
             )
             if fill:
                 self.log_trade(pos, fill, reason=reason)
             console.print(f"  [cyan]Auto-close [{reason}] fill: ${fill or '?'}[/cyan]")
+            if self.listener:
+                self.listener.send_status_update(
+                    f"AUTO-CLOSE [{reason}]: {position_key} @ ${fill or '?'}")
         with self._lock:
             self._positions.pop(position_key, None)
 

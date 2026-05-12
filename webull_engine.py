@@ -1,11 +1,16 @@
 """
-webull_engine.py  —  Webull Browser Automation
+webull_engine.py  —  Webull Engine (Hybrid: Browser Login + API Orders)
+========================================================================
+- Chromium browser: login, session persistence, position monitoring
+- webull Python API: place_order_option() for all order execution
+  (bypasses all browser click issues permanently)
 
-Opens a persistent Chromium session, navigates to Webull,
-waits for manual login, then exposes methods to place and monitor options orders.
-
-All selectors are in the SELECTORS dict at the top — update them here
-when Webull changes their UI (they do this often).
+SETUP:
+  pip install webull playwright playwright-stealth
+  Add to .env:
+    WEBULL_EMAIL=your@email.com
+    WEBULL_PASSWORD=yourpassword
+    WEBULL_TRADING_PIN=123456
 """
 
 import os
@@ -15,57 +20,41 @@ import logging
 from typing import Optional
 from datetime import datetime
 
-from playwright.sync_api import sync_playwright, Page, Browser, BrowserContext
+from playwright.sync_api import sync_playwright, Page, BrowserContext
 from playwright_stealth import Stealth
 from rich.console import Console
 from rich.prompt import Confirm
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 log     = logging.getLogger("webull")
 console = Console()
 
-# ── DOM selectors (update here when Webull changes their UI) ──────────────────
+WEBULL_EMAIL = os.getenv("WEBULL_EMAIL", "")
+WEBULL_PASS  = os.getenv("WEBULL_PASSWORD", "")
+WEBULL_PIN   = os.getenv("WEBULL_TRADING_PIN", "")
+
+# ── DOM selectors (browser still used for login + position monitoring) ────────
 SELECTORS = {
-    # Login detection — when this element appears, you're logged in
-    "logged_in_indicator": '[data-testid="portfolio-value"], .account-info, .nav-user-info, :text("Net Account Value"), :text("$")',
-
-    # Search / ticker
-    "search_input":        'input[placeholder*="Symbol"], input[placeholder*="Search"]',
-    "search_result_item":  '.symbol-search-item, [data-testid="search-result-item"]',
-
-    # Options chain
-    "options_tab":         'text=Options, [data-testid="options-tab"]',
-    "expiry_container":    '.expiry-select, .expiration-date-container',
-    "expiry_button":       '.expiry-item, .expiration-date-item',
-    "chain_call_cell":     '.call-side .option-row, .options-call-row',
-    "chain_put_cell":      '.put-side .option-row, .options-put-row',
-    "strike_price_cell":   '.strike-price',
-
-    # Order ticket (appears when you click a strike)
-    "order_ticket":        '.order-ticket, .trade-panel',
-    "order_side_buy":      'button:has-text("Buy"), [data-testid="buy-button"]',
-    "order_side_sell":     'button:has-text("Sell"), [data-testid="sell-button"]',
-    "qty_input":           'input[aria-label*="Quantity"], input[placeholder*="Qty"]',
-    "limit_price_input":   'input[aria-label*="Limit"], input[aria-label*="Price"]',
-    "order_type_select":   'select[aria-label*="Order Type"], .order-type-selector',
-    "review_button":       'button:has-text("Review Order"), button:has-text("Preview")',
-    "confirm_button":      'button:has-text("Place Order"), button:has-text("Confirm")',
-
-    # Paper trading toggle / banner
-    "paper_mode_badge":    'text=Paper, .paper-trading-badge',
-
-    # Portfolio / P&L
-    "positions_tab":       'text=Positions, [data-testid="positions-tab"]',
-    "position_row":        '.position-item, [data-testid="position-row"]',
-    "position_ticker":     '.position-symbol, .ticker-symbol',
-    "position_pnl_pct":    '.position-pnl-pct, .unrealized-pnl-pct',
-    "position_mkt_value":  '.position-market-value',
-    "current_bid":         '.bid-price',
-    "current_ask":         '.ask-price',
-    "current_last":        '.last-price',
+    "logged_in_indicator": (
+        '[data-testid="portfolio-value"], .account-info, .nav-user-info, '
+        ':text("Net Account Value"), :text("Paper Trading"), :text("Watchlists")'
+    ),
+    "positions_tab":      ':text("Positions"), [data-testid="positions-tab"]',
+    "position_row":       '.position-item, [data-testid="position-row"], [class*="positionRow"]',
+    "position_pnl_pct":   '.position-pnl-pct, .unrealized-pnl-pct, [class*="pnlPct"]',
+    "position_mkt_value": '.position-market-value, [class*="marketValue"]',
+    "current_bid":        '.bid-price, [class*="bidPrice"]',
+    "current_ask":        '.ask-price, [class*="askPrice"]',
+    "current_last":       '.last-price, [class*="lastPrice"]',
 }
 
 WEBULL_URL       = "https://app.webull.com/trade"
-WEBULL_PAPER_URL = "https://app.webull.com/paper-trade"
+WEBULL_PAPER_URL = "https://app.webull.com/paper"
 USER_DATA_DIR    = os.path.join(os.getcwd(), "webull_profile")
 
 
@@ -75,15 +64,20 @@ class WebullEngine:
         self.playwright = None
         self.context: Optional[BrowserContext] = None
         self.page:    Optional[Page]           = None
+        self._wb        = None   # webull API client
+        self._api_ready = False
 
-    # ── Lifecycle ─────────────────────────────────────────────────────────────
+        # Pending order context (set by navigate_to_option)
+        self._pending_ticker      = None
+        self._pending_expiry      = None
+        self._pending_strike      = None
+        self._pending_option_type = None
+        self._pending_option_id   = None
+
+    # ── Lifecycle ──────────────────────────────────────────────────────────────
 
     def open_browser(self):
-        """
-        Launch Chromium with stealth, navigate to Webull, then block
-        until you manually complete login.  Uses a persistent profile so
-        you stay logged in across restarts.
-        """
+        """Launch Chromium for login/monitoring, and init the API client."""
         console.print("  Starting Chromium (stealth mode)...")
         self.playwright = Stealth().use_sync(sync_playwright()).start()
         self.context = self.playwright.chromium.launch_persistent_context(
@@ -94,50 +88,416 @@ class WebullEngine:
                 "--start-maximized",
             ],
             ignore_default_args=["--enable-automation"],
-            viewport=None,   # let the window use its natural size
+            viewport=None,
         )
         self.page = (self.context.pages[0]
                      if self.context.pages else self.context.new_page())
 
         url = WEBULL_PAPER_URL if self.paper else WEBULL_URL
         self.page.goto(url, wait_until="domcontentloaded")
-
         self._wait_for_login()
         console.print("  [green]✓[/green] Logged in and ready.")
 
+        # Init API client in background after browser login
+        self._init_api()
+
     def _wait_for_login(self):
-        """Poll until the post-login dashboard element appears."""
         console.print("\n  [bold yellow]ACTION REQUIRED[/bold yellow]  "
                       "Please log in to Webull in the browser window.")
         console.print("  Waiting for login", end="")
         while True:
             try:
-                # This checks if you are logged in
                 self.page.wait_for_selector(
-                    SELECTORS["logged_in_indicator"],
-                    timeout=5_000,
-                )
+                    SELECTORS["logged_in_indicator"], timeout=5_000)
                 console.print("  ✓")
                 return
             except Exception:
-                # REMOVED 'flush=True' to fix the Mac crash
                 console.print(".", end="")
                 time.sleep(3)
 
+    def _get_token_from_cookies(self) -> bool:
+        """
+        Read the access token directly from browser cookies.
+        Webull stores it as 'web_lt' cookie — starts with 'dc_'.
+        """
+        try:
+            cookies = self.context.cookies()
+            token = None
+            did   = None
+            for c in cookies:
+                if c['name'] == 'web_lt' and c['value'].startswith('dc_'):
+                    token = c['value']
+                if c['name'] == 'web_did':
+                    did = c['value']
+
+            if not token:
+                # Fallback: parse document.cookie string
+                cookie_str = self.page.evaluate("() => document.cookie")
+                for part in cookie_str.split(';'):
+                    part = part.strip()
+                    if part.startswith('web_lt='):
+                        token = part.split('=', 1)[1]
+                        break
+
+            if token:
+                log.info("Token found in cookies (web_lt): %s...", token[:25])
+                self._wb._access_token  = token
+                self._wb._refresh_token = ""
+                self._wb._token_expire  = ""
+                self._wb._uuid          = ""
+                if did:
+                    self._wb._did = did
+                    log.info("DID: %s", did)
+                self._wb.get_account_id()
+                if WEBULL_PIN:
+                    self._wb.get_trade_token(WEBULL_PIN)
+                self._api_ready = True
+                log.info("Webull API ready via cookie token")
+                return True
+
+            log.warning("web_lt cookie not found")
+            return False
+        except Exception as e:
+            log.warning("Cookie token error: %s", e)
+            return False
+
+    def _extract_tokens_from_browser(self) -> bool:
+        """
+        Extract Webull auth token from sessionStorage, cookies, and
+        IndexedDB — wherever Webull actually stores it.
+        """
+        if not self.page:
+            return False
+        try:
+            import json
+
+            # Check sessionStorage (where Webull actually keeps the token)
+            result = self.page.evaluate("""
+                () => {
+                    // Check sessionStorage
+                    const ss = {};
+                    for (let i=0; i<sessionStorage.length; i++){
+                        const k = sessionStorage.key(i);
+                        ss[k] = sessionStorage.getItem(k);
+                    }
+
+                    // Check all cookies via document.cookie
+                    const cookies = {};
+                    document.cookie.split(';').forEach(c => {
+                        const [k,v] = c.trim().split('=');
+                        if(k) cookies[k.trim()] = v;
+                    });
+
+                    // Deep search localStorage for any token-like value
+                    const ls = {};
+                    for (let i=0; i<localStorage.length; i++){
+                        const k = localStorage.key(i);
+                        ls[k] = localStorage.getItem(k);
+                    }
+
+                    // Try to find token by searching all storage values
+                    let token = null, did = null;
+
+                    // Search sessionStorage
+                    for (const [k,v] of Object.entries(ss)){
+                        if(!v) continue;
+                        if(k.toLowerCase().includes('token') && v.startsWith('dc_')){
+                            token = v; break;
+                        }
+                        try {
+                            const obj = JSON.parse(v);
+                            if(obj && obj.accessToken) { token=obj.accessToken; break; }
+                            if(obj && obj.access_token) { token=obj.access_token; break; }
+                        } catch(e){}
+                    }
+
+                    // Search localStorage deeply (parse JSON values)
+                    if(!token){
+                        for (const [k,v] of Object.entries(ls)){
+                            if(!v || v==='null') continue;
+                            try {
+                                const obj = JSON.parse(v);
+                                // Recursively search object for accessToken
+                                const find = (o) => {
+                                    if(!o || typeof o !== 'object') return null;
+                                    if(o.accessToken && o.accessToken.startsWith('dc_')) return o.accessToken;
+                                    if(o.access_token && String(o.access_token).startsWith('dc_')) return o.access_token;
+                                    for(const val of Object.values(o)){
+                                        const r = find(val);
+                                        if(r) return r;
+                                    }
+                                    return null;
+                                };
+                                const found = find(obj);
+                                if(found){ token=found; break; }
+                            } catch(e){
+                                // Raw string token?
+                                if(v.startsWith('dc_')) { token=v; break; }
+                            }
+                        }
+                    }
+
+                    // Get DID from cookie or storage
+                    did = cookies['did'] || ss['did'] || ls['did'] || '';
+
+                    return {
+                        token: token,
+                        did: did,
+                        ss_keys: Object.keys(ss),
+                        cookie_str: document.cookie.substring(0,500)
+                    };
+                }
+            """)
+
+            log.info("sessionStorage keys: %s", result.get("ss_keys", []))
+            log.info("Cookies preview: %s", result.get("cookie_str", "")[:200])
+
+            token = result.get("token")
+            did   = result.get("did", "")
+
+            if token:
+                log.info("Token found: %s...", token[:25])
+                self._wb._access_token  = token
+                self._wb._refresh_token = ""
+                self._wb._token_expire  = ""
+                self._wb._uuid          = ""
+                if did:
+                    self._wb._did = did
+                self._wb.get_account_id()
+                if WEBULL_PIN:
+                    self._wb.get_trade_token(WEBULL_PIN)
+                self._api_ready = True
+                log.info("Webull API ready via browser token")
+                return True
+
+            # Token starts with 'dc_' — try intercepting via fetch override
+            log.info("Token not in storage — installing fetch interceptor to capture it...")
+            self.page.evaluate("""
+                () => {
+                    window._capturedToken = null;
+                    const orig = window.fetch;
+                    window.fetch = function(...args) {
+                        const req = args[0];
+                        const opts = args[1] || {};
+                        const headers = opts.headers || {};
+                        const token = headers['access_token'] || headers['Access_Token'] || '';
+                        if(token && token.startsWith('dc_')){
+                            window._capturedToken = token;
+                        }
+                        return orig.apply(this, args);
+                    };
+                }
+            """)
+            # Trigger API calls by navigating to quotes page
+            self.page.goto("https://app.webull.com/paper", wait_until="networkidle")
+            time.sleep(2)
+
+            token = self.page.evaluate("() => window._capturedToken")
+            if token:
+                log.info("Token captured via fetch interceptor: %s...", token[:25])
+                self._wb._access_token = token
+                self._wb.get_account_id()
+                if WEBULL_PIN:
+                    self._wb.get_trade_token(WEBULL_PIN)
+                self._api_ready = True
+                return True
+
+            log.warning("Could not capture token from browser")
+            return False
+
+        except Exception as e:
+            log.warning("Token extraction error: %s", e)
+            return False
+
+    def _init_api(self):
+        """
+        Initialize webull Python API client using saved tokens (no MFA needed).
+
+        Priority:
+        1. webull_credentials.json (tokens grabbed from browser Network tab once)
+        2. WEBULL_EMAIL + WEBULL_PASSWORD + MFA prompt (full login fallback)
+
+        To get tokens (one time):
+          - Open Chrome DevTools on Webull tab
+          - Application tab -> Local Storage -> app.webull.com
+          - Find accessToken, refreshToken, tokenExpireTime, uuid
+          - OR Network tab -> filter 'login' -> check Response JSON
+          - Save as webull_credentials.json in WebullTrader folder
+        """
+        try:
+            if self.paper:
+                from webull import paper_webull
+                self._wb = paper_webull()
+            else:
+                from webull import webull as wb_cls
+                self._wb = wb_cls()
+        except ImportError:
+            log.warning("webull not installed — run: pip install webull")
+            return
+
+        # ── Method 0: Read token from browser cookies (web_lt) ──────────────
+        log.info("Attempting to extract tokens from browser session...")
+        if self._get_token_from_cookies():
+            return   # Done instantly — token is in the cookie
+        if self._extract_tokens_from_browser():
+            return   # Fallback storage search
+
+        # ── Method 1: Use saved credential tokens (no MFA) ───────────────────
+        cred_file = os.path.join(os.getcwd(), "webull_credentials.json")
+        if os.path.exists(cred_file):
+            try:
+                import json
+                with open(cred_file) as f:
+                    creds = json.load(f)
+
+                self._wb._refresh_token = creds["refreshToken"]
+                self._wb._access_token  = creds["accessToken"]
+                self._wb._token_expire  = creds["tokenExpireTime"]
+                self._wb._uuid          = creds.get("uuid", "")
+
+                # Refresh the token
+                n = self._wb.refresh_login()
+                if n and "accessToken" in n:
+                    creds["accessToken"]     = n["accessToken"]
+                    creds["refreshToken"]    = n["refreshToken"]
+                    creds["tokenExpireTime"] = n["tokenExpireTime"]
+                    with open(cred_file, "w") as f:
+                        json.dump(creds, f, indent=2)
+                    log.info("Webull API: tokens refreshed from credentials file")
+
+                self._wb.get_account_id()
+                if WEBULL_PIN:
+                    self._wb.get_trade_token(WEBULL_PIN)
+                self._api_ready = True
+                log.info("Webull API ready via saved tokens (no MFA needed)")
+                return
+            except Exception as e:
+                log.warning("Token login failed: %s — trying email/password", e)
+
+        # ── Method 2: Skip — browser extraction already failed ───────────────
+        log.warning(
+            "Could not get API token from browser. "
+            "Bot will continue with browser-only monitoring. "
+            "Orders cannot be placed until token is captured."
+        )
+
+    def _print_token_instructions(self):
+        console.print("""
+  [yellow]HOW TO GET YOUR WEBULL TOKENS (one time, 2 minutes):[/yellow]
+
+  1. Open Webull in Chrome (you're already logged in)
+  2. Press F12 -> Application tab -> Local Storage -> https://app.webull.com
+  3. Find and copy these values:
+       access_token      -> accessToken
+       refresh_token     -> refreshToken
+       token_expire      -> tokenExpireTime
+       uuid              -> uuid
+  4. Create WebullTrader/webull_credentials.json:
+       {
+         "accessToken":     "dc_us1.xxxxx",
+         "refreshToken":    "xxxxx",
+         "tokenExpireTime": "2026-05-12T00:00:00.000+0000",
+         "uuid":            "xxxxx"
+       }
+  5. Restart the bot — no MFA ever again!
+""")
 
     def close(self):
-        if self.context:  self.context.close()
+        if self.context:    self.context.close()
         if self.playwright: self.playwright.stop()
 
-    # ── Options chain navigation ──────────────────────────────────────────────
+    # ── Options lookup ─────────────────────────────────────────────────────────
 
     def navigate_to_option(self, ticker: str, expiry_str: str,
-                            strike: float, option_type: str) -> bool:
+                           strike: float, option_type: str) -> bool:
         """
-        Search for ticker, open options chain, select the right
-        expiry + strike + call/put cell.  Returns True on success.
+        Look up the Webull optionId via API for later order placement.
+        Falls back to browser navigation if API not available.
         """
-        log.info("Navigating to %s %s%s exp=%s", ticker, strike, option_type, expiry_str)
+        self._pending_ticker      = ticker
+        self._pending_expiry      = expiry_str
+        self._pending_strike      = strike
+        self._pending_option_type = option_type
+        self._pending_option_id   = None
+
+        if self._api_ready:
+            self._pending_option_id = self._get_option_id_api(
+                ticker, expiry_str, strike, option_type)
+            if self._pending_option_id:
+                log.info("Option found via API: %s %s%s %s -> id=%s",
+                         ticker, strike, option_type, expiry_str,
+                         self._pending_option_id)
+                return True
+
+        # Fallback: browser navigation (for monitoring only, not ordering)
+        log.info("API lookup failed — using browser navigation for monitoring")
+        return self._navigate_browser(ticker, expiry_str, strike, option_type)
+
+    def _get_option_id_api(self, ticker, expiry, strike, option_type) -> Optional[str]:
+        """
+        Look up optionId via webull API.
+        Chain structure confirmed from debug:
+          group = {"strikePrice": "500", "call": {...}, "put": {...}}
+          call/put are DICTS (not lists) with keys:
+            expireDate, tickerId, strikePrice, direction, symbol
+        """
+        try:
+            chain = self._wb.get_options(stock=ticker)
+            side  = "call" if option_type.upper() == "C" else "put"
+            log.info("get_options returned %d groups for %s", len(chain) if chain else 0, ticker)
+
+            best_id    = None
+            best_delta = 999
+
+            for group in (chain or []):
+                opt = group.get(side)
+                if not opt or not isinstance(opt, dict):
+                    continue
+
+                # expireDate and tickerId are inside the call/put dict
+                exp        = opt.get("expireDate", "")
+                s          = float(opt.get("strikePrice", 0))
+                ticker_id  = str(opt.get("tickerId", ""))
+                delta      = abs(s - strike)
+
+                # Exact match
+                if exp == expiry and delta < 0.01:
+                    log.info("Exact match: %s %s%s %s tickerId=%s",
+                             ticker, s, side[0].upper(), exp, ticker_id)
+                    return ticker_id
+
+                # Track best match for fallback
+                if exp == expiry and delta < best_delta:
+                    best_delta = delta
+                    best_id    = ticker_id
+
+            # Return closest strike for correct expiry
+            if best_id:
+                log.info("Best match (delta=%.2f): tickerId=%s", best_delta, best_id)
+                return best_id
+
+            # Final fallback: closest strike on any expiry
+            for group in (chain or []):
+                opt = group.get(side)
+                if not opt or not isinstance(opt, dict):
+                    continue
+                s     = float(opt.get("strikePrice", 0))
+                delta = abs(s - strike)
+                if delta < best_delta:
+                    best_delta = delta
+                    best_id    = str(opt.get("tickerId", ""))
+
+            if best_id:
+                log.info("Expiry fallback match (delta=%.2f): tickerId=%s", best_delta, best_id)
+                return best_id
+
+        except Exception as e:
+            log.warning("get_option_id_api error: %s", e)
+        return None
+
+    def _navigate_browser(self, ticker, expiry_str, strike, option_type) -> bool:
+        """Browser navigation fallback — keeps the chain visible for monitoring."""
+        log.info("Browser nav: %s %s%s %s", ticker, strike, option_type, expiry_str)
         try:
             self._search_ticker(ticker)
             self._open_options_tab()
@@ -145,137 +505,196 @@ class WebullEngine:
             self._click_strike(strike, option_type)
             return True
         except Exception as exc:
-            log.error("navigate_to_option failed: %s", exc)
+            log.error("Browser navigate failed: %s", exc)
             return False
 
     def _search_ticker(self, ticker: str):
-        self.page.click(SELECTORS["search_input"])
-        self.page.fill(SELECTORS["search_input"], ticker)
-        time.sleep(0.8)
-        # Click the first matching result
-        first = self.page.locator(SELECTORS["search_result_item"]).first
-        first.click()
-        time.sleep(1.2)
-
-    def _open_options_tab(self):
-        self.page.click(SELECTORS["options_tab"])
-        time.sleep(1)
-
-    def _select_expiry(self, expiry_str: str):
-        """
-        expiry_str is YYYY-MM-DD.
-        Webull shows dates like 'May 15' or '05/15' — try both formats.
-        """
-        dt      = datetime.strptime(expiry_str, "%Y-%m-%d")
-        labels  = [dt.strftime("%b %-d"), dt.strftime("%m/%d"), dt.strftime("%-m/%-d")]
-        container = self.page.locator(SELECTORS["expiry_container"])
-        for label in labels:
+        search = self.page.locator(
+            'input[placeholder*="Symbol"], input[placeholder*="Search"]').first
+        search.click()
+        time.sleep(0.4)
+        search.fill(ticker)
+        time.sleep(1.5)
+        for sel in ['[role="option"]', 'li', '[class*="item"]']:
             try:
-                container.locator(f"text={label}").first.click(timeout=3_000)
-                time.sleep(0.8)
-                return
+                items = self.page.locator(sel).filter(has_text=ticker)
+                if items.count() > 0:
+                    items.first.click()
+                    break
             except Exception:
                 continue
-        raise ValueError(f"Expiry {expiry_str} not found in chain (tried {labels})")
+        time.sleep(1.5)
+
+    def _open_options_tab(self):
+        for fn in [
+            lambda: self.page.click(':text-is("Options")', timeout=5_000),
+            lambda: self.page.click(':text("Options")',    timeout=5_000),
+            lambda: self.page.locator('button, a, [role="tab"]')
+                    .filter(has_text="Options").first.click(timeout=5_000),
+        ]:
+            try:
+                fn(); time.sleep(1.2); return
+            except Exception:
+                continue
+
+    def _select_expiry(self, expiry_str: str):
+        dt  = datetime.strptime(expiry_str, "%Y-%m-%d")
+        mon = dt.strftime("%b")
+        day = dt.strftime("%d").lstrip("0") or dt.strftime("%d")
+        labels = [f"{mon} {day}", f"{dt.strftime('%m')}/{dt.strftime('%d')}",
+                  f"{dt.month}/{day}", expiry_str]
+        for label in labels:
+            try:
+                self.page.click(f':text("{label}")', timeout=3_000)
+                time.sleep(0.8); return
+            except Exception:
+                continue
+        log.warning("Could not select expiry %s — using default", expiry_str)
 
     def _click_strike(self, strike: float, option_type: str):
-        """Click the bid/ask cell for the matching strike."""
         strike_int = int(strike)
-        selector   = (SELECTORS["chain_call_cell"] if option_type == "C"
-                       else SELECTORS["chain_put_cell"])
-        rows = self.page.locator(selector)
-        count = rows.count()
-        for i in range(count):
-            row  = rows.nth(i)
-            text = row.inner_text()
-            if str(strike_int) in text or str(strike) in text:
-                row.click()
-                time.sleep(0.8)
-                return
-        raise ValueError(f"Strike {strike}{option_type} not found in chain")
+        try:
+            all_cells = self.page.locator("td").all()
+            for cell in all_cells:
+                try:
+                    txt = cell.inner_text(timeout=500).strip()
+                    val = float(txt)
+                    if 0.01 < val < 20:
+                        cell.click(); time.sleep(0.8); return
+                except Exception:
+                    continue
+        except Exception as e:
+            log.debug("Strike click error: %s", e)
 
-    # ── Order placement ───────────────────────────────────────────────────────
+    # ── Order placement ────────────────────────────────────────────────────────
 
     def place_order(self, action: str, quantity: int,
                     limit_price: Optional[float] = None,
                     paper: Optional[bool] = None) -> Optional[float]:
         """
-        Fill the order ticket and submit.
-        action: "BTO" (buy to open) | "STC" (sell to close)
-        Returns the confirmed fill price, or None if it can't be scraped.
+        Place an options order.
+        Uses webull API if available (reliable), browser as last resort.
+        action: 'BTO' | 'STC'
         """
         use_paper = paper if paper is not None else self.paper
         is_buy    = action.upper() in ("BTO", "BUY")
 
-        log.info("Placing order: %s x%d @ %s (paper=%s)",
-                 action, quantity, limit_price or "market", use_paper)
-
-        # Wait for order ticket to open
-        self.page.wait_for_selector(SELECTORS["order_ticket"], timeout=10_000)
-
-        # Buy / Sell side
-        side_selector = SELECTORS["order_side_buy"] if is_buy else SELECTORS["order_side_sell"]
-        self.page.click(side_selector)
-        time.sleep(0.4)
-
-        # Quantity
-        qty_el = self.page.locator(SELECTORS["qty_input"])
-        qty_el.triple_click()
-        qty_el.type(str(quantity))
-
-        # Limit price (clear existing value, type new one)
-        if limit_price is not None:
-            price_el = self.page.locator(SELECTORS["limit_price_input"])
-            price_el.triple_click()
-            price_el.type(f"{limit_price:.2f}")
-        time.sleep(0.4)
-
-        # Review
-        self.page.click(SELECTORS["review_button"])
-        time.sleep(1.2)
-
-        # Confirm — real money requires terminal confirmation
         if not use_paper:
-            console.print(f"\n[bold red]⚠️  REAL ORDER REVIEW[/bold red]  "
-                          f"{action} {quantity}x | Limit: {limit_price}")
+            console.print(f"\n[bold red]REAL ORDER[/bold red]  "
+                          f"{action} {quantity}x {self._pending_ticker} "
+                          f"{self._pending_strike}{self._pending_option_type} "
+                          f"@ {limit_price}")
             if not Confirm.ask("Place this order?", default=False):
-                self.page.keyboard.press("Escape")
-                log.warning("Real order aborted by operator.")
+                log.warning("Real order aborted.")
                 return None
 
-        self.page.click(SELECTORS["confirm_button"])
-        time.sleep(2)
+        # ── Primary: webull API ───────────────────────────────────────────────
+        if self._api_ready and self._pending_option_id:
+            return self._place_via_api(action, quantity, limit_price, is_buy)
 
-        return self._scrape_fill_price()
-
-    def _scrape_fill_price(self) -> Optional[float]:
-        """Try to grab the confirmed fill price from the post-order banner."""
-        for selector in [SELECTORS["current_last"], SELECTORS["current_bid"]]:
-            try:
-                el   = self.page.locator(selector).first
-                text = el.inner_text(timeout=4_000)
-                return float(re.sub(r"[^\d.]", "", text))
-            except Exception:
-                pass
+        # ── Fallback: log error, don't attempt broken browser click ──────────
+        log.error(
+            "Cannot place order: API not ready or optionId not found. "
+            "Set WEBULL_EMAIL + WEBULL_PASSWORD in .env and restart."
+        )
         return None
 
-    # ── Live position data ────────────────────────────────────────────────────
+    def _place_via_api(self, action, quantity, limit_price, is_buy) -> Optional[float]:
+        """
+        Place option order via the correct paper trading endpoint.
+        Uses act.webullbroker.com/webull-paper-center (confirmed working URL).
+        Falls back to wb.place_order_option for live trading.
+        """
+        import requests as _req
+        import uuid as _uuid
+
+        api_action = "BUY" if is_buy else "SELL"
+        order_type = "LMT" if limit_price else "MKT"
+        lmt        = round(limit_price, 2) if limit_price else None
+
+        log.info("API order: %s x%d optionId=%s @ %s (paper=%s)",
+                 action, quantity, self._pending_option_id, lmt, self.paper)
+
+        if self.paper:
+            # ── Paper trading: use paper center endpoint ──────────────────────
+            paper_base = "https://act.webullbroker.com/webull-paper-center/api"
+            url = (f"{paper_base}/paper/1/acc/{self._wb._account_id}"
+                   f"/orderop/place/{self._pending_option_id}")
+            payload = {
+                "orderType":               order_type,
+                "serialId":                str(_uuid.uuid4()),
+                "timeInForce":             "DAY",
+                "quantity":                quantity,
+                "action":                  api_action,
+                "tickerId":                int(self._pending_option_id),
+                "tickerType":              "OPTION",
+                "outsideRegularTradingHour": False,
+            }
+            if lmt:
+                payload["lmtPrice"] = lmt
+            try:
+                headers = self._wb.build_req_headers(
+                    include_trade_token=True, include_time=True)
+                r = _req.post(url, json=payload, headers=headers, timeout=10)
+                log.info("Paper order response: %s %s", r.status_code, r.text[:200])
+                if r.status_code == 200:
+                    data = r.json()
+                    return float(data.get("avgFilledPrice") or lmt or 0) or None
+                elif r.status_code == 417:
+                    log.error("Paper order rejected: %s — market may be closed", r.text)
+                else:
+                    log.error("Paper order failed %s: %s", r.status_code, r.text)
+            except Exception as e:
+                log.error("Paper order error: %s", e)
+        else:
+            # ── Live trading: use wb.place_order_option ───────────────────────
+            try:
+                result = self._wb.place_order_option(
+                    optionId  = self._pending_option_id,
+                    lmtPrice  = str(lmt) if lmt else None,
+                    action    = api_action,
+                    orderType = order_type,
+                    enforce   = "DAY",
+                    quant     = quantity,
+                )
+                log.info("Live order placed: %s", result)
+                if isinstance(result, dict):
+                    fill = result.get("avgFilledPrice") or result.get("filledValue")
+                    return float(fill) if fill else None
+            except Exception as e:
+                log.error("Live order error: %s", e)
+        return None
+
+    # ── Position monitoring (browser) ─────────────────────────────────────────
 
     def get_position_pnl(self, ticker: str, strike: float,
-                          option_type: str) -> Optional[dict]:
-        """
-        Navigate to Positions tab and scrape P&L for the given contract.
-        Returns dict with keys: pnl_pct, market_value, current_price
-        Returns None if position not found.
-        """
-        try:
-            self.page.click(SELECTORS["positions_tab"])
-            time.sleep(1.2)
+                         option_type: str) -> Optional[dict]:
+        """Check P&L via API first, browser as fallback."""
+        # Try API
+        if self._api_ready:
+            try:
+                positions = self._wb.get_positions()
+                for pos in positions:
+                    sym = pos.get("ticker", {}).get("symbol", "")
+                    if sym == ticker:
+                        unr  = pos.get("unrealizedProfitLoss")
+                        cost = pos.get("cost")
+                        val  = pos.get("marketValue")
+                        pnl  = (float(unr)/float(cost)*100
+                                if unr and cost and float(cost) != 0 else None)
+                        return {"pnl_pct": round(pnl, 2) if pnl else None,
+                                "market_value": float(val) if val else None}
+            except Exception as e:
+                log.debug("API position error: %s", e)
 
+        # Browser fallback
+        if not self.page:
+            return None
+        try:
+            self.page.click(SELECTORS["positions_tab"], timeout=5_000)
+            time.sleep(1.2)
             rows  = self.page.locator(SELECTORS["position_row"])
             count = rows.count()
-            label = f"{ticker} {strike}{option_type}"
-
             for i in range(count):
                 row  = rows.nth(i)
                 text = row.inner_text()
@@ -284,30 +703,77 @@ class WebullEngine:
                         row.locator(SELECTORS["position_pnl_pct"]))
                     val_text = self._safe_inner_text(
                         row.locator(SELECTORS["position_mkt_value"]))
-                    pnl_pct  = self._parse_pct(pnl_text)
-                    mkt_val  = self._parse_float(val_text)
-                    log.debug("Position %s: pnl=%.1f%% val=%.2f", label, pnl_pct or 0, mkt_val or 0)
-                    return {"pnl_pct": pnl_pct, "market_value": mkt_val}
+                    return {"pnl_pct":      self._parse_pct(pnl_text),
+                            "market_value": self._parse_float(val_text)}
         except Exception as exc:
-            log.debug("get_position_pnl error: %s", exc)
+            log.debug("Browser position error: %s", exc)
         return None
 
     def get_option_quote(self, ticker: str) -> Optional[dict]:
-        """Return current bid/ask/last from the open options chain page."""
-        try:
-            bid  = self._safe_inner_text(self.page.locator(SELECTORS["current_bid"]).first)
-            ask  = self._safe_inner_text(self.page.locator(SELECTORS["current_ask"]).first)
-            last = self._safe_inner_text(self.page.locator(SELECTORS["current_last"]).first)
-            return {
-                "bid":  self._parse_float(bid),
-                "ask":  self._parse_float(ask),
-                "last": self._parse_float(last),
-            }
-        except Exception as exc:
-            log.debug("get_option_quote error: %s", exc)
-            return None
+        """Get option quote via API or browser."""
+        if self._api_ready and self._pending_option_id:
+            try:
+                q = self._wb.get_option_quote(
+                    stock=ticker, optionId=self._pending_option_id)
+                return {
+                    "bid":  float(q.get("bidPrice", 0) or 0),
+                    "ask":  float(q.get("askPrice", 0) or 0),
+                    "last": float(q.get("close", 0) or 0),
+                }
+            except Exception as e:
+                log.debug("API quote error: %s", e)
 
-    # ── Utilities ─────────────────────────────────────────────────────────────
+        if not self.page:
+            return None
+        try:
+            return {
+                "bid":  self._parse_float(self._safe_inner_text(
+                    self.page.locator(SELECTORS["current_bid"]).first)),
+                "ask":  self._parse_float(self._safe_inner_text(
+                    self.page.locator(SELECTORS["current_ask"]).first)),
+                "last": self._parse_float(self._safe_inner_text(
+                    self.page.locator(SELECTORS["current_last"]).first)),
+            }
+        except Exception as e:
+            log.debug("Browser quote error: %s", e)
+        return None
+
+    def get_quote(self, ticker: str) -> Optional[dict]:
+        """Get stock quote via API."""
+        if self._api_ready:
+            try:
+                q = self._wb.get_quote(stock=ticker)
+                return {
+                    "ticker":    ticker,
+                    "bid":       float(q.get("bidList", [{}])[0].get("price", 0)),
+                    "ask":       float(q.get("askList", [{}])[0].get("price", 0)),
+                    "last":      float(q.get("close", 0)),
+                    "volume":    float(q.get("volume", 0)),
+                    "timestamp": time.time(),
+                }
+            except Exception as e:
+                log.debug("API get_quote error: %s", e)
+        return None
+
+    def is_market_open(self) -> bool:
+        from datetime import time as dtime
+        import pytz
+        ET  = pytz.timezone("America/New_York")
+        now = datetime.now(ET)
+        return (dtime(9, 30) <= now.time() <= dtime(16, 0)
+                and now.weekday() < 5)
+
+    def minutes_to_open(self) -> int:
+        from datetime import timedelta
+        import pytz
+        ET  = pytz.timezone("America/New_York")
+        now = datetime.now(ET)
+        ot  = now.replace(hour=9, minute=30, second=0, microsecond=0)
+        if now > ot:
+            ot += timedelta(days=1)
+        return max(0, int((ot - now).total_seconds() / 60))
+
+    # ── Utilities ──────────────────────────────────────────────────────────────
 
     @staticmethod
     def _safe_inner_text(locator) -> str:
