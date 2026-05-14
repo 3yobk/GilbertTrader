@@ -73,6 +73,7 @@ class WebullEngine:
         self._pending_strike      = None
         self._pending_option_type = None
         self._pending_option_id   = None
+        self.last_order_confirmed = False   # set True only when API returns 200
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -435,77 +436,61 @@ class WebullEngine:
 
     def _get_option_id_api(self, ticker, expiry, strike, option_type) -> Optional[str]:
         """
-        Look up optionId via Webull API.
-        IMPORTANT: Only match the requested expiry.
-        Never fall back to another expiry.
+        Look up optionId via webull API — EXACT expiry match only.
+        SAFETY: Never substitutes a different expiry. If the exact expiry
+        is unavailable, returns None and logs available expiries.
         """
         try:
             chain = self._wb.get_options(stock=ticker)
-            side = "call" if option_type.upper() == "C" else "put"
+            side  = "call" if option_type.upper() == "C" else "put"
+            log.info("get_options returned %d groups for %s", len(chain) if chain else 0, ticker)
 
-            log.info(
-                "get_options returned %d groups for %s",
-                len(chain) if chain else 0,
-                ticker
-            )
-
-            best_id = None
+            best_id    = None
             best_delta = 999
+            available_expiries = set()
 
             for group in (chain or []):
                 opt = group.get(side)
-
                 if not opt or not isinstance(opt, dict):
                     continue
-
-                exp = opt.get("expireDate", "")
-                s = float(opt.get("strikePrice", 0))
+                exp       = opt.get("expireDate", "")
+                s         = float(opt.get("strikePrice", 0))
                 ticker_id = str(opt.get("tickerId", ""))
-                delta = abs(s - strike)
+                delta     = abs(s - strike)
+                if exp:
+                    available_expiries.add(exp)
 
-                log.info("Chain expiry found: %s strike=%s", exp, s)
-
-                # Skip wrong expiration completely
+                # ONLY accept exact expiry
                 if exp != expiry:
                     continue
 
-                # Exact strike match
                 if delta < 0.01:
-                    log.info(
-                        "Exact match: %s %s%s %s tickerId=%s",
-                        ticker,
-                        s,
-                        side[0].upper(),
-                        exp,
-                        ticker_id
-                    )
+                    log.info("Exact match: %s %s%s %s tickerId=%s",
+                             ticker, s, side[0].upper(), exp, ticker_id)
                     return ticker_id
 
-                # Same expiry fallback only
                 if delta < best_delta:
                     best_delta = delta
-                    best_id = ticker_id
+                    best_id    = ticker_id
 
-            # Return closest strike WITH SAME EXPIRY ONLY
             if best_id:
-                log.info(
-                    "Same-expiry best match (delta=%.2f): tickerId=%s",
-                    best_delta,
-                    best_id
-                )
+                log.info("Best strike match for exact expiry %s (delta=%.2f): %s",
+                         expiry, best_delta, best_id)
                 return best_id
 
-            log.error(
-                "No option found for exact expiry: %s %s%s %s",
-                ticker,
-                strike,
-                option_type,
-                expiry
+            # No exact expiry found — log available and refuse
+            avail_sorted = sorted(available_expiries)
+            log.warning(
+                "No option found for exact expiry: %s %s%s %s. "
+                "Available expiries: %s",
+                ticker, strike, option_type, expiry,
+                ", ".join(avail_sorted) if avail_sorted else "none"
             )
+            self._last_available_expiries = avail_sorted
+            return None
 
         except Exception as e:
             log.warning("get_option_id_api error: %s", e)
-
         return None
 
     def _navigate_browser(self, ticker, expiry_str, strike, option_type) -> bool:
@@ -592,38 +577,6 @@ class WebullEngine:
         use_paper = paper if paper is not None else self.paper
         is_buy    = action.upper() in ("BTO", "BUY")
 
-        # ── Auto-fetch option premium if no limit price provided ──
-        if limit_price is None and self._pending_option_id:
-            try:
-                quote = self.get_option_quote(self._pending_ticker)
-
-                if quote:
-                    bid = float(quote.get("bid") or 0)
-                    ask = float(quote.get("ask") or 0)
-
-                    log.info(
-                        "Option premium quote: bid=%s ask=%s",
-                        bid, ask
-                    )
-
-                    if bid > 0 and ask > 0:
-                        # Buy near midpoint
-                        limit_price = round((bid + ask) / 2, 2)
-
-                        log.info(
-                            "Auto limit price set to %s",
-                            limit_price
-                        )
-                    else:
-                        log.error(
-                            "Invalid option bid/ask — refusing order"
-                        )
-                        return None
-
-            except Exception as e:
-                log.error("Option quote fetch failed: %s", e)
-                return None
-
         if not use_paper:
             console.print(f"\n[bold red]REAL ORDER[/bold red]  "
                           f"{action} {quantity}x {self._pending_ticker} "
@@ -647,11 +600,14 @@ class WebullEngine:
     def _place_via_api(self, action, quantity, limit_price, is_buy) -> Optional[float]:
         """
         Place option order via the correct paper trading endpoint.
-        Uses act.webullbroker.com/webull-paper-center (confirmed working URL).
-        Falls back to wb.place_order_option for live trading.
+        Sets self.last_order_confirmed = True ONLY when API returns 200.
+        All failures leave last_order_confirmed = False so trade_engine
+        knows not to start position monitoring.
         """
         import requests as _req
         import uuid as _uuid
+
+        self.last_order_confirmed = False   # reset before every attempt
 
         api_action = "BUY" if is_buy else "SELL"
         order_type = "LMT" if limit_price else "MKT"
@@ -661,18 +617,17 @@ class WebullEngine:
                  action, quantity, self._pending_option_id, lmt, self.paper)
 
         if self.paper:
-            # ── Paper trading: use paper center endpoint ──────────────────────
             paper_base = "https://act.webullbroker.com/webull-paper-center/api"
             url = (f"{paper_base}/paper/1/acc/{self._wb._account_id}"
                    f"/orderop/place/{self._pending_option_id}")
             payload = {
-                "orderType":               order_type,
-                "serialId":                str(_uuid.uuid4()),
-                "timeInForce":             "DAY",
-                "quantity":                quantity,
-                "action":                  api_action,
-                "tickerId":                int(self._pending_option_id),
-                "tickerType":              "OPTION",
+                "orderType":                 order_type,
+                "serialId":                  str(_uuid.uuid4()),
+                "timeInForce":               "DAY",
+                "quantity":                  quantity,
+                "action":                    api_action,
+                "tickerId":                  int(self._pending_option_id),
+                "tickerType":                "OPTION",
                 "outsideRegularTradingHour": False,
             }
             if lmt:
@@ -681,18 +636,31 @@ class WebullEngine:
                 headers = self._wb.build_req_headers(
                     include_trade_token=True, include_time=True)
                 r = _req.post(url, json=payload, headers=headers, timeout=10)
-                log.info("Paper order response: %s %s", r.status_code, r.text[:200])
+                log.info("Paper order response: %s %s", r.status_code, r.text[:300])
                 if r.status_code == 200:
+                    self.last_order_confirmed = True
                     data = r.json()
-                    return float(data.get("avgFilledPrice") or lmt or 0) or None
+                    return float(data.get("avgFilledPrice") or lmt or 0) or lmt
                 elif r.status_code == 417:
-                    log.error("Paper order rejected: %s — market may be closed", r.text)
+                    resp = r.json() if r.text else {}
+                    log.error(
+                        "Paper order rejected (417): %s — market closed or ticker untradable",
+                        resp.get("msg", r.text[:100])
+                    )
                 else:
-                    log.error("Paper order failed %s: %s", r.status_code, r.text)
+                    log.error("Paper order failed %s: %s", r.status_code, r.text[:200])
             except Exception as e:
-                log.error("Paper order error: %s", e)
+                log.error("Paper order exception: %s", e)
+
         else:
-            # ── Live trading: use wb.place_order_option ───────────────────────
+            # Live trading — check LIVE_TRADING_ENABLED safety gate
+            live_enabled = os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true"
+            if not live_enabled:
+                log.error(
+                    "LIVE ORDER BLOCKED: LIVE_TRADING_ENABLED=false in .env. "
+                    "Set LIVE_TRADING_ENABLED=true to allow real orders."
+                )
+                return None
             try:
                 result = self._wb.place_order_option(
                     optionId  = self._pending_option_id,
@@ -704,111 +672,105 @@ class WebullEngine:
                 )
                 log.info("Live order placed: %s", result)
                 if isinstance(result, dict):
+                    self.last_order_confirmed = True
                     fill = result.get("avgFilledPrice") or result.get("filledValue")
-                    return float(fill) if fill else None
+                    return float(fill) if fill else lmt
             except Exception as e:
-                log.error("Live order error: %s", e)
+                log.error("Live order exception: %s", e)
+
         return None
 
-        # ── Position monitoring (browser) ─────────────────────────────────────────
+    # ── Position monitoring (browser) ─────────────────────────────────────────
 
     def get_position_pnl(self, ticker: str, strike: float,
                          option_type: str) -> Optional[dict]:
         """Check P&L via API first, browser as fallback."""
+        # Try API
         if self._api_ready:
             try:
                 positions = self._wb.get_positions()
                 for pos in positions:
                     sym = pos.get("ticker", {}).get("symbol", "")
                     if sym == ticker:
-                        unr = pos.get("unrealizedProfitLoss")
+                        unr  = pos.get("unrealizedProfitLoss")
                         cost = pos.get("cost")
-                        val = pos.get("marketValue")
-                        pnl = (float(unr) / float(cost) * 100
-                               if unr and cost and float(cost) != 0 else None)
-                        return {
-                            "pnl_pct": round(pnl, 2) if pnl else None,
-                            "market_value": float(val) if val else None,
-                        }
+                        val  = pos.get("marketValue")
+                        pnl  = (float(unr)/float(cost)*100
+                                if unr and cost and float(cost) != 0 else None)
+                        return {"pnl_pct": round(pnl, 2) if pnl else None,
+                                "market_value": float(val) if val else None}
             except Exception as e:
                 log.debug("API position error: %s", e)
 
+        # Browser fallback
         if not self.page:
             return None
-
         try:
             self.page.click(SELECTORS["positions_tab"], timeout=5_000)
             time.sleep(1.2)
-            rows = self.page.locator(SELECTORS["position_row"])
+            rows  = self.page.locator(SELECTORS["position_row"])
             count = rows.count()
-
             for i in range(count):
-                row = rows.nth(i)
+                row  = rows.nth(i)
                 text = row.inner_text()
                 if ticker in text and (str(int(strike)) in text or option_type in text):
                     pnl_text = self._safe_inner_text(
-                        row.locator(SELECTORS["position_pnl_pct"])
-                    )
+                        row.locator(SELECTORS["position_pnl_pct"]))
                     val_text = self._safe_inner_text(
-                        row.locator(SELECTORS["position_mkt_value"])
-                    )
-                    return {
-                        "pnl_pct": self._parse_pct(pnl_text),
-                        "market_value": self._parse_float(val_text),
-                    }
-
+                        row.locator(SELECTORS["position_mkt_value"]))
+                    return {"pnl_pct":      self._parse_pct(pnl_text),
+                            "market_value": self._parse_float(val_text)}
         except Exception as exc:
             log.debug("Browser position error: %s", exc)
-
         return None
 
     def get_option_quote(self, ticker: str) -> Optional[dict]:
-        """Get option quote via API or browser."""
+        """
+        Get option quote via API.
+        Webull returns bid/ask inside nested structure:
+          q["data"][0]["bidList"][0]["price"]
+          q["data"][0]["askList"][0]["price"]
+        """
         if self._api_ready and self._pending_option_id:
             try:
                 q = self._wb.get_option_quote(
-                    stock=ticker,
-                    optionId=self._pending_option_id,
-                )
+                    stock=ticker, optionId=self._pending_option_id)
+                # Parse nested structure
+                data = q.get("data", []) if isinstance(q, dict) else []
+                if data and isinstance(data, list):
+                    opt      = data[0]
+                    bid_list = opt.get("bidList", [])
+                    ask_list = opt.get("askList", [])
+                    bid  = float(bid_list[0]["price"]) if bid_list else 0.0
+                    ask  = float(ask_list[0]["price"]) if ask_list else 0.0
+                    last = float(opt.get("close", 0) or 0)
+                else:
+                    # Fallback: try flat keys
+                    bid  = float(q.get("bidPrice", 0) or 0)
+                    ask  = float(q.get("askPrice", 0) or 0)
+                    last = float(q.get("close", 0) or 0)
 
-                log.info("Raw option quote response: %s", q)
-
-                data = q.get("data", [])
-                if not data:
+                if bid == 0 and ask == 0:
+                    log.warning("get_option_quote: bid and ask both 0 for %s", ticker)
                     return None
 
-                opt = data[0]
-                bid_list = opt.get("bidList", [])
-                ask_list = opt.get("askList", [])
-
-                bid = float(bid_list[0]["price"]) if bid_list else 0
-                ask = float(ask_list[0]["price"]) if ask_list else 0
-                last = float(opt.get("close", 0) or 0)
-
-                return {
-                    "bid": bid,
-                    "ask": ask,
-                    "last": last,
-                }
-
+                return {"bid": bid, "ask": ask, "last": last}
             except Exception as e:
                 log.debug("API quote error: %s", e)
 
         if not self.page:
             return None
-
         try:
             return {
-                "bid": self._parse_float(self._safe_inner_text(
+                "bid":  self._parse_float(self._safe_inner_text(
                     self.page.locator(SELECTORS["current_bid"]).first)),
-                "ask": self._parse_float(self._safe_inner_text(
+                "ask":  self._parse_float(self._safe_inner_text(
                     self.page.locator(SELECTORS["current_ask"]).first)),
                 "last": self._parse_float(self._safe_inner_text(
                     self.page.locator(SELECTORS["current_last"]).first)),
             }
         except Exception as e:
             log.debug("Browser quote error: %s", e)
-
         return None
 
     def get_quote(self, ticker: str) -> Optional[dict]:

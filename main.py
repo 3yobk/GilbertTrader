@@ -169,7 +169,7 @@ def main():
     ))
 
     # ── Webull engine (paper=True for safety, flip to False for real money) ──
-    webull = WebullEngine(paper=False)
+    webull = WebullEngine(paper=True)
     webull.open_browser()
 
     # ── Market feed — Tradier if token set, yfinance fallback ───────────────

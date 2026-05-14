@@ -97,6 +97,8 @@ class TradeEngine:
         self.scale_out_trigger_pct    = scale_out_trigger_pct
 
         self._positions: dict[str, OpenPosition] = {}
+        self.max_trade_budget = getattr(self, "max_trade_budget", 300.0)
+        self.max_spread_pct   = getattr(self, "max_spread_pct", 0.20)
         self._lock = threading.Lock()
 
     # ── FIX: get_session_pnl — reads realized P&L from trade_log.csv ─────────
@@ -248,69 +250,100 @@ class TradeEngine:
             signal.ticker, signal.expiry, signal.strike, signal.option_type
         )
         if not ok:
-            console.print("  [red]x Option lookup failed[/red]")
+            console.print("  [red]✗ Navigation to option failed[/red]")
             return
-
-        # Smart limit price: mid + buffer
         quote       = self.webull.get_option_quote(signal.ticker)
         limit_price = None
         if quote:
             bid = float(quote.get("bid") or 0)
             ask = float(quote.get("ask") or 0)
             if bid > 0 and ask > 0:
-                spread_pct = (ask - bid) / ask * 100 if ask > 0 else 0
-                if spread_pct > self.max_spread_pct:
-                    console.print(f"  [red]x Spread too wide: {spread_pct:.1f}%[/red]")
-                    return
-                limit_price = round((bid + ask) / 2 + 0.05, 2)
-            elif ask > 0:
-                limit_price = round(ask + 0.05, 2)
+                mid          = (bid + ask) / 2
+                spread_pct   = (ask - bid) / mid if mid > 0 else 1.0
+                max_spread   = getattr(self, "max_spread_pct", 0.20)
 
-        fill_price = self.webull.place_order(
+                if spread_pct > max_spread:
+                    console.print(
+                        f"  [red]✗ Spread too wide: {spread_pct:.1%} > {max_spread:.0%} — skipping[/red]"
+                    )
+                    return
+
+                limit_price  = round(mid, 2)
+                est_cost     = limit_price * 100 * signal.quantity
+                max_trade    = getattr(self, "max_trade_budget", 300)
+
+                if est_cost > max_trade:
+                    console.print(
+                        f"  [red]✗ Est. cost ${est_cost:.0f} > budget ${max_trade:.0f} — skipping[/red]"
+                    )
+                    return
+
+                console.print(
+                    f"  [dim]Quote: bid=${bid:.2f} ask=${ask:.2f} "
+                    f"mid=${limit_price:.2f} spread={spread_pct:.1%} "
+                    f"est.cost=${est_cost:.0f}[/dim]"
+                )
+            else:
+                console.print("  [red]✗ No valid bid/ask — refusing order[/red]")
+                return
+        # FIX: track whether order was actually accepted by the API
+        api_fill = self.webull.place_order(
             action=signal.action, quantity=signal.quantity,
             limit_price=limit_price, paper=self.paper,
         )
-        if fill_price is None:
-            fill_price = limit_price
 
-        if fill_price is not None:
-            pos = OpenPosition(signal=signal, entry_price=fill_price, paper=self.paper)
-            with self._lock:
-                self._positions[position_key] = pos
-            console.print(f"  [green]Filled {signal.quantity}x @ ${fill_price:.2f}[/green]")
+        # api_fill is None when:
+        #   - paper endpoint returned 417 (market closed / untradable)
+        #   - live endpoint returned 500
+        #   - any other API failure
+        # In ALL these cases we must NOT start monitoring.
+        # We only use limit_price as the estimated entry if order was confirmed.
+
+        order_confirmed = self.webull.last_order_confirmed  # set by place_order
+        if not order_confirmed:
+            console.print(
+                f"  [red]✗ Order NOT placed — API rejected or market closed. "
+                f"No position created.[/red]"
+            )
             if self.listener:
                 self.listener.send_status_update(
-                    f"BTO filled: {signal.ticker} {signal.strike}{signal.option_type} "
-                    f"{signal.expiry} @ ${fill_price:.2f} x{signal.quantity}"
+                    f"❌ Order failed: {signal.ticker} {signal.strike}"
+                    f"{signal.option_type} — not tradable or market closed"
                 )
-            self._start_monitor(position_key, pos)
-        else:
-            console.print("  [yellow]Order submitted — fill unknown, monitoring manually[/yellow]")
+            return
+
+        # Order confirmed — use returned fill or limit as estimated entry
+        fill_price = api_fill if api_fill else limit_price
+        if fill_price is None:
+            console.print("  [yellow]Order confirmed but no fill price — using $0 entry[/yellow]")
+            fill_price = 0.0
+
+        pos = OpenPosition(signal=signal, entry_price=fill_price, paper=self.paper)
+        with self._lock:
+            self._positions[position_key] = pos
+        console.print(f"  [green]✓ Order confirmed. Entry est. ${fill_price:.2f}[/green]")
+        if self.listener:
+            self.listener.send_status_update(
+                f"✅ BTO confirmed: {signal.ticker} {signal.strike}"
+                f"{signal.option_type} {signal.expiry} "
+                f"@ ${fill_price:.2f} x{signal.quantity}"
+            )
+        self._start_monitor(position_key, pos)
 
     def _close_position(self, signal: TradeSignal, position_key: str):
-        console.print(f"  [bold yellow]Closing {position_key}[/bold yellow]")
+        console.print(f"  [bold yellow]→ Closing {position_key}[/bold yellow]")
         ok = self.webull.navigate_to_option(
             signal.ticker, signal.expiry, signal.strike, signal.option_type
         )
         if ok:
-            quote = self.webull.get_option_quote(signal.ticker)
-            lp = None
-            if quote:
-                bid = float(quote.get("bid") or 0)
-                if bid > 0:
-                    lp = round(bid - 0.05, 2)
             fill = self.webull.place_order(
-                action="STC", quantity=signal.quantity,
-                limit_price=lp, paper=self.paper
+                action="STC", quantity=signal.quantity, paper=self.paper
             )
             with self._lock:
                 pos = self._positions.get(position_key)
                 if pos and fill:
                     self.log_trade(pos, fill, reason="Manual STC")
                 self._positions.pop(position_key, None)
-            if self.listener and fill:
-                self.listener.send_status_update(
-                    f"STC closed: {position_key} @ ${fill:.2f}")
 
     def _start_monitor(self, position_key: str, pos: OpenPosition):
         t = threading.Thread(
@@ -443,27 +476,22 @@ class TradeEngine:
                 return
 
     def _auto_close(self, position_key: str, pos: OpenPosition, reason: str):
+        close_signal = TradeSignal(
+            ticker=pos.signal.ticker, strike=pos.signal.strike,
+            option_type=pos.signal.option_type, expiry=pos.signal.expiry,
+            action="STC", quantity=pos.signal.quantity,
+        )
         ok = self.webull.navigate_to_option(
-            pos.signal.ticker, pos.signal.expiry,
-            pos.signal.strike, pos.signal.option_type,
+            close_signal.ticker, close_signal.expiry,
+            close_signal.strike, close_signal.option_type,
         )
         if ok:
-            quote = self.webull.get_option_quote(pos.signal.ticker)
-            lp = None
-            if quote:
-                bid = float(quote.get("bid") or 0)
-                if bid > 0:
-                    lp = round(bid - 0.05, 2)
             fill = self.webull.place_order(
-                action="STC", quantity=pos.signal.quantity,
-                limit_price=lp, paper=pos.paper
+                action="STC", quantity=close_signal.quantity, paper=pos.paper
             )
             if fill:
                 self.log_trade(pos, fill, reason=reason)
             console.print(f"  [cyan]Auto-close [{reason}] fill: ${fill or '?'}[/cyan]")
-            if self.listener:
-                self.listener.send_status_update(
-                    f"AUTO-CLOSE [{reason}]: {position_key} @ ${fill or '?'}")
         with self._lock:
             self._positions.pop(position_key, None)
 

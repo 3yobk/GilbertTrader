@@ -40,23 +40,13 @@ except ImportError:
 
 # ── Watchlist — expanded with large caps + ETFs ───────────────────────────────
 MY_SMALL_STOCKS = [
-    # High-volume AI / momentum
+    # High-liquidity options names (confirmed active, not delisted)
     "NVDA", "AMD", "PLTR", "TSLA", "SOFI", "HOOD",
-
-    # Big tech with constant options flow
     "AAPL", "AMZN", "META", "MSFT", "GOOGL",
-
-    # Volatile retail favorites
     "CVNA", "RBLX", "MARA", "RIOT", "COIN",
-
-    # ETFs for frequent setups
-    "SPY", "QQQ", "SOXL", "TQQQ", "IWM",
-
-    # Semiconductor momentum
+    "SOXL", "TQQQ", "IWM",
     "SMCI", "MU", "AVGO", "ARM",
-
-    # High gamma / news-sensitive
-    "HIMS", "AFRM", "UPST", "SHOP"
+    "HIMS", "AFRM", "UPST", "SHOP",
 ]
 
 # ── Tradier headers for options flow ─────────────────────────────────────────
@@ -203,7 +193,7 @@ def get_market_regime() -> dict:
 # ── Upgrade 3: Kelly position sizing ─────────────────────────────────────────
 def kelly_contracts(rsi: float, flow_score: float, regime: str,
                     max_budget: float, option_price: float,
-                    max_contracts: int = 5) -> int:
+                    max_contracts: int = 4) -> int:
     """
     Scale contract size based on signal conviction.
     Higher conviction = more contracts (up to max_contracts).
@@ -358,6 +348,36 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     if regime == "bear":
         print("  [Regime] Bear market — only put signals allowed (calls skipped)")
 
+    # ── VIX filter ────────────────────────────────────────────────────────────
+    vix_level = _get_vix()
+    vix_tag   = ""
+    if vix_level:
+        if vix_level > 30:
+            vix_tag = f"  ⚠️  VIX={vix_level:.1f} HIGH — size reduced to 1 contract max"
+            print(f"  [VIX] {vix_tag}")
+        elif vix_level > 25:
+            vix_tag = f"VIX={vix_level:.1f} elevated"
+            print(f"  [VIX] {vix_tag} — tightening RSI threshold by 3pts")
+        else:
+            print(f"  [VIX] VIX={vix_level:.1f} normal")
+    else:
+        print("  [VIX] unavailable")
+
+    # ── Time-of-day filter ───────────────────────────────────────────────────
+    import pytz as _pytz
+    _et  = _pytz.timezone("America/New_York")
+    _now = datetime.now(_et)
+    _hm  = _now.hour * 60 + _now.minute
+    if _hm < 9 * 60 + 35:
+        print("  [Time] First 5 min after open — skipping scan (chop zone)")
+        return []
+    if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
+        print("  [Time] Lunch chop zone (11:45–1:30 ET) — skipping scan")
+        return []
+
+    # ── Skip reason tracker for this scan ────────────────────────────────────
+    skip_reasons: dict = {}
+
     signals = []
 
     for ticker in tickers:
@@ -390,13 +410,16 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             current_rsi   = float(latest_rsi)
             current_price = rt_price or float(close.iloc[-1])
             eff_threshold = get_atr_adjustment(df, rsi_threshold)
+            # Tighten RSI by 3 when VIX elevated
+            if vix_level and vix_level > 25:
+                eff_threshold = max(eff_threshold - 3, 15)
 
             # Volume surge
             vol          = df["Volume"].dropna()
             avg_vol      = float(vol.rolling(20).mean().iloc[-2]) if len(vol) >= 21 else float(vol.mean())
-            current_vol  = float(vol.iloc[-2])
-            volume_surge = current_vol > avg_vol * 0.3 if avg_vol > 0 else False
-            vol_ratio    = current_vol / avg_vol if avg_vol > 0 else 1
+            current_vol  = float(vol.iloc[-2]) if len(vol) >= 2 else float(vol.iloc[-1])  # use completed candle
+            volume_surge = current_vol > avg_vol * 0.3 if avg_vol > 0 else False  # lowered from 1.5
+            vol_ratio    = round(current_vol / avg_vol, 1) if avg_vol > 0 else 1
 
             rt_tag = "[RT]" if (_HAS_TRADIER and rt_price) else "[DL]"
             print(f"  [Scanner] {ticker.ljust(5)} | RSI: {current_rsi:.1f} "
@@ -417,24 +440,28 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             # ── Gate 1: Regime filter (upgrade 4) ────────────────────────────
             # In bear market, skip call signals
             if regime == "bear":
+                skip_reasons["Bear regime"] = skip_reasons.get("Bear regime",0)+1
                 print(f"    [Skip] {ticker}: Bear regime — no calls")
                 _session_stats["skipped"] += 1
                 continue
 
             # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
-            #if not is_trend_bullish(ticker):
+            if not is_trend_bullish(ticker):
+                skip_reasons["Below SMA-200"] = skip_reasons.get("Below SMA-200",0)+1
                 print(f"    [Skip] {ticker}: Below SMA-200")
                 _session_stats["skipped"] += 1
                 continue
 
             # ── Gate 3: Volume surge ──────────────────────────────────────────
             if not volume_surge:
-                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 0.3x)")
+                skip_reasons["Weak volume"] = skip_reasons.get("Weak volume",0)+1
+                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 1.5x)")
                 _session_stats["skipped"] += 1
                 continue
 
             # ── Gate 4: 1-hour RSI ────────────────────────────────────────────
             if not get_hour_rsi_alignment(ticker):
+                skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak",0)+1
                 print(f"    [Skip] {ticker}: 1hr RSI too weak")
                 _session_stats["skipped"] += 1
                 continue
@@ -446,6 +473,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                   f"calls={flow['call_vol']} puts={flow['put_vol']}")
 
             if flow["score"] < 35:
+                skip_reasons["Options flow too bearish"] = skip_reasons.get("Options flow too bearish",0)+1
                 print(f"    [Skip] {ticker}: Options flow too bearish (score={flow['score']})")
                 _session_stats["skipped"] += 1
                 continue
@@ -523,6 +551,10 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
         except Exception as e:
             print(f"  [Scanner] {ticker.ljust(5)} | Error: {e}")
 
-    # Upgrade 5: session stats
+    # Skip reason summary for this scan
+    if skip_reasons:
+        print("  [Skip Summary]", " | ".join(f"{r}:{n}" for r,n in sorted(skip_reasons.items(), key=lambda x:-x[1])))
+
+    # Session stats
     print_session_stats()
     return signals
