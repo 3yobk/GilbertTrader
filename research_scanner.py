@@ -161,6 +161,27 @@ def check_options_flow(ticker: str, option_type: str = "C") -> dict:
     return result
 
 
+# ── VIX helper ───────────────────────────────────────────────────────────────
+def _get_vix() -> Optional[float]:
+    """
+    Fetch the current VIX level using yfinance (^VIX).
+    Returns the float value, or None if unavailable.
+    Used by run_scanner() to tighten RSI thresholds and cap contract size.
+    """
+    try:
+        vix = yf.Ticker("^VIX")
+        price = vix.fast_info.last_price
+        if price and float(price) > 0:
+            return float(price)
+        # fallback: last close from 5-day history
+        hist = _flatten(yf.download("^VIX", period="5d", interval="1d", progress=False))
+        if not hist.empty:
+            return float(hist["Close"].iloc[-1])
+    except Exception:
+        pass
+    return None
+
+
 # ── Upgrade 4: Market regime filter ──────────────────────────────────────────
 def get_market_regime() -> dict:
     """

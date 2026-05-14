@@ -8,8 +8,8 @@ webull
 # Data & Logic
 yfinance==0.2.54
 pandas==2.2.3
-pandas-ta==0.3.14b0
-numpy==1.26.4
+pandas-ta>=0.4.67b0
+numpy<2.0
 pytz
 
 # Dashboard & UI
