@@ -146,6 +146,12 @@ class TradeEngine:
         row = {
             'date':               datetime.now().strftime("%Y-%m-%d %H:%M"),
             'ticker':             pos.signal.ticker,
+            'strike':             pos.signal.strike,
+            'option_type':        pos.signal.option_type,
+            'expiry':             pos.signal.expiry,
+            'quantity':           qty,
+            'entry_price':        round(pos.entry_price, 2),
+            'exit_price':         round(fill_price, 2),
             'outcome':            outcome,
             'profit_amt':         round(profit_amt, 2),
             'cumulative_profit':  round(cumulative, 2),
@@ -384,6 +390,15 @@ class TradeEngine:
             # Track all-time high P&L for trailing stop
             if pnl_pct > pos.highest_pnl:
                 pos.highest_pnl = pnl_pct
+                # Big winner alert at +50% (fires once per position)
+                if pnl_pct >= 50.0 and not getattr(pos, "_big_win_alerted", False):
+                    pos._big_win_alerted = True
+                    try:
+                        from alerts import alert_big_winner
+                        alert_big_winner(pos.signal.ticker, pos.signal.strike,
+                                         pos.signal.option_type, pnl_pct)
+                    except Exception:
+                        pass
 
             # ── UPGRADE: Trailing stop — trails below peak ────────────────────
             # Once we've hit the scale-out trigger, the stop trails the peak

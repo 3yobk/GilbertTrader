@@ -252,17 +252,19 @@ def test_scanner_runs():
         import pandas_ta
     except ImportError:
         raise AssertionError("pandas_ta not installed — run: pip install pandas-ta")
-    from research_scanner import scan_markets
-    # Run with high RSI threshold so we get results even if not oversold
+    from research_scanner import scan_markets, _get_vix
+    # Test _get_vix directly — this was the bug in previous versions
+    vix = _get_vix()
+    vix_str = f"VIX={vix:.1f}" if vix else "VIX=unavailable"
+    # Run scanner with high RSI threshold so it completes quickly
     signals = scan_markets(
         tickers=["SPY", "AAPL", "MARA"],
-        rsi_threshold=80,   # very loose — almost anything will pass
+        rsi_threshold=80,
         listener=None,
         market=None,
         budget=300.0
     )
-    # We don't care if signals fire, just that it runs without crashing
-    return f"scanner ran, {len(signals)} signals found"
+    return f"scanner ran, {len(signals)} signals found, {vix_str}"
 
 def test_scanner_regime():
     from research_scanner import get_market_regime
@@ -526,21 +528,29 @@ def test_ai_verdict():
     import requests
     url = os.getenv("AI_PC_URL", "")
     key = os.getenv("AI_PC_KEY", "")
+    # Use exact same payload format as ask_ai_for_verdict() in main.py
     payload = {
         "question": (
-            "Senior Risk Manager. INPUT: 'BTO SPY 520C 5/16 x2'\n"
-            "Budget: $300. OUTPUT: BTO string or Rejected."
+            "Senior Risk Manager Role. INPUT: 'BTO SPY 520C 5/16 x2'\n"
+            "1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'\n"
+            "2. BUDGET LIMIT: Max $300 for this trade.\n"
+            "3. REJECT if strike is >20% away or doesn't fit budget.\n"
+            "OUTPUT: ONLY the cleaned BTO string or 'Rejected' + reason."
         )
     }
-    r = requests.post(
-        url, json=payload,
-        headers={"Authorization": f"Bearer {key}"},
-        timeout=45
-    )
-    assert r.ok, f"AI PC error: {r.status_code}"
-    answer = r.json().get("answer", "")
-    assert answer, "Empty answer from AI PC"
-    return f"AI verdict: {answer[:60]}"
+    try:
+        r = requests.post(
+            url, json=payload,
+            headers={"Authorization": f"Bearer {key}"},
+            timeout=90
+        )
+        if not r.ok:
+            raise AssertionError(f"AI PC error: {r.status_code} — {r.text[:200]}")
+        answer = r.json().get("answer", "")
+        assert answer, "Empty answer from AI PC"
+        return f"AI verdict: {answer[:60]}"
+    except requests.exceptions.Timeout:
+        raise AssertionError("AI PC timed out after 90s")
 
 run_test("AI PC reachable",      test_ai_pc_reachable)
 run_test("AI PC verdict test",   test_ai_verdict)
@@ -551,22 +561,28 @@ print(bold("\n[14] DASHBOARD"))
 def test_dashboard_log():
     import pandas as pd
     log_file = "trade_log.csv"
+    REQUIRED_COLS = ["date", "ticker", "strike", "option_type", "expiry",
+                     "quantity", "entry_price", "exit_price",
+                     "outcome", "profit_amt", "cumulative_profit", "reason"]
     if not os.path.exists(log_file):
-        # Create a sample entry so dashboard has something to show
         import csv
         with open(log_file, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=[
-                "date","ticker","outcome","profit_amt","cumulative_profit","reason"])
+            writer = csv.DictWriter(f, fieldnames=REQUIRED_COLS)
             writer.writeheader()
             writer.writerow({
                 "date": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                "ticker": "TEST", "outcome": "Win",
-                "profit_amt": 50.00, "cumulative_profit": 50.00,
-                "reason": "Test entry"
+                "ticker": "TEST", "strike": 520.0, "option_type": "C",
+                "expiry": "2026-05-23", "quantity": 1,
+                "entry_price": 1.50, "exit_price": 2.00,
+                "outcome": "Win", "profit_amt": 50.00,
+                "cumulative_profit": 50.00, "reason": "Test entry"
             })
-        return "trade_log.csv created with sample entry"
+        return "trade_log.csv created with enriched columns"
     df = pd.read_csv(log_file)
-    return f"trade_log.csv has {len(df)} rows, P&L=${df['profit_amt'].sum():.2f}"
+    missing = [c for c in REQUIRED_COLS if c not in df.columns]
+    if missing:
+        return f"WARN: trade_log.csv missing columns: {missing} (old format — will update on next trade)"
+    return f"trade_log.csv has {len(df)} rows, P&L=${df['profit_amt'].sum():.2f}, all columns present"
 
 def test_brain_log():
     log_file = "brain.log"
@@ -648,7 +664,10 @@ print()
 if not failed:
     print(f"  {green(bold('ALL TESTS PASSED — system is ready to trade!'))}")
     print(f"  Run: python main.py")
+    print(f"  Note: Paper BTO order test only passes during market hours (9:30-4:00 ET)")
 else:
     print(f"  {red(bold(f'{len(failed)} test(s) failed — fix issues above before trading.'))}")
+    if any(r["name"] == "Paper BTO order" for r in failed):
+        print(f"  Note: Paper order failure outside market hours is expected.")
 
 print(bold("="*65 + "\n"))

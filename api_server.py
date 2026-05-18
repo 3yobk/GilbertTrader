@@ -68,13 +68,15 @@ def broadcast_scanner(entry: dict):
 
 # ── Bot state (shared with main.py via module globals) ────────────────────────
 _bot_state = {
-    "paused":      False,
-    "running":     True,
-    "regime":      "neutral",
-    "spy_vs_sma":  0.0,
-    "positions":   [],
-    "session_pnl": 0.0,
-    "last_scan":   None,
+    "paused":            False,
+    "running":           True,
+    "regime":            "neutral",
+    "spy_vs_sma":        0.0,
+    "positions":         [],
+    "session_pnl":       0.0,
+    "last_scan":         None,
+    "consecutive_losses": 0,
+    "consecutive_wins":   0,
 }
 
 def update_bot_state(**kwargs):
@@ -428,8 +430,9 @@ def bot_pause():
 
 @app.post("/api/bot/resume")
 def bot_resume():
-    _bot_state["paused"] = False
-    return jsonify({"ok":True,"paused":False})
+    _bot_state["paused"]            = False
+    _bot_state["consecutive_losses"] = 0   # manual resume resets streak
+    return jsonify({"ok": True, "paused": False})
 
 @app.post("/api/bot/scan")
 def bot_scan():
@@ -552,16 +555,25 @@ def _execute_command(cmd: str, args: str) -> str:
 
 @app.get("/api/bot/status")
 def bot_status():
-    positions_count = len(_bot_state.get("positions",[]))
+    positions_count = len(_bot_state.get("positions", []))
+    losses = _bot_state.get("consecutive_losses", 0)
+    wins   = _bot_state.get("consecutive_wins", 0)
+    if losses >= 1:
+        streak = {"type": "loss", "count": losses}
+    elif wins >= 1:
+        streak = {"type": "win", "count": wins}
+    else:
+        streak = {"type": "none", "count": 0}
     return jsonify({
-        "paused":         _bot_state["paused"],
-        "running":        _bot_state["running"],
-        "regime":         _bot_state["regime"],
-        "spy_vs_sma20":   _bot_state["spy_vs_sma"],
-        "open_positions": positions_count,
-        "session_pnl":    _bot_state["session_pnl"],
-        "last_scan":      _bot_state["last_scan"],
-        "market_open":    _is_market_open(),
+        "paused":           _bot_state["paused"],
+        "running":          _bot_state["running"],
+        "regime":           _bot_state["regime"],
+        "spy_vs_sma20":     _bot_state["spy_vs_sma"],
+        "open_positions":   positions_count,
+        "session_pnl":      _bot_state["session_pnl"],
+        "last_scan":        _bot_state["last_scan"],
+        "market_open":      _is_market_open(),
+        "streak":           streak,
     })
 
 # ── Activity log endpoint ─────────────────────────────────────────────────────

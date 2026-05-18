@@ -59,13 +59,14 @@ USER_DATA_DIR    = os.path.join(os.getcwd(), "webull_profile")
 
 
 class WebullEngine:
-    def __init__(self, paper: bool = True):
+    def __init__(self, paper: bool = True, listener=None):
         self.paper      = paper
         self.playwright = None
         self.context: Optional[BrowserContext] = None
         self.page:    Optional[Page]           = None
         self._wb        = None   # webull API client
         self._api_ready = False
+        self._listener  = listener   # set after Discord starts; used for expiry alerts
 
         # Pending order context (set by navigate_to_option)
         self._pending_ticker      = None
@@ -73,7 +74,8 @@ class WebullEngine:
         self._pending_strike      = None
         self._pending_option_type = None
         self._pending_option_id   = None
-        self.last_order_confirmed = False   # set True only when API returns 200
+        self.last_order_confirmed = False
+        self._last_available_expiries = []
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -487,6 +489,13 @@ class WebullEngine:
                 ", ".join(avail_sorted) if avail_sorted else "none"
             )
             self._last_available_expiries = avail_sorted
+            if avail_sorted and self._listener:
+                avail_str = "  |  ".join(avail_sorted[:6])
+                self._listener.send_status_update(
+                    f"⚠️ **Expiry not found**: {ticker} {strike}{option_type} "
+                    f"`{expiry}` unavailable.\n"
+                    f"📅 **Available**: {avail_str}"
+                )
             return None
 
         except Exception as e:

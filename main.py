@@ -14,6 +14,7 @@ import os
 import io
 import time
 import threading
+from datetime import datetime
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.panel import Panel
@@ -22,12 +23,16 @@ from rich.text import Text
 
 load_dotenv()
 
+log = logging.getLogger("main")
+
 from webull_engine   import WebullEngine
 from trade_engine    import TradeEngine
 from market_feed     import MarketFeed
 from discord_listener import DiscordListener
 from signal_parser   import parse_signal_safe
 import research_scanner
+from alerts import (alert_circuit_breaker, alert_big_winner,
+                    alert_streak_pause, alert_daily_summary, alert_vix_spike)
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stdout.reconfigure(line_buffering=True)
@@ -89,7 +94,7 @@ def ask_ai_for_verdict(signal_text, budget):
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
     try:
-        response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=45)
+        response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=90)
         return response.json().get("answer", "").strip()
     except Exception:
         return "Rejected: AI PC Offline or Timeout"
@@ -169,7 +174,7 @@ def main():
     ))
 
     # ── Webull engine (paper=True for safety, flip to False for real money) ──
-    webull = WebullEngine(paper=True)
+    webull = WebullEngine(paper=True)   # listener assigned below after Discord starts
     webull.open_browser()
 
     # ── Market feed — Tradier if token set, yfinance fallback ───────────────
@@ -184,18 +189,25 @@ def main():
         if cmd == "status":
             with engine._lock:
                 positions = dict(engine._positions)
-            if not positions:
-                listener.send_status_update("No open positions.")
+            pnl        = engine.get_session_pnl()
+            paused_str = "⏸ PAUSED" if listener.paused else "▶ ACTIVE"
+            if consecutive_losses >= 1:
+                streak_str = f"🔴 {consecutive_losses} loss streak"
+            elif consecutive_wins >= 1:
+                streak_str = f"🟢 {consecutive_wins} win streak"
             else:
-                lines = ["**Open Positions:**"]
+                streak_str = "➖ No streak"
+            header = f"**{paused_str}** | {streak_str} | P&L: ${pnl:.2f}"
+            if not positions:
+                listener.send_status_update(f"{header}\nNo open positions.")
+            else:
+                lines = [header, "**Open Positions:**"]
                 for key, pos in positions.items():
                     lines.append(
                         f"  {pos.signal.ticker} {pos.signal.strike}{pos.signal.option_type} "
                         f"exp {pos.signal.expiry} | entry ${pos.entry_price:.2f} | "
                         f"peak {pos.highest_pnl:+.1f}%"
                     )
-                pnl = engine.get_session_pnl()
-                lines.append(f"**Session P&L**: ${pnl:.2f}")
                 listener.send_status_update("\n".join(lines))
 
         elif cmd == "scan":
@@ -265,6 +277,7 @@ def main():
         on_command=handle_discord_command,
     )
     listener.start_in_thread()
+    webull._listener = listener   # now wire up expiry alerts to Discord
 
     engine = TradeEngine(
         webull=webull, market=market, paper=True,
@@ -276,19 +289,57 @@ def main():
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
-    MAX_DAILY_LOSS     = -150.0
-    last_research_time = 0
-    trade_cooldowns    = {}
-    last_heat_alert_ts = 0
+    MAX_DAILY_LOSS      = -150.0
+    last_research_time  = 0
+    trade_cooldowns     = {}   # shared across scanner + Discord
+    last_heat_alert_ts  = 0
+    consecutive_losses  = 0
+    consecutive_wins    = 0
+    last_daily_summary  = ""   # YYYY-MM-DD of last summary sent
+    last_vix_alert_lvl  = 0    # last VIX level we alerted on
+    webull_refresh_fails = 0   # consecutive Webull API failures
+
+    # ── Position sync: rebuild engine state from Webull on startup ───────────
+    # If bot crashed mid-session, this picks up any open positions
+    try:
+        open_pos = webull._wb.get_positions() if webull._wb else []
+        if open_pos:
+            console.print(f"[yellow]Found {len(open_pos)} existing positions from Webull — "
+                          f"monitoring will resume.[/yellow]")
+            listener.send_status_update(
+                f"⚠️ Startup: Found {len(open_pos)} open positions from previous session. "
+                f"Monitoring resumed."
+            )
+    except Exception:
+        pass  # No existing positions or not connected yet
 
     try:
         while True:
             daily_pnl = engine.get_session_pnl()
             if daily_pnl <= MAX_DAILY_LOSS:
-                msg = "CIRCUIT BREAKER: Daily loss limit hit. Shutting down."
-                listener.send_status_update(f"CIRCUIT BREAKER: {daily_pnl:.2f} hit. Stopping.")
+                msg = (f"🚨 CIRCUIT BREAKER: Daily loss ${daily_pnl:.2f} hit limit "
+                       f"${MAX_DAILY_LOSS:.0f}. Closing all positions and stopping.")
+                listener.send_status_update(msg)
                 console.print(Panel(msg, border_style="bold red"))
+                alert_circuit_breaker(daily_pnl, MAX_DAILY_LOSS)
+                with engine._lock:
+                    positions = dict(engine._positions)
+                for key, pos in positions.items():
+                    engine._auto_close(key, pos, reason="Circuit Breaker")
                 break
+
+            # ── Streak check: auto-pause after 2 consecutive losses ──────────
+            if consecutive_losses >= 2 and not listener.paused:
+                listener.paused = True
+                listener.send_status_update(
+                    f"⚠️ STREAK PAUSE: {consecutive_losses} losses in a row. "
+                    f"New entries paused. Type !resume to continue."
+                )
+                alert_streak_pause(consecutive_losses)
+                console.print(
+                    f"[bold red]STREAK PAUSE: {consecutive_losses} consecutive losses — "
+                    f"pausing new entries.[/bold red]"
+                )
 
             if len(engine._positions) >= 2:
                 now_ts = time.time()
@@ -335,7 +386,22 @@ def main():
                         listener.send_status_update(f"AI APPROVED: {verdict}")
                         console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                         trade_cooldowns[ticker] = time.time()
+                        pnl_before = engine.get_session_pnl()
                         engine.on_raw_signal(verdict)
+                        # Give position a moment to open then sample P&L change
+                        time.sleep(2)
+                        pnl_after = engine.get_session_pnl()
+                        if pnl_after < pnl_before:
+                            consecutive_losses += 1
+                            consecutive_wins    = 0
+                        elif pnl_after > pnl_before:
+                            consecutive_wins   += 1
+                            consecutive_losses  = 0
+                        # Track Webull API health for auto-refresh
+                        if webull.last_order_confirmed:
+                            webull_refresh_fails = 0
+                        else:
+                            webull_refresh_fails += 1
                     else:
                         listener.send_status_update(f"AI REJECTED: {verdict}")
                         console.print(f"[bold red]REJECTED: {verdict}[/bold red]")
@@ -363,12 +429,86 @@ def main():
                     listener.paused = True
                 elif not _bot_state.get("paused") and listener.paused:
                     listener.paused = False
+                    consecutive_losses = 0   # manual resume resets streak
+                # Sync streak and P&L to dashboard
+                _bot_state["consecutive_losses"] = consecutive_losses
+                _bot_state["consecutive_wins"]   = consecutive_wins
+                _bot_state["session_pnl"]        = engine.get_session_pnl()
             except ImportError:
                 pass
 
             time.sleep(1)
             if int(time.time()) % 30 == 0:
                 engine.print_status()
+
+            # ── Webull session auto-refresh on repeated failures ─────────────
+            if webull_refresh_fails >= 3:
+                console.print("[yellow]Webull session appears stale — refreshing...[/yellow]")
+                try:
+                    webull.open_browser()
+                    webull_refresh_fails = 0
+                    listener.send_status_update("🔄 Webull session refreshed automatically.")
+                except Exception as e:
+                    log.error("Webull refresh failed: %s", e)
+
+            # ── VIX spike alert (check every 5 min) ──────────────────────────
+            if int(time.time()) % 300 == 0:
+                try:
+                    from research_scanner import _get_vix
+                    vix = _get_vix()
+                    if vix:
+                        if vix >= 30 and last_vix_alert_lvl < 30:
+                            alert_vix_spike(vix)
+                            listener.send_status_update(
+                                f"⚠️ VIX EXTREME: {vix:.1f} — sizing reduced to 1 contract max."
+                            )
+                            last_vix_alert_lvl = 30
+                        elif vix >= 25 and last_vix_alert_lvl < 25:
+                            alert_vix_spike(vix)
+                            listener.send_status_update(
+                                f"⚠️ VIX ELEVATED: {vix:.1f} — RSI thresholds tightened."
+                            )
+                            last_vix_alert_lvl = 25
+                        elif vix < 20:
+                            last_vix_alert_lvl = 0  # reset so next spike alerts again
+                except Exception:
+                    pass
+
+            # ── Daily summary at market close (4:00 PM ET) ───────────────────
+            try:
+                import pytz
+                from datetime import time as dtime
+                ET  = pytz.timezone("America/New_York")
+                now_et = datetime.now(ET)
+                today_str = now_et.strftime("%Y-%m-%d")
+                # Send once per day between 16:00-16:05 ET
+                if (now_et.time() >= dtime(16, 0) and now_et.time() <= dtime(16, 5)
+                        and last_daily_summary != today_str):
+                    last_daily_summary = today_str
+                    import pandas as pd
+                    if os.path.exists("trade_log.csv"):
+                        df = pd.read_csv("trade_log.csv")
+                        todays = df[df["date"].str.startswith(today_str)]
+                        if not todays.empty:
+                            wins   = int((todays["profit_amt"] > 0).sum())
+                            losses = int((todays["profit_amt"] <= 0).sum())
+                            total  = len(todays)
+                            pnl    = float(todays["profit_amt"].sum())
+                            best   = todays.loc[todays["profit_amt"].idxmax()]
+                            worst  = todays.loc[todays["profit_amt"].idxmin()]
+                            best_str  = f"{best['ticker']} +${best['profit_amt']:.2f}"
+                            worst_str = f"{worst['ticker']} -${abs(worst['profit_amt']):.2f}"
+                            wr = round(wins / total * 100) if total else 0
+                            summary = (
+                                f"📊 **Daily Summary — {today_str}**\n"
+                                f"Trades: {total} | Wins: {wins} | Losses: {losses} | "
+                                f"Win Rate: {wr}%\n"
+                                f"P&L: ${pnl:+.2f} | Best: {best_str} | Worst: {worst_str}"
+                            )
+                            listener.send_status_update(summary)
+                            alert_daily_summary(total, wins, losses, pnl, best_str, worst_str)
+            except Exception as e:
+                log.debug("Daily summary error: %s", e)
 
     except KeyboardInterrupt:
         console.print("\n[yellow]Shutdown...[/yellow]")
