@@ -42,10 +42,15 @@ import requests as _requests
 
 load_dotenv()
 
-app    = Flask(__name__)
+app = Flask(__name__)
 CORS(app, origins=["http://localhost:3000", "http://localhost:5173",
                    "http://localhost:8080", "http://127.0.0.1:8080",
                    "http://127.0.0.1:3000", "http://127.0.0.1:5173"])
+
+def _is_paper_mode() -> bool:
+    """Re-reads .env every call so toggling LIVE_TRADING_ENABLED takes effect immediately."""
+    load_dotenv(override=True)
+    return os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "true"
 
 TRADE_LOG = os.path.join(os.path.dirname(__file__), "trade_log.csv")
 BRAIN_LOG  = os.path.join(os.path.dirname(__file__), "brain.log")
@@ -68,13 +73,13 @@ def broadcast_scanner(entry: dict):
 
 # ── Bot state (shared with main.py via module globals) ────────────────────────
 _bot_state = {
-    "paused":            False,
-    "running":           True,
-    "regime":            "neutral",
-    "spy_vs_sma":        0.0,
-    "positions":         [],
-    "session_pnl":       0.0,
-    "last_scan":         None,
+    "paused":             False,
+    "running":            True,
+    "regime":             "neutral",
+    "spy_vs_sma":         0.0,
+    "positions":          [],
+    "session_pnl":        0.0,
+    "last_scan":          None,
     "consecutive_losses": 0,
     "consecutive_wins":   0,
 }
@@ -89,9 +94,14 @@ def _read_trades(days: int = 1) -> list[dict]:
     if not os.path.exists(TRADE_LOG):
         return []
     try:
+        mode = "paper" if _is_paper_mode() else "live"
         trades = []
         with open(TRADE_LOG, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
+                # Filter by mode — old rows without 'mode' column go to paper
+                row_mode = row.get("mode", "paper")
+                if row_mode != mode:
+                    continue
                 trades.append(row)
         if days > 0:
             cutoff = datetime.now() - timedelta(days=days)
@@ -136,23 +146,40 @@ def _build_series(trades: list[dict]) -> list[dict]:
 
 @app.get("/api/portfolio/summary")
 def portfolio_summary():
-    r      = request.args.get("range", "1D")
-    trades = _read_trades(_range_days(r))
-    total_pnl = sum(float(t.get("profit_amt", 0)) for t in trades)
-    try:
-        from webull import paper_webull
-        # Try to get real paper account balance
-        # This is cached from webull_engine startup
-        buying_power = 100000.0
-    except Exception:
-        buying_power = 100000.0
+    r         = request.args.get("range", "1D")
+    trades    = _read_trades(_range_days(r))
+    # day_change is realized P&L from closed trades in current mode only
+    day_change = sum(float(t.get("profit_amt", 0)) for t in trades)
+
+    # Read real account balance from cache file written by webull_engine on startup
+    net_value    = None
+    buying_power = None
+    cache_file   = os.path.join(os.path.dirname(__file__), "account_cache.json")
+    if os.path.exists(cache_file):
+        try:
+            import json as _json
+            with open(cache_file) as f:
+                acc = _json.load(f)
+            # Only use cache if it matches current mode
+            cache_paper = acc.get("paper", True)
+            if cache_paper == _is_paper_mode():
+                net_value    = float(acc.get("net_value", 0)) or None
+                buying_power = float(acc.get("buying_power", 0)) or None
+        except Exception:
+            pass
+
+    if not buying_power:
+        buying_power = 100000.0 if _is_paper_mode() else 0.0
+    if not net_value:
+        net_value = buying_power
 
     return jsonify({
-        "value":        round(buying_power + total_pnl, 2),
-        "dayChange":    round(total_pnl, 2),
-        "dayChangePct": round(total_pnl / buying_power * 100, 3),
+        "value":        round(net_value, 2),
+        "dayChange":    round(day_change, 2),
+        "dayChangePct": round(day_change / buying_power * 100, 3) if buying_power else 0,
         "buyingPower":  round(buying_power, 2),
         "cash":         round(buying_power, 2),
+        "paper_mode":   _is_paper_mode(),
     })
 
 @app.get("/api/portfolio/series")
@@ -165,10 +192,20 @@ def portfolio_series():
 
 @app.get("/api/positions")
 def positions():
-    """Return open positions from bot state."""
-    pos = _bot_state.get("positions", [])
-    result = []
-    for p in pos:
+    """
+    Return open positions merged from two sources:
+    1. Bot-managed positions (engine._positions synced via _bot_state)
+    2. Real Webull account positions via webull_engine cache
+    Both filtered to current paper/live mode.
+    """
+    result       = []
+    seen         = set()
+    tp           = _bot_state.get("tp_pct", 30)
+    sl           = _bot_state.get("sl_pct", 20)
+    paper        = _is_paper_mode()
+
+    # Source 1: bot-managed positions from _bot_state
+    for p in _bot_state.get("positions", []):
         try:
             entry   = float(p.get("entry_price", 0))
             current = float(p.get("current_price", entry))
@@ -180,28 +217,67 @@ def positions():
             opt     = sig.get("option_type", "C") if isinstance(sig, dict) else "C"
             expiry  = sig.get("expiry", "") if isinstance(sig, dict) else ""
             qty     = sig.get("quantity", 1) if isinstance(sig, dict) else 1
+            key     = f"{ticker}{strike}{opt}{expiry}"
+            seen.add(key)
 
-            # Status logic
-            tp = _bot_state.get("tp_pct", 30)
-            sl = _bot_state.get("sl_pct", 20)
-            if pnl_pct >= tp * 0.8:      status = "Near TP"
-            elif pnl_pct <= -sl * 0.8:   status = "Near SL"
-            elif pnl_pct >= tp * 0.5:    status = "Scaling Out"
-            else:                         status = "Monitoring"
+            if pnl_pct >= tp * 0.8:    status = "Near TP"
+            elif pnl_pct <= -sl * 0.8: status = "Near SL"
+            elif pnl_pct >= tp * 0.5:  status = "Scaling Out"
+            else:                       status = "Monitoring"
 
             result.append({
                 "contract": f"{ticker} {strike}{opt}",
                 "side":     "CALL" if opt == "C" else "PUT",
-                "entry":    entry,
-                "current":  current,
-                "pnlPct":   round(pnl_pct, 2),
-                "peakPct":  round(peak, 2),
-                "size":     qty,
-                "expiry":   expiry,
-                "status":   status,
+                "entry":    entry, "current": current,
+                "pnlPct":   round(pnl_pct, 2), "peakPct": round(peak, 2),
+                "size":     qty, "expiry": expiry, "status": status,
             })
         except Exception:
             continue
+
+    # Source 2: real Webull positions from account_cache.json (written by main.py every 30s)
+    cache_file = os.path.join(os.path.dirname(__file__), "account_cache.json")
+    if os.path.exists(cache_file):
+        try:
+            import json as _json
+            with open(cache_file) as f:
+                acc = _json.load(f)
+            cache_paper = acc.get("paper", True)
+            if cache_paper == paper:   # only use if mode matches
+                for pos in acc.get("positions", []):
+                    try:
+                        tinfo   = pos.get("ticker", {})
+                        ticker  = tinfo.get("symbol", "?")
+                        name    = tinfo.get("name", ticker)
+                        qty     = int(pos.get("quantity", 0))
+                        entry   = float(pos.get("costPrice", pos.get("avgCost", 0)) or 0)
+                        current = float(pos.get("lastPrice", entry) or entry)
+                        unr     = float(pos.get("unrealizedProfitLoss", 0) or 0)
+                        mkt     = float(pos.get("marketValue", 0) or 0)
+                        pnl_pct = (unr / (entry * qty * 100) * 100) if entry and qty else 0
+                        if any(ticker in k for k in seen):
+                            continue
+                        if pnl_pct >= tp * 0.8:    status = "Near TP"
+                        elif pnl_pct <= -sl * 0.8: status = "Near SL"
+                        else:                       status = "Manual"
+                        result.append({
+                            "contract":  name or ticker,
+                            "side":      "CALL" if "Call" in name else "PUT" if "Put" in name else "?",
+                            "entry":     round(entry, 4),
+                            "current":   round(current, 4),
+                            "pnlPct":    round(pnl_pct, 2),
+                            "peakPct":   round(pnl_pct, 2),
+                            "size":      qty,
+                            "expiry":    "",
+                            "unrealPnl": round(unr, 2),
+                            "mktValue":  round(mkt, 2),
+                            "status":    status,
+                        })
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
     return jsonify(result)
 
 # ── Trades endpoint ───────────────────────────────────────────────────────────
@@ -430,9 +506,8 @@ def bot_pause():
 
 @app.post("/api/bot/resume")
 def bot_resume():
-    _bot_state["paused"]            = False
-    _bot_state["consecutive_losses"] = 0   # manual resume resets streak
-    return jsonify({"ok": True, "paused": False})
+    _bot_state["paused"] = False
+    return jsonify({"ok":True,"paused":False})
 
 @app.post("/api/bot/scan")
 def bot_scan():
@@ -565,15 +640,16 @@ def bot_status():
     else:
         streak = {"type": "none", "count": 0}
     return jsonify({
-        "paused":           _bot_state["paused"],
-        "running":          _bot_state["running"],
-        "regime":           _bot_state["regime"],
-        "spy_vs_sma20":     _bot_state["spy_vs_sma"],
-        "open_positions":   positions_count,
-        "session_pnl":      _bot_state["session_pnl"],
-        "last_scan":        _bot_state["last_scan"],
-        "market_open":      _is_market_open(),
-        "streak":           streak,
+        "paused":         _bot_state["paused"],
+        "running":        _bot_state["running"],
+        "regime":         _bot_state["regime"],
+        "spy_vs_sma20":   _bot_state["spy_vs_sma"],
+        "open_positions": positions_count,
+        "session_pnl":    _bot_state["session_pnl"],
+        "last_scan":      _bot_state["last_scan"],
+        "market_open":    _is_market_open(),
+        "paper_mode":     _is_paper_mode(),
+        "streak":         streak,
     })
 
 # ── Activity log endpoint ─────────────────────────────────────────────────────

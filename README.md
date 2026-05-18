@@ -2,7 +2,7 @@
 
 > Fully automated AI-powered options trading bot. Scans markets, reads Discord signals, verifies trades through an AI risk manager, executes on Webull, monitors P&L, and alerts you by email and SMS — all from one command.
 
-**Built by Eyob Kabeto**
+**Built by Eyob Kabeto** · Georgia Gwinnett College
 
 ---
 
@@ -414,15 +414,16 @@ Change `16, 0` to send at a different time. Currently fires between 4:00-4:05 PM
 
 ### `.env` — Safety switches
 
-**Paper vs live trading**
+**Paper vs live trading — one line, no code change needed**
 ```env
-LIVE_TRADING_ENABLED=false   # change to true for live orders
+LIVE_TRADING_ENABLED=false   # paper mode (safe)
+LIVE_TRADING_ENABLED=true    # live mode (real money)
 ```
-Also change `paper=True` to `paper=False` in `main.py` line ~175.
+The bot reads this on startup and automatically sets paper or live mode. The dashboard badge updates to show 📋 PAPER or 💰 LIVE. See [Switching Between Paper and Live](#switching-between-paper-and-live) for full details.
 
 **Test budget**
 ```env
-TEST_BUDGET=300   # used by test scripts, not main bot
+TEST_BUDGET=300   # used by test scripts only, not the main bot
 ```
 
 ---
@@ -589,6 +590,57 @@ All other tests passing means the system is ready.
 
 ---
 
+## Switching Between Paper and Live
+
+The bot automatically detects which mode to use based on a single line in `.env`. No code changes needed.
+
+### Switch to live trading
+
+```env
+# .env
+LIVE_TRADING_ENABLED=true
+```
+
+Restart the bot. At startup you'll see:
+```
+⚠️  LIVE TRADING ENABLED — real money at risk!
+```
+
+The dashboard top bar will show **💰 LIVE** instead of **📋 PAPER**.
+
+### Switch back to paper
+
+```env
+# .env
+LIVE_TRADING_ENABLED=false
+```
+
+Restart the bot. At startup you'll see:
+```
+Paper mode active (LIVE_TRADING_ENABLED=false)
+```
+
+The dashboard top bar will show **📋 PAPER**.
+
+### What changes between modes
+
+| | Paper | Live |
+|-|-------|------|
+| Orders sent to | Webull paper account | Webull live account |
+| Account balance shown | Paper account ($100k virtual) | Real account balance |
+| Positions shown | Paper positions | Real positions (including phone trades) |
+| Dashboard badge | 📋 PAPER | 💰 LIVE |
+| Risk | None | Real money |
+
+### ⚠️ Important before going live
+
+- Paper account ID is `59105901` ($100k virtual)
+- Live account needs $500+ to buy options
+- The bot will show your real account balance and real open positions automatically
+- Manually placed trades from your phone also appear in the dashboard under live mode
+
+---
+
 ## Paper → Live Checklist
 
 Do all of these before switching to real money:
@@ -605,16 +657,16 @@ Do all of these before switching to real money:
 - [ ] `full_system_test.py` passes 31/31 at market hours
 - [ ] Fund live Webull account ($500+ for options)
 
-**To switch to live:**
-
-```python
-# main.py line ~175:
-webull = WebullEngine(paper=False)   # was paper=True
-```
+**One line to go live:**
 
 ```env
-# .env:
-LIVE_TRADING_ENABLED=true            # was false
+LIVE_TRADING_ENABLED=true
+```
+
+**One line to go back to paper:**
+
+```env
+LIVE_TRADING_ENABLED=false
 ```
 
 ---

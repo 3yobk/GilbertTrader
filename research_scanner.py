@@ -336,7 +336,8 @@ def print_session_stats():
 
 # ── Main scanner ───────────────────────────────────────────────────────────────
 def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
-                 market=None, budget: float = 300.0):
+                 market=None, budget: float = 300.0,
+                 tp_pct: float = 30.0, sl_pct: float = 20.0):
     """
     Five-Factor Verified Scanner:
     1. RSI Oversold (5-min) + ATR adaptive threshold
@@ -564,7 +565,12 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     f"**Regime**: {regime.upper()} ({spy_vs_sma:+.1f}% vs SMA20)\n"
                     f"{news_line}{vwap_line}"
                     f"**Size**: {contracts} contract{'s' if contracts > 1 else ''}\n"
-                    f"**Signal**: `{signal_str}`"
+                    f"**Signal**: `{signal_str}`\n"
+                    f"─────────────────────\n"
+                    f"**Entry**:  buy at market open / mid-price\n"
+                    f"**Target**: +{tp_pct:.0f}% → sell at ~${current_price * (1 + tp_pct/100):.2f}\n"
+                    f"**Stop**:   -{sl_pct:.0f}% → exit at ~${current_price * (1 - sl_pct/100):.2f}\n"
+                    f"**Scale-out**: sell half at +20%, trail remaining"
                 )
 
             signals.append(signal_str)

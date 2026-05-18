@@ -59,14 +59,13 @@ USER_DATA_DIR    = os.path.join(os.getcwd(), "webull_profile")
 
 
 class WebullEngine:
-    def __init__(self, paper: bool = True, listener=None):
+    def __init__(self, paper: bool = True):
         self.paper      = paper
         self.playwright = None
         self.context: Optional[BrowserContext] = None
         self.page:    Optional[Page]           = None
         self._wb        = None   # webull API client
         self._api_ready = False
-        self._listener  = listener   # set after Discord starts; used for expiry alerts
 
         # Pending order context (set by navigate_to_option)
         self._pending_ticker      = None
@@ -74,8 +73,7 @@ class WebullEngine:
         self._pending_strike      = None
         self._pending_option_type = None
         self._pending_option_id   = None
-        self.last_order_confirmed = False
-        self._last_available_expiries = []
+        self.last_order_confirmed = False   # set True only when API returns 200
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -156,6 +154,7 @@ class WebullEngine:
                     self._wb.get_trade_token(WEBULL_PIN)
                 self._api_ready = True
                 log.info("Webull API ready via cookie token")
+                self._write_account_cache()
                 return True
 
             log.warning("web_lt cookie not found")
@@ -489,13 +488,6 @@ class WebullEngine:
                 ", ".join(avail_sorted) if avail_sorted else "none"
             )
             self._last_available_expiries = avail_sorted
-            if avail_sorted and self._listener:
-                avail_str = "  |  ".join(avail_sorted[:6])
-                self._listener.send_status_update(
-                    f"⚠️ **Expiry not found**: {ticker} {strike}{option_type} "
-                    f"`{expiry}` unavailable.\n"
-                    f"📅 **Available**: {avail_str}"
-                )
             return None
 
         except Exception as e:
@@ -688,6 +680,97 @@ class WebullEngine:
                 log.error("Live order exception: %s", e)
 
         return None
+
+    # ── Account cache (shared with api_server via file) ───────────────────────
+
+    def _write_account_cache(self):
+        """Write real account balance + positions to account_cache.json."""
+        try:
+            import json as _json
+            acc = self.get_account_value()
+            if acc and acc.get("net_value"):
+                acc["positions"] = self.get_open_positions_from_webull()
+                path = os.path.join(os.path.dirname(__file__), "account_cache.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    _json.dump(acc, f, ensure_ascii=True)
+                log.info("Account cache updated: net=$%.2f buying_power=$%.2f "
+                         "positions=%d paper=%s",
+                         acc["net_value"], acc["buying_power"],
+                         len(acc["positions"]), acc["paper"])
+        except Exception as e:
+            log.info("Account cache write failed: %s", e)
+
+    def get_account_value(self) -> dict:
+        """Fetch real account balance.
+        Paper: hits Webull paper-center API (same pattern as place_order).
+        Live:  uses webull library get_account()."""
+        if not self._api_ready or not self._wb:
+            return {}
+        try:
+            import requests as _req
+            headers    = self._wb.build_req_headers(
+                include_trade_token=False, include_time=True)
+            account_id = self._wb._account_id
+
+            if self.paper:
+                paper_base = "https://act.webullbroker.com/webull-paper-center/api"
+                url = f"{paper_base}/paper/1/acc/{account_id}"
+                r   = _req.get(url, headers=headers, timeout=10)
+                if r.ok:
+                    d = r.json()
+                    # Actual field from API: "netLiquidation" (not netLiquidationValue)
+                    net  = float(d.get("netLiquidation") or
+                                 d.get("netLiquidationValue") or
+                                 d.get("netAsset") or
+                                 d.get("totalMarketValue") or 0)
+                    # accountMembers array has usableCash
+                    members = {m["key"]: m["value"]
+                               for m in d.get("accountMembers", [])}
+                    cash = float(members.get("usableCash") or
+                                 members.get("cashBalance") or
+                                 d.get("cashBalance") or
+                                 d.get("usableCash") or
+                                 d.get("dayBuyingPower") or 0)
+                    log.info("Paper account: net=$%.2f buying_power=$%.2f", net, cash)
+                    return {"net_value":    net,
+                            "buying_power": cash,
+                            "day_pnl":      float(d.get("unrealizedProfitLoss") or 0),
+                            "paper":        True}
+            else:
+                acc = self._wb.get_account()
+                if acc:
+                    members = {m["key"]: m["value"]
+                               for m in acc.get("accountMembers", [])}
+                    log.info("Live account keys: %s", list(members.keys()))
+                    net  = float(members.get("netLiquidation") or
+                                 members.get("totalNetLiquidationValue") or
+                                 members.get("totalAsset") or
+                                 members.get("netAsset") or 0)
+                    cash = float(members.get("dayBuyingPower") or
+                                 members.get("usableCash") or
+                                 members.get("cashBalance") or 0)
+                    if net == 0 and cash > 0:
+                        net = cash
+                    log.info("Live account: net=$%.2f buying_power=$%.2f", net, cash)
+                    return {
+                        "net_value":    net,
+                        "buying_power": cash,
+                        "day_pnl":      float(members.get("unrealizedPnL", 0) or 0),
+                        "paper":        False,
+                    }
+        except Exception as e:
+            log.info("get_account_value error: %s", e)
+        return {}
+
+    def get_open_positions_from_webull(self) -> list:
+        """Fetch open positions from Webull — works for paper and live."""
+        if not self._api_ready or not self._wb:
+            return []
+        try:
+            return self._wb.get_positions() or []
+        except Exception as e:
+            log.debug("get_positions error: %s", e)
+            return []
 
     # ── Position monitoring (browser) ─────────────────────────────────────────
 

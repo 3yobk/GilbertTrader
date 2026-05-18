@@ -83,6 +83,7 @@ def get_risk_profile():
 
 
 def ask_ai_for_verdict(signal_text, budget):
+    """Call AI PC risk manager with retry on failure."""
     payload = {
         "question": (
             f"Senior Risk Manager Role. INPUT: '{signal_text}'\n"
@@ -93,11 +94,29 @@ def ask_ai_for_verdict(signal_text, budget):
         )
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
-    try:
-        response = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=90)
-        return response.json().get("answer", "").strip()
-    except Exception:
-        return "Rejected: AI PC Offline or Timeout"
+
+    for attempt in range(3):   # try up to 3 times
+        if attempt > 0:
+            wait = attempt * 10   # 10s, then 20s between retries
+            log.info("AI PC retry %d/%d in %ds...", attempt + 1, 3, wait)
+            time.sleep(wait)
+        result = {"answer": None}
+        def _call():
+            try:
+                r = requests.post(AI_PC_URL, json=payload, headers=headers, timeout=90)
+                if r.ok:
+                    result["answer"] = r.json().get("answer", "").strip()
+                else:
+                    log.warning("AI PC HTTP %d on attempt %d", r.status_code, attempt + 1)
+            except Exception as e:
+                log.warning("AI PC call failed attempt %d: %s", attempt + 1, e)
+        t = threading.Thread(target=_call, daemon=True)
+        t.start()
+        t.join(timeout=95)
+        if result["answer"]:
+            return result["answer"]
+
+    return "Rejected: AI PC Offline after 3 attempts"
 
 
 def run_health_check(discord_token, discord_channel_id):
@@ -173,8 +192,14 @@ def main():
         border_style="bright_blue", padding=(1, 4),
     ))
 
-    # ── Webull engine (paper=True for safety, flip to False for real money) ──
-    webull = WebullEngine(paper=True)   # listener assigned below after Discord starts
+    # ── Webull engine — auto-detect paper vs live from .env ──────────────────
+    live_enabled = os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true"
+    paper_mode   = not live_enabled
+    if live_enabled:
+        console.print("[bold red]⚠️  LIVE TRADING ENABLED — real money at risk![/bold red]")
+    else:
+        console.print("[bold yellow]Paper mode active (LIVE_TRADING_ENABLED=false)[/bold yellow]")
+    webull = WebullEngine(paper=paper_mode)   # listener assigned below after Discord starts
     webull.open_browser()
 
     # ── Market feed — Tradier if token set, yfinance fallback ───────────────
@@ -214,7 +239,8 @@ def main():
             listener.send_status_update("Forcing immediate scan...")
             found = research_scanner.scan_markets(
                 rsi_threshold=profile["rsi"], listener=listener,
-                market=market, budget=float(profile["budget"]))
+                market=market, budget=float(profile["budget"]),
+                tp_pct=profile["tp"], sl_pct=profile["sl"])
             if not found:
                 listener.send_status_update("Scan complete — no signals found.")
 
@@ -280,11 +306,19 @@ def main():
     webull._listener = listener   # now wire up expiry alerts to Discord
 
     engine = TradeEngine(
-        webull=webull, market=market, paper=True,
+        webull=webull, market=market, paper=paper_mode,
         profit_target_pct=profile['tp'],
         stop_loss_pct=profile['sl'],
         listener=listener
     )
+
+    # Sync paper/live mode and webull engine reference to API server dashboard
+    try:
+        from api_server import _bot_state
+        _bot_state["paper_mode"]    = paper_mode
+        _bot_state["webull_engine"] = webull
+    except ImportError:
+        pass
 
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
@@ -357,7 +391,8 @@ def main():
                     console.print(f"[dim]Scanning Small-Caps (RSI < {profile['rsi']})...[/dim]")
                     found = research_scanner.scan_markets(
                         rsi_threshold=profile['rsi'], listener=listener,
-                        market=market, budget=float(profile['budget']))
+                        market=market, budget=float(profile['budget']),
+                        tp_pct=profile['tp'], sl_pct=profile['sl'])
                     if found:
                         raw_text = found[0]
                     last_research_time = time.time()
@@ -430,16 +465,41 @@ def main():
                 elif not _bot_state.get("paused") and listener.paused:
                     listener.paused = False
                     consecutive_losses = 0   # manual resume resets streak
-                # Sync streak and P&L to dashboard
+                # Sync streak, P&L, and live positions to dashboard
                 _bot_state["consecutive_losses"] = consecutive_losses
                 _bot_state["consecutive_wins"]   = consecutive_wins
                 _bot_state["session_pnl"]        = engine.get_session_pnl()
+                _bot_state["tp_pct"]             = profile["tp"]
+                _bot_state["sl_pct"]             = profile["sl"]
+                # Sync open positions so dashboard shows them
+                with engine._lock:
+                    eng_positions = dict(engine._positions)
+                _bot_state["positions"] = [
+                    {
+                        "entry_price":  pos.entry_price,
+                        "current_price": pos.entry_price,  # updated by monitor thread
+                        "highest_pnl":  pos.highest_pnl,
+                        "signal": {
+                            "ticker":      pos.signal.ticker,
+                            "strike":      pos.signal.strike,
+                            "option_type": pos.signal.option_type,
+                            "expiry":      pos.signal.expiry,
+                            "quantity":    pos.signal.quantity,
+                        }
+                    }
+                    for pos in eng_positions.values()
+                ]
             except ImportError:
                 pass
 
             time.sleep(1)
             if int(time.time()) % 30 == 0:
                 engine.print_status()
+                # Refresh account balance and positions cache for dashboard
+                try:
+                    webull._write_account_cache()
+                except Exception:
+                    pass
 
             # ── Webull session auto-refresh on repeated failures ─────────────
             if webull_refresh_fails >= 3:
