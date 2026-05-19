@@ -161,6 +161,10 @@ class TradeEngine:
 
         console.print(f"[bold magenta]📊 Trade Logged: {outcome} (${profit_amt:.2f})[/bold magenta]")
 
+        # Callback so main.py can update streak accurately
+        if hasattr(self, 'on_trade_closed') and callable(self.on_trade_closed):
+            self.on_trade_closed(outcome, profit_amt)
+
     def on_raw_signal(self, raw_text: str):
         console.print(f"\n[bold cyan]📡 Signal received:[/bold cyan]  {raw_text[:120]}")
         signal = self.parse_signal(raw_text)
@@ -323,11 +327,32 @@ class TradeEngine:
         with self._lock:
             self._positions[position_key] = pos
         console.print(f"  [green]✓ Order confirmed. Entry est. ${fill_price:.2f}[/green]")
+
+        # ── Bracket orders: TP + SL placed on Webull (survive bot restarts) ──
+        bracket = {}
+        option_id = getattr(self.webull, "_pending_option_id", None)
+        if fill_price and fill_price > 0 and option_id:
+            bracket = self.webull.place_bracket_orders(
+                option_id   = option_id,
+                quantity    = signal.quantity,
+                entry_price = fill_price,
+                tp_pct      = self.profit_target_pct,
+                sl_pct      = self.stop_loss_pct,
+            )
+
+        tp_str = (f"TP=${bracket['tp_price']:.2f}" if bracket.get("tp_price")
+                  else f"TP=+{self.profit_target_pct:.0f}%")
+        sl_str = (f"SL=${bracket['sl_price']:.2f}" if bracket.get("sl_price")
+                  else f"SL=-{self.stop_loss_pct:.0f}%")
+        bracket_note = (" | Bracket orders on Webull ✓" if bracket.get("tp_order_id")
+                        else " | Python monitor active")
+
         if self.listener:
             self.listener.send_status_update(
-                f"✅ BTO confirmed: {signal.ticker} {signal.strike}"
+                f"✅ **BTO confirmed**: {signal.ticker} {signal.strike}"
                 f"{signal.option_type} {signal.expiry} "
-                f"@ ${fill_price:.2f} x{signal.quantity}"
+                f"@ ${fill_price:.2f} x{signal.quantity}\n"
+                f"**{tp_str}** | **{sl_str}**{bracket_note}"
             )
         self._start_monitor(position_key, pos)
 

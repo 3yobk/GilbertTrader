@@ -3171,3 +3171,341 @@ aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gatewa
 2026-05-18 17:00:30,867 [INFO] webull — Live account keys: ['totalMarketValue', 'cashBalance', 'dayBuyingPower', 'overnightBuyingPower', 'settledFunds', 'unsettledFunds', 'cryptoBuyingPower', 'optionBuyingPower', 'riskStatus', 'remainTradeTimes']
 2026-05-18 17:00:30,868 [INFO] webull — Live account: net=$0.45 buying_power=$0.45
 2026-05-18 17:00:31,310 [INFO] webull — Account cache updated: net=$0.45 buying_power=$0.45 positions=0 paper=False
+2026-05-19 12:23:46,391 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-19 12:23:46,408 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e3b94468b-e...
+2026-05-19 12:23:46,409 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-19 12:23:47,639 [INFO] webull — Webull API ready via cookie token
+2026-05-19 12:23:47,987 [INFO] webull — Live account keys: ['totalMarketValue', 'cashBalance', 'dayBuyingPower', 'overnightBuyingPower', 'settledFunds', 'unsettledFunds', 'cryptoBuyingPower', 'optionBuyingPower', 'riskStatus', 'remainTradeTimes']
+2026-05-19 12:23:47,987 [INFO] webull — Live account: net=$0.45 buying_power=$0.45
+2026-05-19 12:23:48,299 [INFO] webull — Account cache updated: net=$0.45 buying_power=$0.45 positions=0 paper=False
+2026-05-19 12:23:48,806 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-19 12:23:48,806 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-19 12:23:48,806 [INFO] discord.client — logging in using static token
+2026-05-19 12:23:48,812 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-19 12:23:49,535 [INFO] market_feed — Tradier stream session: ab1156c1-896...
+2026-05-19 12:23:49,734 [INFO] websocket — Websocket connected
+2026-05-19 12:23:49,734 [INFO] market_feed — Tradier WebSocket connected
+2026-05-19 12:23:50,300 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-19 12:23:50,407 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 5b104a51802a9288f75c85a5cdc33003).
+2026-05-19 12:23:52,420 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-19 12:24:00,920 [INFO] webull — Live account keys: ['totalMarketValue', 'cashBalance', 'dayBuyingPower', 'overnightBuyingPower', 'settledFunds', 'unsettledFunds', 'cryptoBuyingPower', 'optionBuyingPower', 'riskStatus', 'remainTradeTimes']
+2026-05-19 12:24:00,921 [INFO] webull — Live account: net=$0.45 buying_power=$0.45
+2026-05-19 12:24:01,268 [INFO] webull — Account cache updated: net=$0.45 buying_power=$0.45 positions=0 paper=False
+2026-05-19 12:24:56,532 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-19 12:24:56,538 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e3b94468b-e...
+2026-05-19 12:24:56,538 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-19 12:24:57,319 [INFO] webull — Webull API ready via cookie token
+2026-05-19 12:24:57,643 [INFO] webull — Live account keys: ['totalMarketValue', 'cashBalance', 'dayBuyingPower', 'overnightBuyingPower', 'settledFunds', 'unsettledFunds', 'cryptoBuyingPower', 'optionBuyingPower', 'riskStatus', 'remainTradeTimes']
+2026-05-19 12:24:57,643 [INFO] webull — Live account: net=$0.45 buying_power=$0.45
+2026-05-19 12:24:57,997 [INFO] webull — Account cache updated: net=$0.45 buying_power=$0.45 positions=0 paper=False
+2026-05-19 12:24:58,219 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-19 12:24:58,219 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-19 12:24:58,219 [INFO] discord.client — logging in using static token
+2026-05-19 12:24:58,481 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-19 12:24:58,943 [INFO] market_feed — Tradier stream session: f233be92-a80...
+2026-05-19 12:24:59,070 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 86176a0c9432e9479370936e7b489491).
+2026-05-19 12:24:59,166 [INFO] websocket — Websocket connected
+2026-05-19 12:24:59,166 [INFO] market_feed — Tradier WebSocket connected
+2026-05-19 12:24:59,998 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-19 12:25:01,095 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-19 12:37:32,945 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-19 12:37:32,964 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e3b94468b-e...
+2026-05-19 12:37:32,965 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-19 12:37:33,678 [INFO] webull — Webull API ready via cookie token
+2026-05-19 12:37:34,625 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:37:35,026 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:37:35,536 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-19 12:37:35,540 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-19 12:37:35,540 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-19 12:37:35,540 [INFO] discord.client — logging in using static token
+2026-05-19 12:37:35,930 [INFO] market_feed — Tradier stream session: 4a4817ba-88d...
+2026-05-19 12:37:36,108 [INFO] websocket — Websocket connected
+2026-05-19 12:37:36,108 [INFO] market_feed — Tradier WebSocket connected
+2026-05-19 12:37:36,237 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 3fe35f2a6b40ac852740a60fcb48a3a8).
+2026-05-19 12:37:37,028 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-19 12:37:38,252 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-19 12:43:01,525 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:43:01,837 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:43:30,699 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:43:31,133 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:44:01,257 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:44:01,606 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:44:31,416 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:44:31,806 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:45:01,174 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:45:01,861 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:45:30,858 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:45:31,277 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:45:58,656 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-19 12:45:58,661 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e3b94468b-e...
+2026-05-19 12:45:58,661 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-19 12:45:59,333 [INFO] webull — Webull API ready via cookie token
+2026-05-19 12:46:00,121 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:46:01,001 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:46:01,237 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-19 12:46:01,237 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-19 12:46:01,237 [INFO] discord.client — logging in using static token
+2026-05-19 12:46:01,471 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-19 12:46:01,926 [INFO] market_feed — Tradier stream session: 4e68538b-20c...
+2026-05-19 12:46:01,966 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 2114367331d50bb2bf0aeea68bba963a).
+2026-05-19 12:46:02,100 [INFO] websocket — Websocket connected
+2026-05-19 12:46:02,101 [INFO] market_feed — Tradier WebSocket connected
+2026-05-19 12:46:03,002 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-19 12:46:03,971 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-19 12:46:31,052 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:46:31,454 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:47:01,069 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:47:01,550 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:47:31,345 [INFO] webull — Paper account: net=$99822.00 buying_power=$99510.00
+2026-05-19 12:47:31,794 [INFO] webull — Account cache updated: net=$99822.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:48:00,496 [INFO] webull — Paper account: net=$99828.00 buying_power=$99510.00
+2026-05-19 12:48:00,878 [INFO] webull — Account cache updated: net=$99828.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:48:30,481 [INFO] webull — Paper account: net=$99828.00 buying_power=$99510.00
+2026-05-19 12:48:30,945 [INFO] webull — Account cache updated: net=$99828.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:49:01,077 [INFO] webull — Paper account: net=$99828.00 buying_power=$99510.00
+2026-05-19 12:49:01,468 [INFO] webull — Account cache updated: net=$99828.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:49:31,036 [INFO] webull — Paper account: net=$99828.00 buying_power=$99510.00
+2026-05-19 12:49:31,497 [INFO] webull — Account cache updated: net=$99828.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 12:50:01,097 [INFO] webull — Paper account: net=$99828.00 buying_power=$99510.00
+2026-05-19 12:50:01,493 [INFO] webull — Account cache updated: net=$99828.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:23:06,721 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-19 13:23:06,726 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e3b94468b-e...
+2026-05-19 13:23:06,726 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-19 13:23:07,335 [INFO] webull — Webull API ready via cookie token
+2026-05-19 13:23:08,265 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:23:08,635 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:23:08,885 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-19 13:23:08,885 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-19 13:23:08,885 [INFO] discord.client — logging in using static token
+2026-05-19 13:23:09,212 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-19 13:23:09,615 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 56472aa039321f4daf7b5ce605b03ce0).
+2026-05-19 13:23:09,619 [INFO] market_feed — Tradier stream session: 6cec0c55-d69...
+2026-05-19 13:23:09,865 [INFO] websocket — Websocket connected
+2026-05-19 13:23:09,865 [INFO] market_feed — Tradier WebSocket connected
+2026-05-19 13:23:10,636 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-19 13:23:11,629 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-19 13:23:31,251 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:23:31,708 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:24:01,519 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:24:01,955 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:24:30,800 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:24:31,253 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:25:01,072 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:25:01,443 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:25:31,519 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:25:31,990 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:26:00,626 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:26:01,073 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:26:30,760 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:26:31,237 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:27:01,185 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:27:01,626 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:27:31,426 [INFO] webull — Paper account: net=$99900.00 buying_power=$99510.00
+2026-05-19 13:27:31,868 [INFO] webull — Account cache updated: net=$99900.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:28:00,689 [INFO] webull — Paper account: net=$99906.00 buying_power=$99510.00
+2026-05-19 13:28:01,093 [INFO] webull — Account cache updated: net=$99906.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:28:31,598 [INFO] webull — Paper account: net=$99912.00 buying_power=$99510.00
+2026-05-19 13:28:32,018 [INFO] webull — Account cache updated: net=$99912.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:29:00,602 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:29:00,997 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:29:30,726 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:29:31,106 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:30:01,027 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:30:01,414 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:30:31,017 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:30:31,436 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:31:01,095 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:31:01,475 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:31:31,128 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:31:31,544 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:32:01,152 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:32:01,549 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:32:31,095 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:32:31,523 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:33:01,313 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:33:01,851 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:34:00,640 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:34:01,080 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:34:30,723 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:34:31,147 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:35:00,852 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:35:01,232 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:35:30,815 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:35:31,239 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:36:00,896 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:36:01,290 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:36:31,186 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:36:31,622 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:37:01,479 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:37:01,844 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:37:30,396 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:37:30,816 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:38:01,770 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:38:02,203 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:38:30,829 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:38:31,180 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:39:30,981 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:39:31,465 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:40:01,210 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:40:01,604 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:40:31,304 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:40:31,847 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:41:00,569 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:41:01,030 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:41:30,693 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:41:31,176 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:42:00,952 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:42:01,377 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:42:31,095 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:42:31,520 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:43:01,095 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:43:01,476 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:43:31,511 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:43:31,923 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:44:00,766 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:44:01,181 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:44:31,524 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:44:31,968 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:45:00,759 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:45:01,233 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:45:30,885 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:45:31,258 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:46:00,916 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:46:01,390 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:46:30,922 [INFO] webull — Paper account: net=$99936.00 buying_power=$99510.00
+2026-05-19 13:46:31,392 [INFO] webull — Account cache updated: net=$99936.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:47:01,203 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:47:01,546 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:47:31,165 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:47:31,604 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:48:01,195 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:48:01,662 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:48:31,623 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:48:31,994 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:49:00,728 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:49:01,170 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:50:01,063 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:50:01,562 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:50:31,123 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:50:31,638 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:51:01,563 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:51:01,978 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:51:30,539 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 13:51:31,054 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:52:00,626 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:52:00,974 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:52:30,553 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:52:30,965 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:53:00,504 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:53:00,973 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:53:30,489 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:53:30,916 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:54:00,770 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:54:01,174 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:54:30,803 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:54:31,172 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:55:00,780 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:55:01,176 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:55:30,995 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:55:31,453 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:56:00,969 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:56:01,494 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:56:31,643 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:56:32,207 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:57:01,095 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:57:01,602 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:57:31,826 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:57:32,249 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:58:00,830 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:58:01,268 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:58:30,968 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:58:31,364 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:59:01,309 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:59:01,827 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 13:59:31,449 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 13:59:31,845 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:00:30,821 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:00:31,301 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:01:00,868 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:01:01,262 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:01:31,191 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:01:31,609 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:02:01,236 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:02:01,673 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:02:31,720 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:02:32,131 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:03:00,991 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:03:01,390 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:03:31,513 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:03:31,859 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:04:00,693 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:04:01,081 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:04:30,651 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:04:31,048 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:05:00,611 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:05:01,009 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:06:01,290 [INFO] webull — Paper account: net=$99924.00 buying_power=$99510.00
+2026-05-19 14:06:01,856 [INFO] webull — Account cache updated: net=$99924.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:06:30,394 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:06:30,780 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:07:01,419 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:07:01,939 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:07:30,523 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:07:30,914 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:08:00,775 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:08:01,094 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:08:31,566 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:08:31,992 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:09:00,571 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:09:01,012 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:09:30,535 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:09:30,925 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:10:00,481 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:10:01,043 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:10:30,841 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:10:31,276 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:11:00,616 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:11:00,980 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:11:30,593 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:11:31,018 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:11:40,890 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 56472aa039321f4daf7b5ce605b03ce0.
+2026-05-19 14:12:00,786 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:12:01,225 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:12:31,258 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:12:31,711 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:13:01,264 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:13:01,873 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:13:30,978 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:13:31,442 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:14:01,363 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:14:01,717 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:14:31,695 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:14:32,113 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:15:00,690 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:15:01,186 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:15:30,739 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:15:31,162 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:16:30,919 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:16:31,379 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:17:00,949 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:17:01,299 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:17:30,953 [INFO] webull — Paper account: net=$99930.00 buying_power=$99510.00
+2026-05-19 14:17:31,386 [INFO] webull — Account cache updated: net=$99930.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:18:00,963 [INFO] webull — Paper account: net=$99942.00 buying_power=$99510.00
+2026-05-19 14:18:01,283 [INFO] webull — Account cache updated: net=$99942.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:18:31,552 [INFO] webull — Paper account: net=$99942.00 buying_power=$99510.00
+2026-05-19 14:18:32,204 [INFO] webull — Account cache updated: net=$99942.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:19:00,713 [INFO] webull — Paper account: net=$99960.00 buying_power=$99510.00
+2026-05-19 14:19:01,122 [INFO] webull — Account cache updated: net=$99960.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:19:30,785 [INFO] webull — Paper account: net=$99966.00 buying_power=$99510.00
+2026-05-19 14:19:31,137 [INFO] webull — Account cache updated: net=$99966.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:20:01,033 [INFO] webull — Paper account: net=$99966.00 buying_power=$99510.00
+2026-05-19 14:20:01,492 [INFO] webull — Account cache updated: net=$99966.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:20:31,132 [INFO] webull — Paper account: net=$99966.00 buying_power=$99510.00
+2026-05-19 14:20:31,488 [INFO] webull — Account cache updated: net=$99966.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:21:01,193 [INFO] webull — Paper account: net=$99966.00 buying_power=$99510.00
+2026-05-19 14:21:01,645 [INFO] webull — Account cache updated: net=$99966.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:22:00,911 [INFO] webull — Paper account: net=$99972.00 buying_power=$99510.00
+2026-05-19 14:22:01,327 [INFO] webull — Account cache updated: net=$99972.00 buying_power=$99510.00 positions=1 paper=True
+2026-05-19 14:22:30,881 [INFO] webull — Paper account: net=$99972.00 buying_power=$99510.00
+2026-05-19 14:22:31,255 [INFO] webull — Account cache updated: net=$99972.00 buying_power=$99510.00 positions=1 paper=True

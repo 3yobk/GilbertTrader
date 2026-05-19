@@ -681,10 +681,10 @@ class WebullEngine:
 
         return None
 
-    # ── Account cache (shared with api_server via file) ───────────────────────
+    # ── Account cache ─────────────────────────────────────────────────────────
 
     def _write_account_cache(self):
-        """Write real account balance + positions to account_cache.json."""
+        """Write real account balance + positions to account_cache.json every 30s."""
         try:
             import json as _json
             acc = self.get_account_value()
@@ -701,9 +701,7 @@ class WebullEngine:
             log.info("Account cache write failed: %s", e)
 
     def get_account_value(self) -> dict:
-        """Fetch real account balance.
-        Paper: hits Webull paper-center API (same pattern as place_order).
-        Live:  uses webull library get_account()."""
+        """Fetch real account balance for paper or live."""
         if not self._api_ready or not self._wb:
             return {}
         try:
@@ -717,25 +715,22 @@ class WebullEngine:
                 url = f"{paper_base}/paper/1/acc/{account_id}"
                 r   = _req.get(url, headers=headers, timeout=10)
                 if r.ok:
-                    d = r.json()
-                    # Actual field from API: "netLiquidation" (not netLiquidationValue)
-                    net  = float(d.get("netLiquidation") or
-                                 d.get("netLiquidationValue") or
-                                 d.get("netAsset") or
-                                 d.get("totalMarketValue") or 0)
-                    # accountMembers array has usableCash
+                    d       = r.json()
+                    net     = float(d.get("netLiquidation") or
+                                    d.get("netLiquidationValue") or
+                                    d.get("netAsset") or
+                                    d.get("totalMarketValue") or 0)
                     members = {m["key"]: m["value"]
                                for m in d.get("accountMembers", [])}
-                    cash = float(members.get("usableCash") or
-                                 members.get("cashBalance") or
-                                 d.get("cashBalance") or
-                                 d.get("usableCash") or
-                                 d.get("dayBuyingPower") or 0)
+                    cash    = float(members.get("usableCash") or
+                                    members.get("cashBalance") or
+                                    d.get("cashBalance") or
+                                    d.get("usableCash") or
+                                    d.get("dayBuyingPower") or 0)
                     log.info("Paper account: net=$%.2f buying_power=$%.2f", net, cash)
-                    return {"net_value":    net,
-                            "buying_power": cash,
-                            "day_pnl":      float(d.get("unrealizedProfitLoss") or 0),
-                            "paper":        True}
+                    return {"net_value": net, "buying_power": cash,
+                            "day_pnl": float(d.get("unrealizedProfitLoss") or 0),
+                            "paper": True}
             else:
                 acc = self._wb.get_account()
                 if acc:
@@ -752,18 +747,15 @@ class WebullEngine:
                     if net == 0 and cash > 0:
                         net = cash
                     log.info("Live account: net=$%.2f buying_power=$%.2f", net, cash)
-                    return {
-                        "net_value":    net,
-                        "buying_power": cash,
-                        "day_pnl":      float(members.get("unrealizedPnL", 0) or 0),
-                        "paper":        False,
-                    }
+                    return {"net_value": net, "buying_power": cash,
+                            "day_pnl": float(members.get("unrealizedPnL", 0) or 0),
+                            "paper": False}
         except Exception as e:
             log.info("get_account_value error: %s", e)
         return {}
 
     def get_open_positions_from_webull(self) -> list:
-        """Fetch open positions from Webull — works for paper and live."""
+        """Fetch open positions from Webull — paper and live."""
         if not self._api_ready or not self._wb:
             return []
         try:
@@ -771,6 +763,90 @@ class WebullEngine:
         except Exception as e:
             log.debug("get_positions error: %s", e)
             return []
+
+    # ── Bracket orders ────────────────────────────────────────────────────────
+
+    def place_bracket_orders(self, option_id: str, quantity: int,
+                             entry_price: float, tp_pct: float,
+                             sl_pct: float) -> dict:
+        """
+        Place TP (limit sell) + SL (stop-limit sell) on Webull after BTO confirms.
+        These live on Webull's servers and execute even if the bot crashes.
+        Returns dict with tp_price, sl_price, tp_order_id, sl_order_id.
+        """
+        import requests as _req
+        import uuid as _uuid
+
+        results = {"tp_price": None, "sl_price": None,
+                   "tp_order_id": None, "sl_order_id": None}
+
+        if not self._api_ready or not option_id or not entry_price:
+            return results
+
+        tp_price = round(entry_price * (1 + tp_pct / 100), 2)
+        sl_price = round(entry_price * (1 - sl_pct / 100), 2)
+        sl_stop  = round(sl_price * 1.02, 2)   # stop triggers 2% above limit
+        results["tp_price"] = tp_price
+        results["sl_price"] = sl_price
+
+        headers = self._wb.build_req_headers(
+            include_trade_token=True, include_time=True)
+
+        if self.paper:
+            paper_base = "https://act.webullbroker.com/webull-paper-center/api"
+            url = (f"{paper_base}/paper/1/acc/{self._wb._account_id}"
+                   f"/orderop/place/{option_id}")
+        else:
+            live_enabled = os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true"
+            if not live_enabled:
+                log.warning("Bracket orders blocked: LIVE_TRADING_ENABLED=false")
+                return results
+            url = None   # live uses library method below
+
+        def _place_paper(order_type, lmt, aux=None, label=""):
+            payload = {
+                "orderType":                 order_type,
+                "serialId":                  str(_uuid.uuid4()),
+                "timeInForce":               "GTC",
+                "quantity":                  quantity,
+                "action":                    "SELL",
+                "tickerId":                  int(option_id),
+                "tickerType":                "OPTION",
+                "outsideRegularTradingHour": False,
+                "lmtPrice":                  lmt,
+            }
+            if aux:
+                payload["auxPrice"] = aux
+            try:
+                r = _req.post(url, json=payload, headers=headers, timeout=10)
+                log.info("Bracket %s response: %s %s", label, r.status_code, r.text[:150])
+                if r.status_code == 200:
+                    return r.json().get("orderId")
+            except Exception as e:
+                log.error("Bracket %s error: %s", label, e)
+            return None
+
+        if self.paper:
+            results["tp_order_id"] = _place_paper("LMT", tp_price, label="TP")
+            results["sl_order_id"] = _place_paper("STP", sl_price, aux=sl_stop, label="SL")
+        else:
+            # Live bracket via webull library
+            try:
+                tp_r = self._wb.place_order_option(
+                    optionId=option_id, lmtPrice=str(tp_price),
+                    action="SELL", orderType="LMT", enforce="GTC", quant=quantity)
+                results["tp_order_id"] = tp_r.get("orderId") if isinstance(tp_r, dict) else None
+                sl_r = self._wb.place_order_option(
+                    optionId=option_id, lmtPrice=str(sl_price),
+                    action="SELL", orderType="STP", enforce="GTC", quant=quantity)
+                results["sl_order_id"] = sl_r.get("orderId") if isinstance(sl_r, dict) else None
+            except Exception as e:
+                log.error("Live bracket orders error: %s", e)
+
+        log.info("Bracket orders: TP=$%.2f (id=%s) SL=$%.2f (id=%s)",
+                 tp_price, results["tp_order_id"],
+                 sl_price, results["sl_order_id"])
+        return results
 
     # ── Position monitoring (browser) ─────────────────────────────────────────
 

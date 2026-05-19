@@ -2,7 +2,7 @@
 
 > Fully automated AI-powered options trading bot. Scans markets, reads Discord signals, verifies trades through an AI risk manager, executes on Webull, monitors P&L, and alerts you by email and SMS — all from one command.
 
-**Built by Eyob Kabeto** · Georgia Gwinnett College
+**Built by Eyob Kabeto** ·
 
 ---
 
@@ -196,8 +196,8 @@ Every ticker passes all 6 gates before a signal fires:
 |------|-------|---------|
 | RSI | Oversold on 5-min chart | Below profile threshold |
 | Volume | Above average volume | > 30% of 20-period average |
-| SMA-200 | Price above 200-day moving average | Must pass |
-| 1-hour RSI | Hourly momentum positive | > 40 |
+| SMA-200 | Price above 200-day moving average | Soft warning (doesn't block) |
+| 1-hour RSI | Hourly momentum positive | > 30 |
 | News | No bad catalysts | Score ≥ 40/100 |
 | Options Flow | Unusual call activity | Score ≥ 35/100 |
 
@@ -206,6 +206,7 @@ Plus VIX filter: VIX > 25 tightens RSI by 3 pts. VIX > 30 caps contracts at 1.
 ### Position Management
 - **Take-profit auto-close** — exits at your TP%
 - **Stop-loss auto-close** — exits at your SL%
+- **Bracket orders** — TP limit sell + SL stop-limit sell placed directly on Webull at entry. These live on Webull's servers and execute even if the bot crashes
 - **Scale-out at 20%** — sells half the position at +20% to lock in gains
 - **Trailing stop** — activates after scale-out, trails 8% below peak P&L
 - **Breakeven guard** — moves stop to 0% after +10% gain (can never lose on a winner)
@@ -214,8 +215,8 @@ Plus VIX filter: VIX > 25 tightens RSI by 3 pts. VIX > 30 caps contracts at 1.
 
 ### Risk & Safety
 - **Circuit breaker** — shuts down and closes all positions if daily loss hits -$150
-- **Streak pause** — auto-pauses after 2 consecutive losses, alerts Discord + SMS/email
-- **AI PC verification** — every trade approved by your local LLM before execution
+- **Streak pause** — auto-pauses after 2 consecutive losses, alerts Discord + SMS/email. Streak tracked accurately via trade close callback
+- **AI PC verification** — every trade approved by your local LLM before execution (3 retries with 10s/20s gaps on failure)
 - **Budget enforcement** — rejects trades where estimated cost exceeds profile budget
 - **Spread check** — rejects options with bid/ask spread > 20%
 - **Cooldown** — same ticker locked out for 30 minutes after a trade
@@ -226,16 +227,17 @@ Plus VIX filter: VIX > 25 tightens RSI by 3 pts. VIX > 30 caps contracts at 1.
 - **Big winner (+50%)** — email + SMS when a position hits +50%
 - **Streak pause** — email + SMS when bot auto-pauses after losses
 - **VIX spike** — email + SMS when VIX crosses 25 or 30
-- **Daily summary** — Discord + email at 4 PM ET with trades, win rate, P&L, best/worst trade
+- **Daily summary** — Discord + email at 4 PM ET with trades, win rate, P&L, best/worst trade. Filtered by current mode (paper or live)
 
 ### Position Sync on Startup
-If the bot crashes mid-session with open positions, it reads existing positions from Webull on next startup and resumes monitoring them automatically.
+If the bot crashes mid-session with open positions, it reads existing positions from Webull on next startup and resumes monitoring them automatically. Manually placed phone trades also appear in the dashboard positions tab.
 
 ### Dashboard (http://localhost:8080)
-- Live P&L chart, positions, trade history
+- Live P&L chart, positions, trade history — all filtered by current paper/live mode
 - Win rate by ticker, drawdown chart, hourly P&L heatmap, exit reason breakdown
-- Streak badge and session P&L in the top ticker bar (live, updates every 10s)
-- Market regime banner (🟢 BULL / 🔴 BEAR / ⚪ NEUTRAL)
+- Streak badge and session P&L in the top ticker bar (updates every 30s)
+- Market regime banner (🟢 BULL / 🔴 BEAR / ⚪ NEUTRAL) with **📋 PAPER** / **💰 LIVE** badge
+- Real account balance from Webull (paper shows $100k virtual, live shows real balance)
 - Bot control buttons: Pause / Resume / Force Scan / Emergency Close All
 - Discord command terminal built into the UI
 - Scanner feed via Server-Sent Events
@@ -474,10 +476,10 @@ Ticker selected from watchlist
 [Gate 2] Volume > 30% of 20-period average
         │ PASS
         ▼
-[Gate 3] Price above 200-day SMA
-        │ PASS
+[Gate 3] Price above 200-day SMA (soft — logs warning, does not block)
+        │ NOTE
         ▼
-[Gate 4] 1-hour RSI > 40
+[Gate 4] 1-hour RSI > 30
         │ PASS
         ▼
 [Gate 5] News score ≥ 40/100 (Yahoo Finance)
@@ -505,7 +507,7 @@ Open **http://localhost:8080** while the bot is running.
 | News | Real-time market news (Yahoo Finance) |
 | Activity | Live scanner feed + Discord command terminal |
 
-The top ticker bar shows: **regime** | **SPY vs SMA-20** | **streak** | **session P&L** | **scanner status**
+The top ticker bar shows: **📋 PAPER / 💰 LIVE** | **regime** | **SPY vs SMA-20** | **streak** | **session P&L** | **scanner status**
 
 ---
 
@@ -544,7 +546,8 @@ SMS requires a free Twilio account (twilio.com). Email requires a Gmail App Pass
 | `test_mode.py` | Dry-run any signal, no order placed | Debugging signals |
 | `full_system_test.py` | 31-test pre-flight check | Adding tests for new features |
 | `.env` | All credentials and switches | Never commit to git |
-| `trade_log.csv` | Trade history (auto-generated) | Feeds dashboard charts |
+| `trade_log.csv` | Trade history (auto-generated) | Has `mode` column — paper and live trades are completely separate |
+| `account_cache.json` | Real-time Webull balance + positions (auto-generated) | Written every 30s by bot. Read by API server for dashboard. Delete to reset |
 | `brain.log` | Bot activity log (auto-generated) | Debugging |
 | `webull_profile/` | Browser session cache | **Never delete** — holds your login |
 | `START.ps1` | One-click startup script | Updating launch behavior |
@@ -583,8 +586,8 @@ Expected: **29/31 PASS** outside market hours.
 
 | Expected failures | Why |
 |-------------------|-----|
-| Webull browser/API tests (3) | IDE async loop conflicts with sync Playwright — not a real issue, bot runs fine |
 | Paper BTO order | Market closed — only passes 9:30 AM–4:00 PM ET |
+| Webull browser/API tests | IDE async loop conflicts with sync Playwright — works fine when running `main.py` directly |
 
 All other tests passing means the system is ready.
 
@@ -692,4 +695,4 @@ LIVE_TRADING_ENABLED=false
 
 ---
 
-*GilbertTrader v2.1 · Eyob Kabeto · Georgia Gwinnett College · Last updated May 2026*
+*GilbertTrader v2.1 · Eyob Kabeto · Last updated May 2026*

@@ -95,10 +95,10 @@ def ask_ai_for_verdict(signal_text, budget):
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
 
-    for attempt in range(3):   # try up to 3 times
+    for attempt in range(3):
         if attempt > 0:
-            wait = attempt * 10   # 10s, then 20s between retries
-            log.info("AI PC retry %d/%d in %ds...", attempt + 1, 3, wait)
+            wait = attempt * 10
+            log.info("AI PC retry %d/3 in %ds...", attempt + 1, wait)
             time.sleep(wait)
         result = {"answer": None}
         def _call():
@@ -199,7 +199,7 @@ def main():
         console.print("[bold red]⚠️  LIVE TRADING ENABLED — real money at risk![/bold red]")
     else:
         console.print("[bold yellow]Paper mode active (LIVE_TRADING_ENABLED=false)[/bold yellow]")
-    webull = WebullEngine(paper=paper_mode)   # listener assigned below after Discord starts
+    webull = WebullEngine(paper=paper_mode)
     webull.open_browser()
 
     # ── Market feed — Tradier if token set, yfinance fallback ───────────────
@@ -303,7 +303,7 @@ def main():
         on_command=handle_discord_command,
     )
     listener.start_in_thread()
-    webull._listener = listener   # now wire up expiry alerts to Discord
+    webull._listener = listener
 
     engine = TradeEngine(
         webull=webull, market=market, paper=paper_mode,
@@ -312,7 +312,23 @@ def main():
         listener=listener
     )
 
-    # Sync paper/live mode and webull engine reference to API server dashboard
+    # ── Accurate streak tracking via on_trade_closed callback ────────────────
+    consecutive_losses = 0
+    consecutive_wins   = 0
+
+    def _on_trade_closed(outcome: str, profit_amt: float):
+        nonlocal consecutive_losses, consecutive_wins
+        if outcome == "Win":
+            consecutive_wins   += 1
+            consecutive_losses  = 0
+            if consecutive_wins == 1:
+                alert_big_winner(profit_amt) if profit_amt >= 50 else None
+        else:
+            consecutive_losses += 1
+            consecutive_wins    = 0
+    engine.on_trade_closed = _on_trade_closed
+
+    # Sync paper/live mode to API server dashboard
     try:
         from api_server import _bot_state
         _bot_state["paper_mode"]    = paper_mode
@@ -325,16 +341,13 @@ def main():
 
     MAX_DAILY_LOSS      = -150.0
     last_research_time  = 0
-    trade_cooldowns     = {}   # shared across scanner + Discord
+    trade_cooldowns     = {}
     last_heat_alert_ts  = 0
-    consecutive_losses  = 0
-    consecutive_wins    = 0
-    last_daily_summary  = ""   # YYYY-MM-DD of last summary sent
-    last_vix_alert_lvl  = 0    # last VIX level we alerted on
-    webull_refresh_fails = 0   # consecutive Webull API failures
+    last_daily_summary  = ""
+    last_vix_alert_lvl  = 0
+    webull_refresh_fails = 0
 
-    # ── Position sync: rebuild engine state from Webull on startup ───────────
-    # If bot crashed mid-session, this picks up any open positions
+    # ── Position sync on startup ─────────────────────────────────────────────
     try:
         open_pos = webull._wb.get_positions() if webull._wb else []
         if open_pos:
@@ -345,7 +358,7 @@ def main():
                 f"Monitoring resumed."
             )
     except Exception:
-        pass  # No existing positions or not connected yet
+        pass
 
     try:
         while True:
@@ -402,15 +415,14 @@ def main():
                 raw_text = listener.get_latest_signal()
 
             if raw_text:
-                # Try signal_parser first (more robust), fall back to trade_engine parser
                 parsed_sp = parse_signal_safe(raw_text)
                 parsed_te = engine.parse_signal(raw_text)
-                parsed    = parsed_te  # trade_engine format used by _execute()
+                parsed    = parsed_te
 
                 ticker = parsed.ticker if parsed else (parsed_sp.ticker if parsed_sp else "UNK")
 
                 if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
-                    pass  # cooldown active
+                    pass
                 else:
                     console.print(f"Signal: {raw_text[:60]}")
                     console.print("[dim]Checking with AI Risk Manager...[/dim]")
@@ -421,18 +433,7 @@ def main():
                         listener.send_status_update(f"AI APPROVED: {verdict}")
                         console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                         trade_cooldowns[ticker] = time.time()
-                        pnl_before = engine.get_session_pnl()
                         engine.on_raw_signal(verdict)
-                        # Give position a moment to open then sample P&L change
-                        time.sleep(2)
-                        pnl_after = engine.get_session_pnl()
-                        if pnl_after < pnl_before:
-                            consecutive_losses += 1
-                            consecutive_wins    = 0
-                        elif pnl_after > pnl_before:
-                            consecutive_wins   += 1
-                            consecutive_losses  = 0
-                        # Track Webull API health for auto-refresh
                         if webull.last_order_confirmed:
                             webull_refresh_fails = 0
                         else:
@@ -464,21 +465,20 @@ def main():
                     listener.paused = True
                 elif not _bot_state.get("paused") and listener.paused:
                     listener.paused = False
-                    consecutive_losses = 0   # manual resume resets streak
-                # Sync streak, P&L, and live positions to dashboard
+                    consecutive_losses = 0
+                # Sync streak, P&L, and positions to dashboard
                 _bot_state["consecutive_losses"] = consecutive_losses
                 _bot_state["consecutive_wins"]   = consecutive_wins
                 _bot_state["session_pnl"]        = engine.get_session_pnl()
                 _bot_state["tp_pct"]             = profile["tp"]
                 _bot_state["sl_pct"]             = profile["sl"]
-                # Sync open positions so dashboard shows them
                 with engine._lock:
                     eng_positions = dict(engine._positions)
                 _bot_state["positions"] = [
                     {
-                        "entry_price":  pos.entry_price,
-                        "current_price": pos.entry_price,  # updated by monitor thread
-                        "highest_pnl":  pos.highest_pnl,
+                        "entry_price":   pos.entry_price,
+                        "current_price": pos.entry_price,
+                        "highest_pnl":   pos.highest_pnl,
                         "signal": {
                             "ticker":      pos.signal.ticker,
                             "strike":      pos.signal.strike,
@@ -495,7 +495,6 @@ def main():
             time.sleep(1)
             if int(time.time()) % 30 == 0:
                 engine.print_status()
-                # Refresh account balance and positions cache for dashboard
                 try:
                     webull._write_account_cache()
                 except Exception:
@@ -530,7 +529,7 @@ def main():
                             )
                             last_vix_alert_lvl = 25
                         elif vix < 20:
-                            last_vix_alert_lvl = 0  # reset so next spike alerts again
+                            last_vix_alert_lvl = 0
                 except Exception:
                     pass
 
@@ -538,29 +537,32 @@ def main():
             try:
                 import pytz
                 from datetime import time as dtime
-                ET  = pytz.timezone("America/New_York")
+                ET     = pytz.timezone("America/New_York")
                 now_et = datetime.now(ET)
                 today_str = now_et.strftime("%Y-%m-%d")
-                # Send once per day between 16:00-16:05 ET
                 if (now_et.time() >= dtime(16, 0) and now_et.time() <= dtime(16, 5)
                         and last_daily_summary != today_str):
                     last_daily_summary = today_str
                     import pandas as pd
                     if os.path.exists("trade_log.csv"):
                         df = pd.read_csv("trade_log.csv")
+                        mode_str = "live" if live_enabled else "paper"
+                        if "mode" in df.columns:
+                            df = df[df["mode"] == mode_str]
                         todays = df[df["date"].str.startswith(today_str)]
                         if not todays.empty:
-                            wins   = int((todays["profit_amt"] > 0).sum())
-                            losses = int((todays["profit_amt"] <= 0).sum())
-                            total  = len(todays)
-                            pnl    = float(todays["profit_amt"].sum())
-                            best   = todays.loc[todays["profit_amt"].idxmax()]
-                            worst  = todays.loc[todays["profit_amt"].idxmin()]
+                            wins      = int((todays["profit_amt"] > 0).sum())
+                            losses    = int((todays["profit_amt"] <= 0).sum())
+                            total     = len(todays)
+                            pnl       = float(todays["profit_amt"].sum())
+                            best      = todays.loc[todays["profit_amt"].idxmax()]
+                            worst     = todays.loc[todays["profit_amt"].idxmin()]
                             best_str  = f"{best['ticker']} +${best['profit_amt']:.2f}"
                             worst_str = f"{worst['ticker']} -${abs(worst['profit_amt']):.2f}"
-                            wr = round(wins / total * 100) if total else 0
+                            wr        = round(wins / total * 100) if total else 0
+                            mode_label = "💰 LIVE" if live_enabled else "📋 PAPER"
                             summary = (
-                                f"📊 **Daily Summary — {today_str}**\n"
+                                f"📊 **Daily Summary — {today_str}** ({mode_label})\n"
                                 f"Trades: {total} | Wins: {wins} | Losses: {losses} | "
                                 f"Win Rate: {wr}%\n"
                                 f"P&L: ${pnl:+.2f} | Best: {best_str} | Worst: {worst_str}"

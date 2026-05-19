@@ -48,7 +48,7 @@ CORS(app, origins=["http://localhost:3000", "http://localhost:5173",
                    "http://127.0.0.1:3000", "http://127.0.0.1:5173"])
 
 def _is_paper_mode() -> bool:
-    """Re-reads .env every call so toggling LIVE_TRADING_ENABLED takes effect immediately."""
+    """Re-reads .env on every call so toggling takes effect without restart."""
     load_dotenv(override=True)
     return os.getenv("LIVE_TRADING_ENABLED", "false").lower() != "true"
 
@@ -82,6 +82,9 @@ _bot_state = {
     "last_scan":          None,
     "consecutive_losses": 0,
     "consecutive_wins":   0,
+    "tp_pct":             30.0,
+    "sl_pct":             20.0,
+    "webull_engine":      None,
 }
 
 def update_bot_state(**kwargs):
@@ -94,13 +97,12 @@ def _read_trades(days: int = 1) -> list[dict]:
     if not os.path.exists(TRADE_LOG):
         return []
     try:
-        mode = "paper" if _is_paper_mode() else "live"
+        mode   = "paper" if _is_paper_mode() else "live"
         trades = []
         with open(TRADE_LOG, newline="", encoding="utf-8") as f:
             for row in csv.DictReader(f):
-                # Filter by mode — old rows without 'mode' column go to paper
-                row_mode = row.get("mode", "paper")
-                if row_mode != mode:
+                # Filter by mode — old rows without mode column go to paper
+                if row.get("mode", "paper") != mode:
                     continue
                 trades.append(row)
         if days > 0:
@@ -148,21 +150,17 @@ def _build_series(trades: list[dict]) -> list[dict]:
 def portfolio_summary():
     r         = request.args.get("range", "1D")
     trades    = _read_trades(_range_days(r))
-    # day_change is realized P&L from closed trades in current mode only
     day_change = sum(float(t.get("profit_amt", 0)) for t in trades)
 
-    # Read real account balance from cache file written by webull_engine on startup
     net_value    = None
     buying_power = None
     cache_file   = os.path.join(os.path.dirname(__file__), "account_cache.json")
     if os.path.exists(cache_file):
         try:
             import json as _json
-            with open(cache_file) as f:
+            with open(cache_file, encoding="utf-8") as f:
                 acc = _json.load(f)
-            # Only use cache if it matches current mode
-            cache_paper = acc.get("paper", True)
-            if cache_paper == _is_paper_mode():
+            if acc.get("paper") == _is_paper_mode():
                 net_value    = float(acc.get("net_value", 0)) or None
                 buying_power = float(acc.get("buying_power", 0)) or None
         except Exception:
@@ -192,19 +190,14 @@ def portfolio_series():
 
 @app.get("/api/positions")
 def positions():
-    """
-    Return open positions merged from two sources:
-    1. Bot-managed positions (engine._positions synced via _bot_state)
-    2. Real Webull account positions via webull_engine cache
-    Both filtered to current paper/live mode.
-    """
-    result       = []
-    seen         = set()
-    tp           = _bot_state.get("tp_pct", 30)
-    sl           = _bot_state.get("sl_pct", 20)
-    paper        = _is_paper_mode()
+    """Merge bot-managed positions with real Webull positions from account_cache.json."""
+    result = []
+    seen   = set()
+    tp     = _bot_state.get("tp_pct", 30)
+    sl     = _bot_state.get("sl_pct", 20)
+    paper  = _is_paper_mode()
 
-    # Source 1: bot-managed positions from _bot_state
+    # Source 1: bot-managed positions
     for p in _bot_state.get("positions", []):
         try:
             entry   = float(p.get("entry_price", 0))
@@ -217,14 +210,11 @@ def positions():
             opt     = sig.get("option_type", "C") if isinstance(sig, dict) else "C"
             expiry  = sig.get("expiry", "") if isinstance(sig, dict) else ""
             qty     = sig.get("quantity", 1) if isinstance(sig, dict) else 1
-            key     = f"{ticker}{strike}{opt}{expiry}"
-            seen.add(key)
-
+            seen.add(ticker)
             if pnl_pct >= tp * 0.8:    status = "Near TP"
             elif pnl_pct <= -sl * 0.8: status = "Near SL"
             elif pnl_pct >= tp * 0.5:  status = "Scaling Out"
             else:                       status = "Monitoring"
-
             result.append({
                 "contract": f"{ticker} {strike}{opt}",
                 "side":     "CALL" if opt == "C" else "PUT",
@@ -235,15 +225,14 @@ def positions():
         except Exception:
             continue
 
-    # Source 2: real Webull positions from account_cache.json (written by main.py every 30s)
+    # Source 2: real Webull positions from account_cache.json
     cache_file = os.path.join(os.path.dirname(__file__), "account_cache.json")
     if os.path.exists(cache_file):
         try:
             import json as _json
-            with open(cache_file) as f:
+            with open(cache_file, encoding="utf-8") as f:
                 acc = _json.load(f)
-            cache_paper = acc.get("paper", True)
-            if cache_paper == paper:   # only use if mode matches
+            if acc.get("paper") == paper:
                 for pos in acc.get("positions", []):
                     try:
                         tinfo   = pos.get("ticker", {})
@@ -255,7 +244,7 @@ def positions():
                         unr     = float(pos.get("unrealizedProfitLoss", 0) or 0)
                         mkt     = float(pos.get("marketValue", 0) or 0)
                         pnl_pct = (unr / (entry * qty * 100) * 100) if entry and qty else 0
-                        if any(ticker in k for k in seen):
+                        if ticker in seen:
                             continue
                         if pnl_pct >= tp * 0.8:    status = "Near TP"
                         elif pnl_pct <= -sl * 0.8: status = "Near SL"
@@ -263,14 +252,10 @@ def positions():
                         result.append({
                             "contract":  name or ticker,
                             "side":      "CALL" if "Call" in name else "PUT" if "Put" in name else "?",
-                            "entry":     round(entry, 4),
-                            "current":   round(current, 4),
-                            "pnlPct":    round(pnl_pct, 2),
-                            "peakPct":   round(pnl_pct, 2),
-                            "size":      qty,
-                            "expiry":    "",
-                            "unrealPnl": round(unr, 2),
-                            "mktValue":  round(mkt, 2),
+                            "entry":     round(entry, 4), "current": round(current, 4),
+                            "pnlPct":    round(pnl_pct, 2), "peakPct": round(pnl_pct, 2),
+                            "size":      qty, "expiry": "",
+                            "unrealPnl": round(unr, 2), "mktValue": round(mkt, 2),
                             "status":    status,
                         })
                     except Exception:
