@@ -1,12 +1,18 @@
 # Sensitive API Keys and Tokens
-#start.sh
 .env
 *.log
 
-# Python Environment
+# Python Environment (Captures both standard and hidden variants)
+.venv/
 venv/
+ENV/
 __pycache__/
 *.py[cod]
+
+# Frontend Dependencies
+node_modules/
+dist/
+.eslintcache
 
 # Browser Automation Data
 webull_profile/

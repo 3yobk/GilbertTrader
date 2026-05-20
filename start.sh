@@ -90,7 +90,6 @@ head "STEP 3 -- Virtual Environment"
 if [ ! -f ".venv/bin/python" ]; then
     info "Creating .venv ..."
     $PYTHON_CMD -m venv .venv
-    # Dynamic link setup for package path resolution
     SITE=$(ls -d $SCRIPT_DIR/.venv/lib/python3.*/site-packages)
     "$VENV_PY" -m pip install --upgrade pip --quiet
     ok ".venv created"
@@ -104,37 +103,52 @@ fi
 # ============================================================
 head "STEP 4 -- Python Packages"
 
-declare -A PACKAGES=(
-    ["playwright==1.59.0"]="playwright"
-    ["playwright-stealth"]="playwright_stealth"
-    ["webull"]="webull"
-    ["yfinance"]="yfinance"
-    ["pandas"]="pandas"
-    ["pandas-ta>=0.4.67b0"]="pandas_ta"
-    ["numpy<2.0"]="numpy"
-    ["pytz"]="pytz"
-    ["streamlit"]="streamlit"
-    ["plotly"]="plotly"
-    ["rich"]="rich"
-    ["discord.py"]="discord"
-    ["Flask"]="flask"
-    ["flask-cors"]="flask_cors"
-    ["requests"]="requests"
-    ["python-dotenv"]="dotenv"
-    ["websocket-client"]="websocket"
-    ["tqdm"]="tqdm"
+PACKAGES=(
+    "playwright"
+    "playwright_stealth"
+    "webull"
+    "yfinance"
+    "pandas"
+    "pandas_ta"
+    "numpy"
+    "pytz"
+    "streamlit"
+    "plotly"
+    "rich"
+    "discord"
+    "flask"
+    "flask_cors"
+    "requests"
+    "dotenv"
+    "websocket"
+    "tqdm"
 )
 
-missing=()
-for pkg in "${!PACKAGES[@]}"; do
-    folder=${PACKAGES[$pkg]}
+# Swapped out for pandas-ta-classic to natively support Python 3.11 architecture on Mac environments smoothly
+INSTALL_MAP=(
+    "playwright==1.59.0" "playwright-stealth" "webull" "yfinance"
+    "pandas" "pandas-ta-classic" "numpy<2.0" "pytz"
+    "streamlit" "plotly" "rich" "discord.py"
+    "Flask" "flask-cors" "requests" "python-dotenv"
+    "websocket-client" "tqdm"
+)
+
+missing_pkgs=()
+for i in "${!PACKAGES[@]}"; do
+    folder="${PACKAGES[$i]}"
     if [ ! -d "$SITE/$folder" ]; then
-        missing+=("$pkg")
+        missing_pkgs+=("${INSTALL_MAP[$i]}")
     fi
 done
 
-if [ ${#missing[@]} -eq 0 ]; then
+if [ ${#missing_pkgs[@]} -eq 0 ]; then
     ok "All packages present"
+else
+    info "Installing missing package(s)..."
+    for pkg in "${missing_pkgs[@]}"; do
+        "$VENV_PY" -m pip install $pkg --quiet
+    done
+    ok "Done installing"
 fi
 
 # Numba shim layer for quick execution
@@ -208,16 +222,19 @@ head "STEP 7 -- Launch"
 cd "$SCRIPT_DIR"
 
 info "Starting API server (port 8000) ..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$SCRIPT_DIR' && '$VENV_PY' api_server.py\""
+osascript -e "tell application \"Terminal\" to activate" \
+          -e "tell application \"Terminal\" to do script \"cd '$SCRIPT_DIR' && '$VENV_PY' api_server.py\""
 sleep 3
 
 info "Starting bot threads ..."
-osascript -e "tell application \"Terminal\" to do script \"cd '$SCRIPT_DIR' && '$VENV_PY' main.py\""
+osascript -e "tell application \"Terminal\" to activate" \
+          -e "tell application \"Terminal\" to do script \"cd '$SCRIPT_DIR' && '$VENV_PY' main.py\""
 sleep 2
 
 if [ "$SKIP_UI" = false ]; then
     info "Starting React dashboard framework (port 8080) ..."
-    osascript -e "tell application \"Terminal\" to do script \"cd '$UI_DIR' && $DEV_CMD\""
+    osascript -e "tell application \"Terminal\" to activate" \
+              -e "tell application \"Terminal\" to do script \"cd '$UI_DIR' && $DEV_CMD\""
     sleep 2
 fi
 
