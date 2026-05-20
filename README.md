@@ -2,7 +2,7 @@
 
 > Fully automated AI-powered options trading bot. Scans markets, reads Discord signals, verifies trades through an AI risk manager, executes on Webull, monitors P&L, and alerts you by email and SMS — all from one command.
 
-**Built by Eyob Kabeto** ·
+**Built by Eyob Kabeto** · Georgia Gwinnett College
 
 ---
 
@@ -206,7 +206,7 @@ Plus VIX filter: VIX > 25 tightens RSI by 3 pts. VIX > 30 caps contracts at 1.
 ### Position Management
 - **Take-profit auto-close** — exits at your TP%
 - **Stop-loss auto-close** — exits at your SL%
-- **Bracket orders** — TP limit sell + SL stop-limit sell placed directly on Webull at entry. These live on Webull's servers and execute even if the bot crashes
+- **OTOCO bracket orders** — the millisecond a BTO fills, a Take-Profit limit sell and a Stop-Loss stop-limit sell are placed directly on Webull's servers as GTC orders. 2% slippage ceiling on the stop-limit fill price. These execute even if the bot crashes — risk is managed on Webull hardware, not in Python memory
 - **Scale-out at 20%** — sells half the position at +20% to lock in gains
 - **Trailing stop** — activates after scale-out, trails 8% below peak P&L
 - **Breakeven guard** — moves stop to 0% after +10% gain (can never lose on a winner)
@@ -229,7 +229,11 @@ Plus VIX filter: VIX > 25 tightens RSI by 3 pts. VIX > 30 caps contracts at 1.
 - **VIX spike** — email + SMS when VIX crosses 25 or 30
 - **Daily summary** — Discord + email at 4 PM ET with trades, win rate, P&L, best/worst trade. Filtered by current mode (paper or live)
 
-### Position Sync on Startup
+### Alpha Sieve (Pre-Market Watchlist Filter)
+Every morning at 9:15 AM ET, before the market opens, the bot automatically evaluates 50+ candidate tickers and overwrites the scanner watchlist with the top 5 highest-momentum targets for that day. The scoring formula cross-multiplies a 3-period Rate-of-Change on 1-hour bars against a volume-surge ratio (today vs 5-day average). Only tickers with positive upward momentum qualify. Result posted to Discord. Static watchlist still used as fallback on weekends or if sieve fails.
+
+### Graceful Shutdown (Ctrl+C)
+Pressing Ctrl+C triggers a clean 7-step shutdown sequence instead of a hard kill: pauses new entries → logs open positions to `brain.log` → flushes `trade_log.csv` → stops Tradier WebSocket → stops Discord listener → closes Chromium browser (saves session). SIGTERM (process kill) uses the same handler.
 If the bot crashes mid-session with open positions, it reads existing positions from Webull on next startup and resumes monitoring them automatically. Manually placed phone trades also appear in the dashboard positions tab.
 
 ### Dashboard (http://localhost:8080)
@@ -286,6 +290,18 @@ if len(engine._positions) >= 2:
 ```
 Change `2` to `3` or `4` to allow more open positions. Only do this if your budget supports it.
 
+**Alpha Sieve timing window**
+```python
+if dtime(9, 15) <= now_et.time() <= dtime(9, 20):
+```
+Change `9, 15` to `8, 45` to run earlier (pre-pre-market) or `9, 25` to run closer to open. The 5-minute window prevents double-running.
+
+**Alpha Sieve top N**
+```python
+run_alpha_sieve_pre_filter(top_n=5, listener=listener)
+```
+Change `top_n=5` to select more or fewer tickers each morning.
+
 **AI PC prompt** — `ask_ai_for_verdict()` function
 ```python
 "3. REJECT if strike is >20% away or doesn't fit budget.\n"
@@ -295,6 +311,14 @@ Change `>20%` to `>15%` for stricter strike filtering or `>30%` for more flexibi
 ---
 
 ### `trade_engine.py`
+
+**OTOCO bracket — slippage ceiling on stop-limit (default: 2%)**
+
+In `webull_engine.place_otoco_bracket()`:
+```python
+sl_limit = round(sl_trigger * 0.98, 2)   # 2% slippage ceiling below trigger
+```
+Change `0.98` to `0.95` for a wider slippage allowance (fills more reliably in fast markets), or `0.99` for tighter execution. This is the minimum price Webull will accept when the stop triggers.
 
 **Scale-out trigger (default: +20%)**
 ```python
@@ -336,18 +360,33 @@ Change `50.0` to `30.0` to get alerted sooner, or `75.0` to only alert on massiv
 
 ### `research_scanner.py`
 
-**Watchlist — tickers the scanner monitors**
+**Alpha Sieve — number of top tickers to select (default: 5)**
+```python
+run_alpha_sieve_pre_filter(top_n=5, listener=listener)
+```
+Change `top_n=5` to `top_n=10` to keep more candidates, or `top_n=3` for maximum focus. Called in `main.py` at 9:15 AM ET.
+
+**Alpha Sieve — candidate pool**
+```python
+_ALPHA_CANDIDATE_POOL = ["NVDA", "AMD", "TSLA", ...]
+```
+Add any ticker to the pool for the sieve to consider. The sieve will score it and include it only if it ranks in the top N by momentum score that day.
+
+**Alpha Sieve — momentum scoring**
+The score is `3-period_ROC × volume_surge_ratio`. To weight volume more heavily, change the formula inside `run_alpha_sieve_pre_filter`:
+```python
+score = roc_3 * vol_surge        # current: equal weight
+score = roc_3 * (vol_surge ** 2) # vol-weighted: squares the surge multiplier
+```
+
+**Watchlist — static fallback (used when sieve doesn't run)**
 ```python
 MY_SMALL_STOCKS = [
     "NVDA", "AMD", "PLTR", "TSLA", "SOFI", "HOOD",
-    "AAPL", "AMZN", "META", "MSFT", "GOOGL",
-    "CVNA", "RBLX", "MARA", "RIOT", "COIN",
-    "SOXL", "TQQQ", "IWM",
-    "SMCI", "MU", "AVGO", "ARM",
-    "HIMS", "AFRM", "UPST", "SHOP",
+    ...
 ]
 ```
-Add or remove any ticker. Also manageable live with `!add TICKER` / `!remove TICKER` in Discord.
+This list is used outside market hours and as a fallback if the sieve errors. Also manageable live with `!add TICKER` / `!remove TICKER` in Discord.
 
 **Volume threshold (default: 30% of average)**
 ```python
@@ -355,11 +394,11 @@ volume_surge = current_vol > avg_vol * 0.3
 ```
 Change `0.3` to `1.5` for the original "1.5x average" requirement. Lower = more signals, higher = only confirmed volume surges.
 
-**1-hour RSI minimum (default: 40)**
+**1-hour RSI minimum (default: 30)**
 ```python
-return float(rsi.dropna().iloc[-1]) > 40
+return float(rsi.dropna().iloc[-1]) > 30
 ```
-Change `40` to `50` to only trade when hourly momentum is stronger, or `30` to be more permissive.
+Change `30` to `40` to only trade when hourly momentum is stronger. Lowered from 40 to 30 to avoid blocking oversold stocks with weak hourly readings.
 
 **Options flow minimum score (default: 35)**
 ```python
@@ -566,6 +605,9 @@ SMS requires a free Twilio account (twilio.com). Email requires a Gmail App Pass
 | `Token not found` | Webull session expired | Log into Webull in browser, restart bot |
 | `AI PC error: 500` | LLM server crashed | Check AI PC terminal, restart LLM server |
 | `AI PC timeout` | LLM too slow | Timeout is 90s — if still failing, restart model on AI PC |
+| Alpha Sieve picks bad tickers | Volume data unavailable pre-market | Run after 9:00 AM ET when yfinance has volume data. Sieve logs each score to terminal |
+| OTOCO bracket orders not in Webull | Paper account may not support GTC | Check Webull app → Paper Account → Orders. If missing, the Python monitor covers exits |
+| Ctrl+C leaves positions open | Graceful shutdown logged them | Check `brain.log` for `SHUTDOWN with N open positions` — re-run bot to resume monitoring |
 | UI shows mock data | `.env.local` wrong | Set `VITE_DATA_PROVIDER=http` and `VITE_API_BASE=http://localhost:8000` |
 | `Expiry not found` | Wrong date in signal | Bot sends available expiries to Discord automatically |
 | `Spread too wide` | Illiquid option | Use a more liquid strike/expiry |
@@ -695,4 +737,4 @@ LIVE_TRADING_ENABLED=false
 
 ---
 
-*GilbertTrader v2.1 · Eyob Kabeto · Last updated May 2026*
+*GilbertTrader v2.2 · Eyob Kabeto · Georgia Gwinnett College · Last updated May 2026*

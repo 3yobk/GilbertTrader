@@ -328,11 +328,11 @@ class TradeEngine:
             self._positions[position_key] = pos
         console.print(f"  [green]✓ Order confirmed. Entry est. ${fill_price:.2f}[/green]")
 
-        # ── Bracket orders: TP + SL placed on Webull (survive bot restarts) ──
-        bracket = {}
+        # ── OTOCO Bracket: TP + SL placed on Webull hardware instantly ────────
+        bracket   = {}
         option_id = getattr(self.webull, "_pending_option_id", None)
         if fill_price and fill_price > 0 and option_id:
-            bracket = self.webull.place_bracket_orders(
+            bracket = self.webull.place_otoco_bracket(
                 option_id   = option_id,
                 quantity    = signal.quantity,
                 entry_price = fill_price,
@@ -400,10 +400,16 @@ class TradeEngine:
             if data and data.get("pnl_pct") is not None:
                 pnl_pct = data["pnl_pct"]
             else:
-                quote   = self.market.get_quote(pos.signal.ticker)
-                current = quote.get("last") if quote else None
-                if current and pos.entry_price:
-                    pnl_pct = ((current - pos.entry_price) / pos.entry_price) * 100
+                # Get option price directly, not stock price
+                option_quote = self.webull.get_option_quote(pos.signal.ticker)
+                if option_quote:
+                    bid = option_quote.get("bid", 0)
+                    ask = option_quote.get("ask", 0)
+                    current_option = (bid + ask) / 2 if bid and ask else option_quote.get("last", 0)
+                else:
+                    current_option = None
+                if current_option and pos.entry_price:
+                    pnl_pct = ((current_option - pos.entry_price) / pos.entry_price) * 100
                 else:
                     continue
 

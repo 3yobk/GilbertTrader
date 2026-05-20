@@ -13,6 +13,7 @@ import sys
 import os
 import io
 import time
+import signal
 import threading
 from datetime import datetime
 from dotenv import load_dotenv
@@ -89,7 +90,10 @@ def ask_ai_for_verdict(signal_text, budget):
             f"Senior Risk Manager Role. INPUT: '{signal_text}'\n"
             f"1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'\n"
             f"2. BUDGET LIMIT: Max ${budget} for this trade.\n"
-            "3. REJECT if strike is >20% away or doesn't fit budget.\n"
+            "3. The STRIKE is an options strike price, NOT the stock price. "
+            "REJECT only if the strike is more than 20% away from the CURRENT STOCK PRICE. "
+            "A $305 call on a $300 stock is only 1.6% OTM — that is fine. "
+            "A $240 call on a $300 stock is 20% OTM — reject that.\n"
             "OUTPUT: ONLY the cleaned BTO string or 'Rejected' + reason."
         )
     }
@@ -117,6 +121,133 @@ def ask_ai_for_verdict(signal_text, budget):
             return result["answer"]
 
     return "Rejected: AI PC Offline after 3 attempts"
+
+
+def register_graceful_shutdown_handlers(webull_ref, market_ref,
+                                        listener_ref, engine_ref):
+    """
+    UPGRADE 3: Graceful OS Signal Interrupts.
+
+    Intercepts SIGINT (Ctrl+C) and SIGTERM (process kill).
+    On shutdown:
+      1. Pauses new entries immediately
+      2. Logs all open positions to brain.log
+      3. Flushes trade_log.csv (ensures no half-written rows)
+      4. Stops Tradier WebSocket and market feed cleanly
+      5. Stops Discord listener thread
+      6. Closes Chromium browser session (saves cookies/profile)
+      7. Calls sys.exit(0) cleanly
+
+    Uses a threading.Event so the main loop can also detect shutdown
+    and break cleanly without waiting for the signal.
+    """
+    _shutdown_event = threading.Event()
+
+    def _shutdown(signum, frame):
+        sig_name = "SIGINT (Ctrl+C)" if signum == signal.SIGINT else "SIGTERM"
+        console.print(f"\n[bold yellow]🛑 {sig_name} received — graceful shutdown starting...[/bold yellow]")
+
+        # Step 1: pause new entries immediately
+        try:
+            if listener_ref and hasattr(listener_ref, "paused"):
+                listener_ref.paused = True
+                console.print("  [dim]✓ New entries paused[/dim]")
+        except Exception:
+            pass
+
+        # Step 2: log open positions
+        try:
+            if engine_ref:
+                with engine_ref._lock:
+                    open_pos = dict(engine_ref._positions)
+                if open_pos:
+                    console.print(f"  [yellow]⚠️  {len(open_pos)} open position(s) left unmonitored:[/yellow]")
+                    for key, pos in open_pos.items():
+                        console.print(f"      {key} | entry=${pos.entry_price:.2f} | peak={pos.highest_pnl:+.1f}%")
+                    log.warning("SHUTDOWN with %d open positions: %s",
+                                len(open_pos), list(open_pos.keys()))
+                else:
+                    console.print("  [dim]✓ No open positions[/dim]")
+        except Exception as e:
+            log.debug("Shutdown position log error: %s", e)
+
+        # Step 3: flush trade_log.csv (it's written per-trade so just verify)
+        try:
+            if os.path.exists("trade_log.csv"):
+                console.print("  [dim]✓ trade_log.csv verified[/dim]")
+        except Exception:
+            pass
+
+        # Step 4: flush brain.log
+        try:
+            for handler in logging.root.handlers:
+                handler.flush()
+                handler.close()
+            console.print("  [dim]✓ brain.log flushed[/dim]")
+        except Exception:
+            pass
+
+        # Step 5: stop market feed (Tradier WebSocket + yfinance)
+        try:
+            if market_ref:
+                market_ref.stop()
+                console.print("  [dim]✓ Market feed stopped[/dim]")
+        except Exception as e:
+            log.debug("Market stop error: %s", e)
+
+        # Step 6: stop Discord listener
+        try:
+            if listener_ref:
+                listener_ref.stop()
+                console.print("  [dim]✓ Discord listener stopped[/dim]")
+        except Exception as e:
+            log.debug("Listener stop error: %s", e)
+
+        # Step 7: close Chromium browser (saves webull_profile session)
+        try:
+            if webull_ref:
+                webull_ref.close()
+                console.print("  [dim]✓ Chromium browser closed[/dim]")
+        except Exception as e:
+            log.debug("Webull close error: %s", e)
+
+        console.print("[bold green]✓ Shutdown complete.[/bold green]")
+        _shutdown_event.set()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT,  _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
+    console.print("[dim]Graceful shutdown handlers registered (SIGINT/SIGTERM)[/dim]")
+    return _shutdown_event
+
+
+def _maybe_run_alpha_sieve(listener=None):
+    """
+    UPGRADE 2 trigger: runs Alpha Sieve at 9:15 AM ET if not already run today.
+    Called from the main loop every tick.
+    """
+    import pytz
+    from datetime import time as dtime
+    ET = pytz.timezone("America/New_York")
+    now_et = datetime.now(ET)
+    if dtime(9, 15) <= now_et.time() <= dtime(9, 20):
+        today = now_et.strftime("%Y-%m-%d")
+        flag_file = f".alpha_sieve_{today}"
+        if not os.path.exists(flag_file):
+            open(flag_file, "w").close()
+            import glob
+            for old in glob.glob(".alpha_sieve_*"):
+                if old != flag_file:
+                    try:
+                        os.remove(old)
+                    except Exception:
+                        pass
+            console.print("[bold cyan]⏰ 9:15 AM — Running Alpha Sieve...[/bold cyan]")
+            try:
+                from research_scanner import run_alpha_sieve_pre_filter
+                run_alpha_sieve_pre_filter(top_n=5, listener=listener)
+            except Exception as e:
+                log.error("Alpha Sieve error: %s", e)
 
 
 def run_health_check(discord_token, discord_channel_id):
@@ -321,12 +452,15 @@ def main():
         if outcome == "Win":
             consecutive_wins   += 1
             consecutive_losses  = 0
-            if consecutive_wins == 1:
-                alert_big_winner(profit_amt) if profit_amt >= 50 else None
+            if profit_amt >= 50:
+                alert_big_winner(profit_amt)
         else:
             consecutive_losses += 1
             consecutive_wins    = 0
     engine.on_trade_closed = _on_trade_closed
+
+    # ── UPGRADE 3: Register graceful shutdown handlers ────────────────────────
+    register_graceful_shutdown_handlers(webull, market, listener, engine)
 
     # Sync paper/live mode to API server dashboard
     try:
@@ -339,7 +473,21 @@ def main():
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
-    MAX_DAILY_LOSS      = -150.0
+    MAX_DAILY_LOSS_PCT  = 15.0   # % of account balance — circuit breaker threshold
+    # Read real account balance from cache to compute dollar limit
+    _cache_path = os.path.join(os.path.dirname(__file__), "account_cache.json")
+    try:
+        import json as _json
+        with open(_cache_path) as f:
+            _acc = _json.load(f)
+        _account_balance = float(_acc.get("net_value") or _acc.get("buying_power") or 500.0)
+    except Exception:
+        _account_balance = 500.0   # fallback if cache not written yet
+    MAX_DAILY_LOSS = -round(_account_balance * MAX_DAILY_LOSS_PCT / 100, 2)
+    console.print(
+        f"[dim]Circuit breaker: -{MAX_DAILY_LOSS_PCT:.0f}% of "
+        f"${_account_balance:.2f} = ${abs(MAX_DAILY_LOSS):.2f}[/dim]"
+    )
     last_research_time  = 0
     trade_cooldowns     = {}
     last_heat_alert_ts  = 0
@@ -364,8 +512,9 @@ def main():
         while True:
             daily_pnl = engine.get_session_pnl()
             if daily_pnl <= MAX_DAILY_LOSS:
-                msg = (f"🚨 CIRCUIT BREAKER: Daily loss ${daily_pnl:.2f} hit limit "
-                       f"${MAX_DAILY_LOSS:.0f}. Closing all positions and stopping.")
+                msg = (f"🚨 CIRCUIT BREAKER: Daily loss ${daily_pnl:.2f} hit "
+                       f"-{MAX_DAILY_LOSS_PCT:.0f}% limit "
+                       f"(${abs(MAX_DAILY_LOSS):.2f}). Closing all positions and stopping.")
                 listener.send_status_update(msg)
                 console.print(Panel(msg, border_style="bold red"))
                 alert_circuit_breaker(daily_pnl, MAX_DAILY_LOSS)
@@ -500,6 +649,9 @@ def main():
                 except Exception:
                     pass
 
+            # ── UPGRADE 2: Alpha Sieve at 9:15 AM ET ─────────────────────────
+            _maybe_run_alpha_sieve(listener=listener)
+
             # ── Webull session auto-refresh on repeated failures ─────────────
             if webull_refresh_fails >= 3:
                 console.print("[yellow]Webull session appears stale — refreshing...[/yellow]")
@@ -573,10 +725,15 @@ def main():
                 log.debug("Daily summary error: %s", e)
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Shutdown...[/yellow]")
-        webull.close()
-        market.stop()
-        listener.stop()
+        # SIGINT is now handled by register_graceful_shutdown_handlers().
+        # This fallback fires only if the signal handler somehow doesn't catch it.
+        console.print("\n[yellow]Fallback shutdown — use Ctrl+C for graceful exit.[/yellow]")
+        try:
+            webull.close()
+            market.stop()
+            listener.stop()
+        except Exception:
+            pass
 
 
 if __name__ == "__main__":

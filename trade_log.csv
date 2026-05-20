@@ -1,2 +1,3 @@
 date,ticker,strike,option_type,expiry,quantity,entry_price,exit_price,outcome,profit_amt,cumulative_profit,reason
 2026-05-17 22:10,TEST,520.0,C,2026-05-23,1,1.5,2.0,Win,50.0,50.0,Test entry
+2026-05-20 12:17,AAPL,Win,45.0,95.0,Scale-Out 50%,live

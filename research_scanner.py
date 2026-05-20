@@ -49,6 +49,112 @@ MY_SMALL_STOCKS = [
     "HIMS", "AFRM", "UPST", "SHOP",
 ]
 
+# ── UPGRADE 2: Alpha Sieve Pre-Market Filter ──────────────────────────────────
+
+# Broader candidate pool the sieve evaluates each morning before narrowing to top 5
+_ALPHA_CANDIDATE_POOL = [
+    "NVDA", "AMD", "TSLA", "PLTR", "AAPL", "AMZN", "META", "MSFT", "GOOGL",
+    "SMCI", "MU", "AVGO", "ARM", "COIN", "MARA", "RIOT", "HOOD", "SOFI",
+    "CVNA", "RBLX", "UPST", "AFRM", "HIMS", "SHOP", "SOXL", "TQQQ", "IWM",
+    "CRWD", "PANW", "SNOW", "NET", "DDOG", "SQ", "PYPL", "ROKU", "UBER",
+    "LYFT", "DASH", "ABNB", "SNAP", "PINS", "RBLX", "U", "RIVN", "LCID",
+    "NIO", "XPEV", "LI", "BABA", "JD", "PDD", "BILI",
+]
+
+
+def run_alpha_sieve_pre_filter(top_n: int = 5,
+                               listener=None) -> list:
+    """
+    UPGRADE 2: Pre-Market Alpha Sieve — runs at 9:15 AM ET.
+
+    Scores every ticker in _ALPHA_CANDIDATE_POOL using a short-horizon
+    momentum factor: 3-period Rate-of-Change on 1-hour bars cross-multiplied
+    by a volume-surge ratio (today's pre-market volume vs 5-day avg).
+
+    Dynamically overwrites MY_SMALL_STOCKS with the top `top_n` targets
+    so the scanner focuses only on the highest-velocity tickers of the day.
+
+    Returns the new watchlist for logging/Discord notification.
+    """
+    global MY_SMALL_STOCKS
+
+    import yfinance as yf
+    import pandas as pd
+
+    def _msg(text):
+        print(text)
+        if listener:
+            try:
+                listener.send_status_update(text)
+            except Exception:
+                pass
+
+    _msg(f"🔍 **Alpha Sieve** running — scoring {len(_ALPHA_CANDIDATE_POOL)} candidates...")
+
+    scores: list[tuple[str, float]] = []
+
+    for ticker in _ALPHA_CANDIDATE_POOL:
+        try:
+            data = yf.download(
+                ticker,
+                period="6d",
+                interval="1h",
+                progress=False,
+                auto_adjust=True,
+            )
+            if data is None or len(data) < 8:
+                continue
+
+            close  = data["Close"].dropna()
+            volume = data["Volume"].dropna()
+
+            if len(close) < 4 or len(volume) < 5:
+                continue
+
+            # ── Factor 1: 3-period Rate of Change on hourly closes ────────────
+            # ROC = (close_now / close_3_bars_ago - 1) * 100
+            roc_3 = float((close.iloc[-1] / close.iloc[-4] - 1) * 100)
+
+            # ── Factor 2: Volume surge vs 5-day average ───────────────────────
+            # Use last 5 daily volumes (sum hourly bars per day)
+            vol_series   = volume.resample("D").sum().dropna()
+            avg_5d_vol   = float(vol_series.iloc[-6:-1].mean()) if len(vol_series) >= 6 else 1.0
+            today_vol    = float(vol_series.iloc[-1]) if len(vol_series) >= 1 else 0.0
+            vol_surge    = today_vol / avg_5d_vol if avg_5d_vol > 0 else 0.0
+
+            # ── Combined momentum score ───────────────────────────────────────
+            # Only positive ROC tickers qualify (momentum must be upward)
+            # Score = ROC * volume_surge_multiplier
+            if roc_3 > 0:
+                score = roc_3 * vol_surge
+                scores.append((ticker, round(score, 4)))
+
+        except Exception as e:
+            import logging
+            logging.getLogger("research_scanner").debug(
+                "Alpha sieve skip %s: %s", ticker, e)
+            continue
+
+    if not scores:
+        _msg("⚠️ Alpha Sieve found no qualifying tickers — keeping current watchlist.")
+        return MY_SMALL_STOCKS
+
+    # Sort by score descending, take top N
+    scores.sort(key=lambda x: x[1], reverse=True)
+    top_tickers = [t for t, _ in scores[:top_n]]
+
+    # Overwrite the global watchlist
+    MY_SMALL_STOCKS = top_tickers
+
+    score_str = " | ".join(f"{t} ({s:.2f})" for t, s in scores[:top_n])
+    _msg(
+        f"✅ **Alpha Sieve complete** — today's focus list ({top_n} tickers):\n"
+        f"`{', '.join(top_tickers)}`\n"
+        f"Scores: {score_str}"
+    )
+
+    return top_tickers
+
 # ── Tradier headers for options flow ─────────────────────────────────────────
 def _tradier_headers() -> dict:
     token = os.getenv("TRADIER_TOKEN", "")
@@ -314,14 +420,35 @@ def get_atr_adjustment(df, base_threshold):
 
 
 def _build_signal(ticker: str, current_price: float, contracts: int = 1) -> str:
-    strike = int((current_price // 5) * 5) + 5
-    today  = datetime.now()
-    days_to_friday = (4 - today.weekday()) % 7
-    if days_to_friday < 7:
+    """
+    Price-aware adaptive strike selector.
+    Maps strike interval to asset price tier to avoid generating
+    deep OTM strikes that Webull rejects as untradable.
+
+    Tier 1 (<= $30):  $0.50 intervals (SOFI, MARA, RIOT)
+    Tier 2 (<= $100): $1.00 intervals (HOOD, UPST, HIMS, RBLX)
+    Tier 3 (> $100):  $5.00 intervals (NVDA, AMD, AAPL, TSLA)
+    """
+    if current_price <= 30.0:
+        # Round to nearest $0.50, then one step OTM
+        strike = round(current_price * 2) / 2 + 0.5
+        strike = int(strike) if strike == int(strike) else strike
+    elif current_price <= 100.0:
+        # Round to nearest $1, then one step OTM
+        strike = int(round(current_price)) + 1
+    else:
+        # Standard $5 grid for large/mega caps
+        strike = int((current_price // 5) * 5) + 5
+
+    # Pick nearest upcoming Friday (this week if >= 2 days away, else next week)
+    today          = datetime.now()
+    days_to_friday = (4 - today.weekday()) % 7   # 0 = today is Friday
+    if days_to_friday < 2:                         # too close — use next Friday
         days_to_friday += 7
     exp_dt = today + timedelta(days=days_to_friday)
     expiry = f"{exp_dt.month}/{exp_dt.day}"
-    qty    = f" x{contracts}" if contracts > 1 else ""
+
+    qty = f" x{contracts}" if contracts > 1 else ""
     return f"BTO {ticker} {strike}C {expiry}{qty}"
 
 
@@ -393,7 +520,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     if _hm < 9 * 60 + 35:
         print("  [Time] First 5 min after open — skipping scan (chop zone)")
         return []
-    if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
+    #if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
         print("  [Time] Lunch chop zone (11:45–1:30 ET) — skipping scan")
         return []
 
@@ -468,11 +595,16 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 continue
 
             # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
+            # Exception: RSI < 20 is so extreme that a bounce is likely
+            # regardless of longer-term trend — bypass SMA-200 block
             if not is_trend_bullish(ticker):
-                skip_reasons["Below SMA-200"] = skip_reasons.get("Below SMA-200",0)+1
-                print(f"    [Skip] {ticker}: Below SMA-200")
-                _session_stats["skipped"] += 1
-                continue
+                if current_rsi < 20:
+                    print(f"    [Override] {ticker}: Below SMA-200 but RSI={current_rsi:.1f} extreme — allowing")
+                else:
+                    skip_reasons["Below SMA-200"] = skip_reasons.get("Below SMA-200", 0) + 1
+                    print(f"    [Skip] {ticker}: Below SMA-200")
+                    _session_stats["skipped"] += 1
+                    continue
 
             # ── Gate 3: Volume surge ──────────────────────────────────────────
             if not volume_surge:
@@ -501,15 +633,19 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 continue
 
             # ── Upgrade 3: Kelly position sizing ─────────────────────────────
-            # Estimate ATM option price more accurately:
-            # For stocks > $100: ~1.5-2% of price (tighter IV)
-            # For stocks < $20:  ~5-8% of price (wider IV)
-            if current_price > 200:
-                est_option_price = round(current_price * 0.015, 2)
+            # Estimate OTM option price (scanner buys slightly OTM calls).
+            # OTM options are significantly cheaper than ATM.
+            # Real-world: AAPL $300 → 305C costs ~$1.50-2.00 → $150-200/contract
+            #             NVDA $224 → 230C costs ~$1.50-2.00 → $150-200/contract
+            #             AVGO $419 → 430C costs ~$1.00-1.50 → $100-150/contract
+            if current_price > 400:
+                est_option_price = round(current_price * 0.004, 2)   # ~0.4% for mega-caps
+            elif current_price > 200:
+                est_option_price = round(current_price * 0.006, 2)   # ~0.6% for large-caps
             elif current_price > 50:
-                est_option_price = round(current_price * 0.025, 2)
+                est_option_price = round(current_price * 0.015, 2)   # ~1.5% for mid-caps
             else:
-                est_option_price = round(current_price * 0.06, 2)
+                est_option_price = round(current_price * 0.04, 2)    # ~4% for small-caps
 
             est_cost = est_option_price * 100  # 1 contract = 100 shares
             if est_cost > budget:
@@ -567,9 +703,9 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     f"**Size**: {contracts} contract{'s' if contracts > 1 else ''}\n"
                     f"**Signal**: `{signal_str}`\n"
                     f"─────────────────────\n"
-                    f"**Entry**:  buy at market open / mid-price\n"
-                    f"**Target**: +{tp_pct:.0f}% → sell at ~${current_price * (1 + tp_pct/100):.2f}\n"
-                    f"**Stop**:   -{sl_pct:.0f}% → exit at ~${current_price * (1 - sl_pct/100):.2f}\n"
+                    f"**Entry**:  buy at mid-price\n"
+                    f"**Target**: +{tp_pct:.0f}% → stock ~${current_price * (1 + tp_pct/100):.2f}\n"
+                    f"**Stop**:   -{sl_pct:.0f}% → stock ~${current_price * (1 - sl_pct/100):.2f}\n"
                     f"**Scale-out**: sell half at +20%, trail remaining"
                 )
 

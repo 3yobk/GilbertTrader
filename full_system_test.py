@@ -532,7 +532,9 @@ def test_ai_verdict():
             "Senior Risk Manager Role. INPUT: 'BTO NVDA 225C 5/29 x1'\n"
             "1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'\n"
             "2. BUDGET LIMIT: Max $300 for this trade.\n"
-            "3. REJECT if strike is >20% away or doesn't fit budget.\n"
+            "3. The STRIKE is an options strike price, NOT the stock price. "
+            "REJECT only if the strike is more than 20% away from the CURRENT STOCK PRICE. "
+            "A $225 call on a $222 stock is only 1.3% OTM — that is fine.\n"
             "OUTPUT: ONLY the cleaned BTO string or 'Rejected' + reason."
         )
     }

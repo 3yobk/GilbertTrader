@@ -7,7 +7,7 @@ Sends email and/or SMS (via Twilio) when important events happen:
   - Streak pause triggered (2 consecutive losses)
   - Daily summary at 4 PM ET
 
-Setup (.env):
+Setup (.env.local):
   # Email (Gmail recommended -- create App Password at myaccount.google.com/apppasswords)
   ALERT_EMAIL_FROM=yourbot@gmail.com
   ALERT_EMAIL_TO=you@gmail.com
