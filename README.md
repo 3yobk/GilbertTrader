@@ -2,7 +2,7 @@
 
 > Fully automated AI-powered options trading bot. Scans markets, reads Discord signals, verifies trades through an AI risk manager, executes on Webull, monitors P&L, and alerts you by email and SMS — all from one command.
 
-**Built by Eyob Kabeto** · Georgia Gwinnett College
+**Built by Eyob Kabeto**
 
 ---
 
@@ -805,4 +805,4 @@ LIVE_TRADING_ENABLED=false
 
 ---
 
-*GilbertTrader v2.2 · Eyob Kabeto · Georgia Gwinnett College · Last updated May 2026 · First live session: +$48.64 (+4.86%) on $1,000*
+*GilbertTrader v2.2 · Eyob Kabeto · Last updated May 2026 · First live session: $153.42 using $1k
