@@ -288,6 +288,124 @@ def _get_vix() -> Optional[float]:
     return None
 
 
+# ── GEX (Gamma Exposure) ──────────────────────────────────────────────────────
+
+def get_gex(ticker: str, current_price: float) -> dict:
+    """
+    Calculate Net Gamma Exposure (GEX) from Tradier options chain.
+
+    GEX = sum over all strikes of:
+        open_interest × gamma × 100 × spot_price
+        (positive for calls, negative for puts — dealer perspective)
+
+    Interpretation:
+      GEX > 0  (positive): market makers long gamma, they BUY dips and SELL rallies
+                           → stock gets PINNED, less movement, bad for scalping
+      GEX < 0  (negative): market makers short gamma, they SELL dips and BUY rallies
+                           → stock moves MORE aggressively, good for scalping
+      GEX ≈ 0  (near zero): neutral, unpredictable
+
+    Returns:
+      {
+        "gex":         float,   # net GEX in dollar terms
+        "gex_signal":  str,     # "negative" | "neutral" | "positive"
+        "gex_ok":      bool,    # True if GEX favors the trade (negative or neutral)
+        "pin_level":   float,   # strike with highest absolute OI (magnetic level)
+        "available":   bool,    # False if Tradier data not available
+      }
+    """
+    neutral = {"gex": 0.0, "gex_signal": "neutral",
+               "gex_ok": True, "pin_level": 0.0, "available": False}
+
+    if not _HAS_TRADIER or not current_price:
+        return neutral
+
+    try:
+        # Fetch nearest expiry
+        exp_r = requests.get(
+            "https://api.tradier.com/v1/markets/options/expirations",
+            headers=_tradier_headers(),
+            params={"symbol": ticker, "includeAllRoots": "true"},
+            timeout=5,
+        )
+        if not exp_r.ok:
+            return neutral
+        exps = exp_r.json().get("expirations", {}).get("date", [])
+        if isinstance(exps, str):
+            exps = [exps]
+        if not exps:
+            return neutral
+        expiry = sorted(exps)[0]
+
+        # Fetch chain WITH greeks=true for gamma values
+        chain_r = requests.get(
+            "https://api.tradier.com/v1/markets/options/chains",
+            headers=_tradier_headers(),
+            params={"symbol": ticker, "expiration": expiry, "greeks": "true"},
+            timeout=8,
+        )
+        if not chain_r.ok:
+            return neutral
+
+        chain = chain_r.json().get("options", {}).get("option", [])
+        if isinstance(chain, dict):
+            chain = [chain]
+        if not chain:
+            return neutral
+
+        net_gex   = 0.0
+        max_oi    = 0
+        pin_level = current_price
+
+        for opt in chain:
+            try:
+                oi     = int(opt.get("open_interest", 0) or 0)
+                greeks = opt.get("greeks") or {}
+                gamma  = float(greeks.get("gamma", 0) or 0)
+                strike = float(opt.get("strike", 0) or 0)
+                otype  = opt.get("option_type", "")
+
+                # GEX per strike: OI × gamma × 100 × spot
+                # Calls add positive GEX, puts subtract (dealer perspective)
+                gex_contrib = oi * gamma * 100 * current_price
+                if otype == "call":
+                    net_gex += gex_contrib
+                else:
+                    net_gex -= gex_contrib
+
+                # Track pin level (strike with highest total OI)
+                if oi > max_oi:
+                    max_oi    = oi
+                    pin_level = strike
+            except Exception:
+                continue
+
+        # Normalize to millions for readability
+        net_gex_m = round(net_gex / 1_000_000, 2)
+
+        if net_gex < -500_000:
+            signal = "negative"   # dealers short gamma → stock moves more → good
+            ok     = True
+        elif net_gex > 500_000:
+            signal = "positive"   # dealers long gamma → stock pinned → bad for scalping
+            ok     = False
+        else:
+            signal = "neutral"
+            ok     = True
+
+        return {
+            "gex":        net_gex_m,
+            "gex_signal": signal,
+            "gex_ok":     ok,
+            "pin_level":  round(pin_level, 2),
+            "available":  True,
+        }
+
+    except Exception as e:
+        log.debug("GEX error for %s: %s", ticker, e)
+        return neutral
+
+
 # ── Upgrade 4: Market regime filter ──────────────────────────────────────────
 def get_market_regime() -> dict:
     """
@@ -419,41 +537,59 @@ def get_atr_adjustment(df, base_threshold):
         return base_threshold
 
 
-def _build_signal(ticker: str, current_price: float, contracts: int = 1) -> str:
+def _build_signal(ticker: str, current_price: float,
+                  contracts: int = 1, option_type: str = "C") -> str:
     """
-    Price-aware adaptive strike selector.
-    Maps strike interval to asset price tier to avoid generating
-    deep OTM strikes that Webull rejects as untradable.
+    Price-aware adaptive strike selector with expiry routing.
 
-    Tier 1 (<= $30):  $0.50 intervals (SOFI, MARA, RIOT)
-    Tier 2 (<= $100): $1.00 intervals (HOOD, UPST, HIMS, RBLX)
-    Tier 3 (> $100):  $5.00 intervals (NVDA, AMD, AAPL, TSLA)
+    Strike tiers (OTM for calls, OTM for puts):
+      Tier 1 (<= $30):  $0.50 intervals
+      Tier 2 (<= $100): $1.00 intervals
+      Tier 3 (> $100):  $5.00 intervals
+
+    Expiry routing:
+      Mon/Tue/Wed → this Friday (0-4 DTE, normal theta)
+      Thursday    → NEXT Friday (8 DTE, theta protection)
+      Friday      → week after next Friday (15 DTE, max protection)
     """
-    if current_price <= 30.0:
-        # Round to nearest $0.50, then one step OTM
-        strike = round(current_price * 2) / 2 + 0.5
-        strike = int(strike) if strike == int(strike) else strike
-    elif current_price <= 100.0:
-        # Round to nearest $1, then one step OTM
-        strike = int(round(current_price)) + 1
-    else:
-        # Standard $5 grid for large/mega caps
-        strike = int((current_price // 5) * 5) + 5
+    # ── Strike selection ──────────────────────────────────────────────────────
+    if option_type == "C":
+        if current_price <= 30.0:
+            strike = round(current_price * 2) / 2 + 0.5
+            strike = int(strike) if strike == int(strike) else strike
+        elif current_price <= 100.0:
+            strike = int(round(current_price)) + 1
+        else:
+            strike = int((current_price // 5) * 5) + 5
+    else:  # PUT
+        if current_price <= 30.0:
+            strike = round(current_price * 2) / 2 - 0.5
+            strike = int(strike) if strike == int(strike) else strike
+        elif current_price <= 100.0:
+            strike = int(round(current_price)) - 1
+        else:
+            strike = int((current_price // 5) * 5)
 
-    # Pick nearest upcoming Friday (this week if >= 2 days away, else next week)
+    # ── Expiry routing ────────────────────────────────────────────────────────
+    # Same-day scalping strategy: always use nearest Friday for maximum gamma.
+    # 0-1DTE options move faster and react more dramatically to intraday moves.
     today          = datetime.now()
-    days_to_friday = (4 - today.weekday()) % 7   # 0 = today is Friday
-    if days_to_friday < 2:                         # too close — use next Friday
-        days_to_friday += 7
+    weekday        = today.weekday()   # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri
+    days_to_friday = (4 - weekday) % 7
+
+    if weekday == 4:
+        # Today IS Friday — can't use today, use next Friday
+        days_to_friday = 7
+
     exp_dt = today + timedelta(days=days_to_friday)
     expiry = f"{exp_dt.month}/{exp_dt.day}"
 
     qty = f" x{contracts}" if contracts > 1 else ""
-    return f"BTO {ticker} {strike}C {expiry}{qty}"
+    return f"BTO {ticker} {strike}{option_type} {expiry}{qty}"
 
 
-# ── Upgrade 5: Session stats tracker ─────────────────────────────────────────
-_session_stats = {"signals": 0, "skipped": 0, "scans": 0}
+# ── Session stats (module-level, reset each scan call) ────────────────────────
+_session_stats: dict = {"scans": 0, "signals": 0, "skipped": 0}
 
 
 def print_session_stats():
@@ -495,7 +631,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     print(f"\n  [Regime] SPY {regime_icon} {regime.upper()} | SPY vs SMA20: {spy_vs_sma:+.1f}%")
 
     if regime == "bear":
-        print("  [Regime] Bear market — only put signals allowed (calls skipped)")
+        print("  [Regime] Bear market — scanning for overbought rallies (RSI > 70) to buy PUTS")
 
     # ── VIX filter ────────────────────────────────────────────────────────────
     vix_level = _get_vix()
@@ -520,7 +656,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     if _hm < 9 * 60 + 35:
         print("  [Time] First 5 min after open — skipping scan (chop zone)")
         return []
-    #if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
+        #if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
         print("  [Time] Lunch chop zone (11:45–1:30 ET) — skipping scan")
         return []
 
@@ -586,13 +722,19 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 _session_stats["skipped"] += 1
                 continue
 
-            # ── Gate 1: Regime filter (upgrade 4) ────────────────────────────
-            # In bear market, skip call signals
+            # ── Gate 1: Regime-based direction filter ─────────────────────────
+            # Bull → look for oversold dips → buy CALLS
+            # Bear → look for overbought rallies → buy PUTS
+            # Neutral → calls only, standard RSI threshold
             if regime == "bear":
-                skip_reasons["Bear regime"] = skip_reasons.get("Bear regime",0)+1
-                print(f"    [Skip] {ticker}: Bear regime — no calls")
-                _session_stats["skipped"] += 1
-                continue
+                # In bear regime invert: target overbought tickers (RSI > 70)
+                # and look for put flow instead of call flow
+                if current_rsi <= 70:
+                    _session_stats["skipped"] += 1
+                    continue
+                target_option_type = "P"
+            else:
+                target_option_type = "C"
 
             # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
             # Exception: RSI < 20 is so extreme that a bounce is likely
@@ -620,6 +762,28 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 _session_stats["skipped"] += 1
                 continue
 
+
+            # ── Options flow check ───────────────────────────────────────────
+            flow     = check_options_flow(ticker, target_option_type)
+            flow_tag = f"flow={flow['score']} {'UNUSUAL' if flow['unusual'] else ''}"
+            print(f"    [Flow] {ticker}: {flow_tag} | PCR={flow['pcr']:.2f} "
+                  f"calls={flow['call_vol']} puts={flow['put_vol']}")
+
+            # Bull regime: need high call flow AND PCR < 1.0 (more calls than puts)
+            # Bear regime: need high put flow (pcr >= 0.6 or put_vol > call_vol)
+            flow_passes = (
+                    (target_option_type == "C" and flow["score"] >= 35 and flow["pcr"] < 1.0) or
+                    (target_option_type == "P" and (flow["pcr"] >= 0.6 or flow["put_vol"] > flow["call_vol"]))
+            )
+            if not flow_passes:
+                label = ("Options flow too bearish" if target_option_type == "C"
+                         else "No unusual put flow")
+                skip_reasons[label] = skip_reasons.get(label, 0) + 1
+                print(f"    [Skip] {ticker}: {label} "
+                      f"(score={flow['score']} PCR={flow['pcr']:.2f})")
+                _session_stats["skipped"] += 1
+                continue
+
             # ── Upgrade 2: Options flow check ────────────────────────────────
             flow = check_options_flow(ticker, "C")
             flow_tag = f"flow={flow['score']} {'UNUSUAL' if flow['unusual'] else ''}"
@@ -632,22 +796,58 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 _session_stats["skipped"] += 1
                 continue
 
+            # ── Gate 7: GEX (Gamma Exposure) ─────────────────────────────────
+            # Negative GEX = dealers short gamma = stock moves aggressively = good for scalping
+            # Positive GEX = stock gets pinned = bad for 0DTE scalps
+            gex = get_gex(ticker, current_price)
+            if gex["available"]:
+                gex_tag = (f"GEX={gex['gex']}M {gex['gex_signal'].upper()} "
+                           f"pin={gex['pin_level']}")
+                print(f"    [GEX] {ticker}: {gex_tag}")
+                if not gex["gex_ok"]:
+                    skip_reasons["GEX pinned"] = skip_reasons.get("GEX pinned", 0) + 1
+                    print(f"    [Skip] {ticker}: GEX positive — stock likely pinned")
+                    _session_stats["skipped"] += 1
+                    continue
+
             # ── Upgrade 3: Kelly position sizing ─────────────────────────────
             # Estimate OTM option price (scanner buys slightly OTM calls).
             # OTM options are significantly cheaper than ATM.
             # Real-world: AAPL $300 → 305C costs ~$1.50-2.00 → $150-200/contract
             #             NVDA $224 → 230C costs ~$1.50-2.00 → $150-200/contract
             #             AVGO $419 → 430C costs ~$1.00-1.50 → $100-150/contract
-            if current_price > 400:
-                est_option_price = round(current_price * 0.004, 2)   # ~0.4% for mega-caps
-            elif current_price > 200:
-                est_option_price = round(current_price * 0.006, 2)   # ~0.6% for large-caps
-            elif current_price > 50:
-                est_option_price = round(current_price * 0.015, 2)   # ~1.5% for mid-caps
+
+            # ── Option price estimate & contract sizing ───────────────────────
+            # Try to get real mid-price from Tradier options chain first
+            real_option_price = None
+            if _HAS_TRADIER:
+                try:
+                    from market_feed import MarketFeed as _MF
+                    # Use flow data bid/ask if available
+                    chain_bid = flow.get("best_bid", 0)
+                    chain_ask = flow.get("best_ask", 0)
+                    if chain_bid and chain_ask:
+                        real_option_price = round((chain_bid + chain_ask) / 2, 2)
+                except Exception:
+                    pass
+
+            if real_option_price and real_option_price > 0:
+                est_option_price = real_option_price
+            elif _HAS_TRADIER and target_option_type == "C":
+                if current_price > 200:
+                    est_option_price = round(current_price * 0.012, 2)
+                else:
+                    est_option_price = round(current_price * 0.025, 2)
             else:
-                est_option_price = round(current_price * 0.04, 2)    # ~4% for small-caps
+                if current_price > 400:   est_option_price = round(current_price * 0.012, 2)
+                elif current_price > 200: est_option_price = round(current_price * 0.015, 2)
+                else:                     est_option_price = round(current_price * 0.030, 2)
 
             est_cost = est_option_price * 100  # 1 contract = 100 shares
+
+            # Hard cap: calculate max contracts budget can afford
+            max_affordable = max(1, int(budget / est_cost))
+
             if est_cost > budget:
                 print(f"    [Skip] {ticker}: Est. option cost ${est_cost:.0f} > budget ${budget:.0f}")
                 _session_stats["skipped"] += 1
@@ -660,11 +860,13 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 max_budget=budget,
                 option_price=est_option_price,
             )
+            # Hard enforce budget cap — never exceed what budget can actually afford
+            contracts = min(contracts, max_affordable)
 
             print(f"  🔥 [HIGH CONVICTION] {ticker} | RSI={current_rsi:.1f} "
                   f"flow={flow['score']} regime={regime} -> {contracts}x contracts")
 
-            signal_str = _build_signal(ticker, current_price, contracts)
+            signal_str = _build_signal(ticker, current_price, contracts, target_option_type)
             _session_stats["signals"] += 1
             _broadcast({
                 "id":     int(time.time() * 1000),
@@ -697,6 +899,8 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     f"**Price**: ${current_price:.2f} → Strike: {strike}  Expiry: {expiry}\n"
                     f"**RSI**: {current_rsi:.1f} (target <{eff_threshold}) | "
                     f"Vol: {vol_ratio:.1f}x avg\n"
+                    f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
+                    f"**GEX**: {gex['gex']}M {gex['gex_signal'].upper()} pin=${gex['pin_level']}\n" if gex.get("available") else
                     f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
                     f"**Regime**: {regime.upper()} ({spy_vs_sma:+.1f}% vs SMA20)\n"
                     f"{news_line}{vwap_line}"

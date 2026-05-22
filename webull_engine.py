@@ -733,10 +733,34 @@ class WebullEngine:
                                  members.get("usableCash") or 0)
                     if net == 0 and cash > 0:
                         net = cash
-                    log.debug("Live account: net=$%.2f buying_power=$%.2f", net, cash)
+
+                    # Fetch realized day P&L from Webull P&L endpoint
+                    day_pnl = 0.0
+                    try:
+                        import requests as _req2
+                        headers2 = self._wb.build_req_headers(
+                            include_trade_token=False, include_time=True)
+                        pnl_url = (
+                            f"https://ustrade.webullfinance.com/api/trading/v1"
+                            f"/webull/asset/account/pnl/{self._wb._account_id}"
+                        )
+                        r2 = _req2.get(pnl_url, headers=headers2, timeout=8)
+                        if r2.ok:
+                            pnl_data = r2.json()
+                            day_pnl  = float(
+                                pnl_data.get("realizedDayPnl") or
+                                pnl_data.get("dayPnl") or
+                                pnl_data.get("todayProfitLoss") or
+                                members.get("unrealizedPnL") or 0
+                            )
+                    except Exception as e:
+                        log.debug("Day P&L fetch error: %s", e)
+                        day_pnl = float(members.get("unrealizedPnL", 0) or 0)
+
+                    log.debug("Live: net=$%.2f cash=$%.2f day_pnl=$%.2f",
+                              net, cash, day_pnl)
                     return {"net_value": net, "buying_power": cash,
-                            "day_pnl": float(members.get("unrealizedPnL", 0) or 0),
-                            "paper": False}
+                            "day_pnl": day_pnl, "paper": False}
         except Exception as e:
             log.info("get_account_value error: %s", e)
         return {}
@@ -828,8 +852,7 @@ class WebullEngine:
             """Send a single child order via the webull library (live)."""
             import requests as _req
             import uuid as _uuid
-            # Use direct API call for live bracket orders — webull library
-            # doesn't support all order types cleanly
+            # Use direct API call for live bracket orders
             try:
                 headers = self._wb.build_req_headers(
                     include_trade_token=True, include_time=True)
@@ -846,13 +869,25 @@ class WebullEngine:
                 }
                 if aux is not None:
                     payload["auxPrice"] = aux
-                # Live order endpoint
-                url = f"https://ustrade.webullfinance.com/api/trading/v1/webull/order/optionOrderPlace"
-                r = _req.post(url, json=payload, headers=headers, timeout=10)
-                log.info("OTOCO live %s response: %s %s", label, r.status_code, r.text[:150])
-                if r.status_code == 200:
-                    return r.json().get("orderId")
-                log.warning("OTOCO live %s failed %s: %s", label, r.status_code, r.text[:100])
+                # Try multiple known Webull live option order endpoints
+                account_id = self._wb._account_id
+                urls = [
+                    f"https://ustrade.webullfinance.com/api/trading/v1/webull/order/optionOrder/{account_id}",
+                    f"https://ustrade.webullfinance.com/api/trading/v1/webull/order/placeOptionOrder",
+                    f"https://trade.webull.com/api/trading/v1/webull/order/optionOrderPlace",
+                ]
+                r = None
+                for url in urls:
+                    try:
+                        r = _req.post(url, json=payload, headers=headers, timeout=10)
+                        log.info("OTOCO live %s [%s]: %s", label, url.split("/")[-1], r.status_code)
+                        if r.status_code == 200:
+                            return r.json().get("orderId")
+                    except Exception:
+                        continue
+                if r:
+                    log.warning("OTOCO live %s all endpoints failed. Last: %s %s",
+                                label, r.status_code, r.text[:100])
             except Exception as e:
                 log.error("OTOCO live %s error: %s", label, e)
             return None

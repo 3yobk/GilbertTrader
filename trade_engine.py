@@ -131,39 +131,143 @@ class TradeEngine:
 
         # Dollar profit: option price * 100 multiplier * contracts
         profit_amt = (fill_price - pos.entry_price) * 100 * qty
-        outcome = "Win" if profit_amt > 0 else "Loss"
+        outcome    = "Win" if profit_amt > 0 else "Loss"
 
         cumulative = 0.0
         if file_exists:
             try:
                 existing_df = pd.read_csv("trade_log.csv")
-                cumulative = float(existing_df['cumulative_profit'].iloc[-1]) + profit_amt
+                cumulative  = float(existing_df['cumulative_profit'].iloc[-1]) + profit_amt
             except Exception:
                 cumulative = profit_amt
         else:
             cumulative = profit_amt
 
         row = {
-            'date':               datetime.now().strftime("%Y-%m-%d %H:%M"),
-            'ticker':             pos.signal.ticker,
-            'outcome':            outcome,
-            'profit_amt':         round(profit_amt, 2),
-            'cumulative_profit':  round(cumulative, 2),
-            'reason':             reason,
-            'mode':               'live' if not self.paper else 'paper',
+            'date':              datetime.now().strftime("%Y-%m-%d %H:%M"),
+            'ticker':            pos.signal.ticker,
+            'strike':            pos.signal.strike,
+            'option_type':       pos.signal.option_type,
+            'expiry':            pos.signal.expiry,
+            'quantity':          qty,
+            'entry_price':       round(pos.entry_price, 4),
+            'exit_price':        round(fill_price, 4),
+            'outcome':           outcome,
+            'profit_amt':        round(profit_amt, 2),
+            'cumulative_profit': round(cumulative, 2),
+            'reason':            reason,
+            'mode':              'live' if not self.paper else 'paper',
         }
+
+        # Write header only if new file or columns changed
+        need_header = not file_exists
+        if file_exists:
+            try:
+                with open("trade_log.csv", "r") as f:
+                    existing_cols = f.readline().strip().split(",")
+                if existing_cols != list(row.keys()):
+                    need_header = False  # append only — don't break existing rows
+            except Exception:
+                pass
 
         with open("trade_log.csv", 'a', newline='') as f:
             writer = csv.DictWriter(f, fieldnames=row.keys())
-            if not file_exists:
+            if need_header:
                 writer.writeheader()
             writer.writerow(row)
 
-        console.print(f"[bold magenta]📊 Trade Logged: {outcome} (${profit_amt:.2f})[/bold magenta]")
+        console.print(f"[bold magenta]📊 Trade Logged: {outcome} "
+                      f"{pos.signal.ticker} {pos.signal.strike}{pos.signal.option_type} "
+                      f"entry=${pos.entry_price:.2f} exit=${fill_price:.2f} "
+                      f"P&L=${profit_amt:.2f}[/bold magenta]")
 
         # Callback so main.py can update streak accurately
         if hasattr(self, 'on_trade_closed') and callable(self.on_trade_closed):
             self.on_trade_closed(outcome, profit_amt)
+
+    def sync_webull_orders_to_log(self):
+        """
+        On startup, pull today's filled orders from Webull and write any
+        that aren't already in trade_log.csv. Prevents missing trades if
+        bot crashed or was restarted mid-session.
+        """
+        try:
+            import pandas as pd
+            from datetime import date
+            today = date.today().strftime("%Y-%m-%d")
+
+            # Read existing log to avoid duplicates
+            existing_keys = set()
+            if os.path.isfile("trade_log.csv"):
+                try:
+                    df = pd.read_csv("trade_log.csv")
+                    for _, r in df.iterrows():
+                        existing_keys.add(
+                            f"{r.get('ticker','')}_{r.get('exit_price','')}_{r.get('date','')[:10]}"
+                        )
+                except Exception:
+                    pass
+
+            # Fetch today's orders from Webull
+            orders = []
+            try:
+                orders = self.webull._wb.get_history_orders(status="Filled", count=20) or []
+            except Exception as e:
+                log.debug("Webull order history fetch error: %s", e)
+                return
+
+            mode = 'live' if not self.paper else 'paper'
+            synced = 0
+            for order in orders:
+                try:
+                    filled_time = order.get("filledTime", order.get("createTime", ""))
+                    if today not in str(filled_time):
+                        continue
+                    action = order.get("action", "")
+                    if action != "SELL":
+                        continue  # only log sells (closed trades)
+
+                    ticker   = order.get("ticker", {}).get("symbol", "?")
+                    avg_price = float(order.get("avgFilledPrice", 0) or 0)
+                    qty       = int(order.get("filledQuantity", 1) or 1)
+                    reason    = "Manual STC" if order.get("orderType") == "MKT" else "Auto STC"
+
+                    key = f"{ticker}_{avg_price}_{today}"
+                    if key in existing_keys:
+                        continue
+
+                    # We don't have entry price from order history alone
+                    # Log with what we have — profit_amt will be 0 (unknown entry)
+                    row = {
+                        'date':              filled_time[:16] if filled_time else today,
+                        'ticker':            ticker,
+                        'strike':            order.get("optionExercisePrice", "?"),
+                        'option_type':       "C" if "Call" in str(order.get("optionType","")) else "P",
+                        'expiry':            order.get("optionExpireDate", "?"),
+                        'quantity':          qty,
+                        'entry_price':       0.0,
+                        'exit_price':        round(avg_price, 4),
+                        'outcome':           "Unknown",
+                        'profit_amt':        0.0,
+                        'cumulative_profit': 0.0,
+                        'reason':            reason,
+                        'mode':              mode,
+                    }
+                    file_exists = os.path.isfile("trade_log.csv")
+                    with open("trade_log.csv", 'a', newline='') as f:
+                        writer = csv.DictWriter(f, fieldnames=row.keys())
+                        if not file_exists:
+                            writer.writeheader()
+                        writer.writerow(row)
+                    existing_keys.add(key)
+                    synced += 1
+                except Exception as e:
+                    log.debug("Order sync row error: %s", e)
+
+            if synced:
+                log.info("Synced %d Webull orders to trade_log.csv", synced)
+        except Exception as e:
+            log.debug("sync_webull_orders_to_log error: %s", e)
 
     def on_raw_signal(self, raw_text: str):
         console.print(f"\n[bold cyan]📡 Signal received:[/bold cyan]  {raw_text[:120]}")
@@ -371,7 +475,77 @@ class TradeEngine:
                     self.log_trade(pos, fill, reason="Manual STC")
                 self._positions.pop(position_key, None)
 
+    _POSITIONS_FILE = "open_positions.json"
+
+    def _save_positions(self):
+        """Persist open positions to disk so they survive restarts."""
+        import json as _json
+        try:
+            data = {}
+            with self._lock:
+                for key, pos in self._positions.items():
+                    data[key] = {
+                        "ticker":      pos.signal.ticker,
+                        "strike":      pos.signal.strike,
+                        "option_type": pos.signal.option_type,
+                        "expiry":      pos.signal.expiry,
+                        "quantity":    pos.signal.quantity,
+                        "entry_price": pos.entry_price,
+                        "paper":       pos.paper,
+                        "scaled_out":  pos.scaled_out,
+                        "highest_pnl": pos.highest_pnl,
+                    }
+            with open(self._POSITIONS_FILE, "w") as f:
+                _json.dump(data, f)
+        except Exception as e:
+            log.debug("_save_positions error: %s", e)
+
+    def _load_positions(self):
+        """
+        On startup, reload any positions saved to disk.
+        Resumes P&L monitoring with the original entry price.
+        """
+        import json as _json
+        if not os.path.exists(self._POSITIONS_FILE):
+            return
+        try:
+            with open(self._POSITIONS_FILE) as f:
+                data = _json.load(f)
+            if not data:
+                return
+            log.info("Resuming %d position(s) from open_positions.json", len(data))
+            for key, d in data.items():
+                try:
+                    sig = TradeSignal(
+                        ticker=d["ticker"], strike=d["strike"],
+                        option_type=d["option_type"], expiry=d["expiry"],
+                        quantity=d["quantity"], action="BTO", raw_text=key,
+                    )
+                    pos = OpenPosition(
+                        signal=sig, entry_price=d["entry_price"], paper=d["paper"]
+                    )
+                    pos.scaled_out  = d.get("scaled_out", False)
+                    pos.highest_pnl = d.get("highest_pnl", 0.0)
+                    with self._lock:
+                        self._positions[key] = pos
+                    console.print(
+                        f"  [cyan]↩ Resumed monitoring: {key} "
+                        f"entry=${d['entry_price']:.2f}[/cyan]"
+                    )
+                    self._start_monitor(key, pos)
+                except Exception as e:
+                    log.warning("Could not resume position %s: %s", key, e)
+        except Exception as e:
+            log.warning("_load_positions error: %s", e)
+        finally:
+            # Clear the file after loading so stale positions don't persist forever
+            try:
+                os.remove(self._POSITIONS_FILE)
+            except Exception:
+                pass
+
     def _start_monitor(self, position_key: str, pos: OpenPosition):
+        self._save_positions()   # persist to disk immediately
         t = threading.Thread(
             target=self._monitor_loop, args=(position_key, pos),
             daemon=True, name=f"PLMonitor-{position_key}",
@@ -443,15 +617,65 @@ class TradeEngine:
                         f"🛡️ **BREAKEVEN**: {position_key} hit 10%. SL moved to 0.0%."
                     )
 
-            # TIME DECAY exit (existing logic, unchanged)
+            # ── TIME DECAY EXIT — momentum-aware with extension trailing stop ─
+            # After 30 min with P&L < +2%, check momentum before closing.
+            # If still moving up, extend 5 min — but add a hard trailing floor
+            # so a sudden crash during the extension triggers an immediate close.
             elapsed_mins = (time.time() - start_ts) / 60
             if elapsed_mins > 30 and pnl_pct < 2.0:
-                if self.listener:
-                    self.listener.send_status_update(
-                        f"⏱️ **TIME EXIT**: {position_key} stagnant for 30m. Closing."
-                    )
-                self._auto_close(position_key, pos, reason="Time Decay")
-                return
+                last_pnl     = getattr(pos, "_last_decay_check_pnl", None)
+                last_check_t = getattr(pos, "_last_decay_check_t", 0)
+                ext_peak     = getattr(pos, "_extension_peak_pnl", None)
+                now_t        = time.time()
+
+                # If in extension window, enforce hard trailing floor continuously
+                if ext_peak is not None:
+                    # Update peak if we've gone higher during extension
+                    if pnl_pct > ext_peak:
+                        pos._extension_peak_pnl = pnl_pct
+                        ext_peak = pnl_pct
+                    # Hard trailing floor: 5% pullback from extension peak = close now
+                    trailing_floor = ext_peak - 5.0
+                    if pnl_pct < trailing_floor:
+                        if self.listener:
+                            self.listener.send_status_update(
+                                f"🚨 **EXTENSION STOP**: {position_key} dropped "
+                                f"{ext_peak - pnl_pct:.1f}% from extension peak "
+                                f"({ext_peak:+.1f}% → {pnl_pct:+.1f}%). Closing now."
+                            )
+                        self._auto_close(position_key, pos, reason="Extension Stop")
+                        return
+
+                if last_pnl is None:
+                    # First time hitting 30min — record P&L, set extension peak, wait 5 min
+                    pos._last_decay_check_pnl = pnl_pct
+                    pos._last_decay_check_t   = now_t
+                    pos._extension_peak_pnl   = pnl_pct
+                    if self.listener:
+                        self.listener.send_status_update(
+                            f"⏱️ {position_key} at 30min P&L={pnl_pct:+.1f}% — "
+                            f"watching 5 more minutes for momentum."
+                        )
+                elif now_t - last_check_t >= 300:  # 5 more minutes passed
+                    momentum = pnl_pct - last_pnl
+                    if momentum > 1.0:
+                        # Still moving up — extend another 5 min, update baseline
+                        pos._last_decay_check_pnl = pnl_pct
+                        pos._last_decay_check_t   = now_t
+                        if self.listener:
+                            self.listener.send_status_update(
+                                f"⏱️ {position_key} momentum +{momentum:.1f}% — "
+                                f"extending 5 more minutes."
+                            )
+                    else:
+                        # Flat or falling — close now
+                        if self.listener:
+                            self.listener.send_status_update(
+                                f"⏱️ **TIME EXIT**: {position_key} stagnant "
+                                f"(momentum {momentum:+.1f}%). Closing."
+                            )
+                        self._auto_close(position_key, pos, reason="Time Decay")
+                        return
 
             color = "green" if pnl_pct >= 0 else "red"
             console.print(
@@ -483,8 +707,48 @@ class TradeEngine:
                     )
                     if fill:
                         self.log_trade(pos, fill, reason="Scale-Out 50%", qty_override=half_qty)
-                    pos.scaled_out = True
-                    pos.signal.quantity -= half_qty   # remaining contracts
+                    pos.scaled_out      = True
+                    remaining_qty       = pos.signal.quantity - half_qty
+                    pos.signal.quantity = remaining_qty
+
+                    # ── GHOST CONTRACT FIX ────────────────────────────────────
+                    # If remaining qty is 0 or less after scale-out (e.g. only
+                    # had 1 contract), purge the position entirely right now.
+                    # Don't leave a ghost tracking a flat position in Webull.
+                    if remaining_qty <= 0:
+                        log.info("Scale-out reduced qty to 0 — purging %s", position_key)
+                        if self.listener:
+                            self.listener.send_status_update(
+                                f"💰 **SCALE-OUT COMPLETE**: {position_key} fully closed "
+                                f"@ {pnl_pct:+.1f}%. No contracts remaining."
+                            )
+                        with self._lock:
+                            self._positions.pop(position_key, None)
+                        # Sync with Webull to confirm flat
+                        try:
+                            self.webull._write_account_cache()
+                        except Exception:
+                            pass
+                        return
+                    # Sync remaining qty against Webull before continuing
+                    try:
+                        wb_positions = self.webull.get_open_positions_from_webull() or []
+                        wb_qty = next(
+                            (int(p.get("quantity", 0)) for p in wb_positions
+                             if pos.signal.ticker in str(p.get("ticker", ""))),
+                            None
+                        )
+                        if wb_qty is not None and wb_qty != remaining_qty:
+                            log.warning("Qty mismatch after scale-out: local=%d webull=%d — syncing",
+                                        remaining_qty, wb_qty)
+                            pos.signal.quantity = wb_qty
+                            if wb_qty <= 0:
+                                with self._lock:
+                                    self._positions.pop(position_key, None)
+                                return
+                    except Exception as e:
+                        log.debug("Webull qty sync error: %s", e)
+
                     if self.listener:
                         self.listener.send_status_update(
                             f"💰 **SCALE-OUT**: Sold {half_qty}x {position_key} "
@@ -499,10 +763,24 @@ class TradeEngine:
                 self._auto_close(position_key, pos, reason="Profit Target")
                 return
 
-            # Stop-loss hit (uses current_sl which may be trailing or breakeven)
-            if pnl_pct <= -current_sl:
+            # ── Adaptive stop loss for cheap options ─────────────────────────
+            # Cheap options ($0.50-$1.50) have wide bid/ask spreads that can
+            # trigger a -20% stop on normal noise. Use a wider SL for cheap
+            # options but also check if the trend is still going down before closing.
+            if pos.entry_price <= 1.00:
+                # Very cheap option — use -35% SL (spread noise is $0.20+)
+                effective_sl = max(current_sl, 35.0)
+            elif pos.entry_price <= 2.00:
+                # Cheap option — use -25% SL
+                effective_sl = max(current_sl, 25.0)
+            else:
+                effective_sl = current_sl
+
+            # Stop-loss hit (uses effective_sl)
+            if pnl_pct <= -effective_sl:
                 console.print(
-                    f"  [bold red]🛑 Stop-loss hit ({pnl_pct:+.1f}%) — auto-closing[/bold red]"
+                    f"  [bold red]🛑 Stop-loss hit ({pnl_pct:+.1f}% vs -{effective_sl:.0f}%) "
+                    f"— auto-closing[/bold red]"
                 )
                 self._auto_close(position_key, pos, reason="Stop Loss")
                 return
@@ -526,6 +804,7 @@ class TradeEngine:
             console.print(f"  [cyan]Auto-close [{reason}] fill: ${fill or '?'}[/cyan]")
         with self._lock:
             self._positions.pop(position_key, None)
+        self._save_positions()   # update file after close
 
     def print_status(self):
         with self._lock:

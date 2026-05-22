@@ -19,7 +19,7 @@ Market Scanner ──┘                                                        
                                                                         Discord + Email + SMS
 ```
 
-1. **Scans** 20+ tickers every 5 minutes using RSI, volume, options flow, news, and VWAP
+1. **Scans** 20+ tickers every 5 minutes using RSI, volume, options flow, GEX, news, and VWAP
 2. **Reads** signals from your Discord channel (`BTO SPY 520C 5/16 x2`)
 3. **Verifies** every trade through your local AI PC risk manager
 4. **Executes** directly via the Webull API — no browser clicking
@@ -173,12 +173,25 @@ Select when the bot starts:
 
 Select at startup or switch live with `!profile` in Discord.
 
-| Profile | Take Profit | Stop Loss | RSI Trigger | Max Per Trade |
-|---------|-------------|-----------|-------------|---------------|
-| Safe    | +15%        | -10%      | RSI < 25    | $150          |
-| Normal  | +30%        | -20%      | RSI < 30    | $300          |
-| Risky   | +100%       | -40%      | RSI < 35    | $500          |
-| Custom  | Your choice | Your choice | Your choice | Your choice |
+| Profile | Take Profit | Stop Loss | RSI Trigger | Max Per Trade | Max Loss/Trade |
+|---------|-------------|-----------|-------------|---------------|----------------|
+| Safe    | +15%        | -10%      | RSI < 25    | $150          | ~$15           |
+| Normal  | +30%        | -20%      | RSI < 30    | $300          | ~$60           |
+| Risky   | +100%       | -40%      | RSI < 35    | $500          | ~$200          |
+| Custom  | Your choice | Your choice | Your choice | Your choice | — |
+
+**TP/SL percentages apply to the option price, not the stock price.** A 30% TP on a $2.00 option = sell at $2.60.
+
+**Recommended profile by account size:**
+
+| Account | Profile | Why |
+|---------|---------|-----|
+| < $500 | Safe | Limits max loss to ~$15/trade, preserves capital |
+| $500–$1,000 | Normal | Balances opportunity with protection |
+| $1,000–$2,500 | Normal ($500 budget) | Scale budget up, keep Normal TP/SL |
+| > $2,500 | Risky or Custom | Larger account can absorb wider stops |
+
+The profiles control **per-trade** risk. The **circuit breaker** (15% of account) is the account-level daily stop regardless of profile.
 
 ---
 
@@ -186,11 +199,11 @@ Select at startup or switch live with `!profile` in Discord.
 
 ### Signal Sources
 - Discord signals — parses `BTO SPY 520C 5/16 x2` format from your channel
-- Market scanner — autonomous RSI-based scanner with 6-factor verification
+- Market scanner — autonomous RSI-based scanner with 7-factor verification
 - Hybrid mode — both sources simultaneously with shared cooldown (no duplicate entries)
 
 ### Scanner — 6-Factor Verification
-Every ticker passes all 6 gates before a signal fires:
+Every ticker passes all 7 gates before a signal fires:
 
 | Gate | Check | Default |
 |------|-------|---------|
@@ -199,28 +212,40 @@ Every ticker passes all 6 gates before a signal fires:
 | SMA-200 | Price above 200-day moving average | Soft warning (doesn't block) |
 | 1-hour RSI | Hourly momentum positive | > 30 |
 | News | No bad catalysts | Score ≥ 40/100 |
-| Options Flow | Unusual call activity | Score ≥ 35/100 |
+| Options Flow | Unusual call activity + PCR < 1.0 | Score ≥ 35/100 |
+| **GEX** | **Negative gamma exposure — stock moves freely** | **Net GEX < -$500k** |
 
 Plus VIX filter: VIX > 25 tightens RSI by 3 pts. VIX > 30 caps contracts at 1.
+
+**GEX (Gate 7):** Gamma Exposure measures whether market makers are positioned to pin the stock (positive GEX) or amplify its moves (negative GEX). For 0DTE scalping you want negative GEX — the stock moves aggressively and options react dramatically. Positive GEX means the stock is likely to stay flat near a key strike level, killing theta on short-dated options. Calculated live from Tradier options chain open interest and gamma. No additional API key needed.
 
 ### Position Management
 - **Take-profit auto-close** — exits at your TP%
 - **Stop-loss auto-close** — exits at your SL%
 - **OTOCO bracket orders** — the millisecond a BTO fills, a Take-Profit limit sell and a Stop-Loss stop-limit sell are placed directly on Webull's servers as GTC orders. 2% slippage ceiling on the stop-limit fill price. These execute even if the bot crashes — risk is managed on Webull hardware, not in Python memory
-- **Scale-out at 20%** — sells half the position at +20% to lock in gains
+- **Scale-out at 20%** — sells half the position at +20% to lock in gains. If only 1 contract, closes fully and purges the position from tracking immediately (no ghost contracts)
 - **Trailing stop** — activates after scale-out, trails 8% below peak P&L
 - **Breakeven guard** — moves stop to 0% after +10% gain (can never lose on a winner)
-- **Time decay exit** — closes stagnant positions after 30 minutes if P&L < +2%
+- **Momentum extension engine** — instead of closing blindly at 30 minutes, checks if P&L improved by +1% or more over the last interval. If momentum is positive, extends the timer 5 more minutes and keeps watching. Keeps extending as long as the option is moving up
+- **Extension trailing floor** — during any extension window, checks live P&L every 15 seconds. If P&L drops 5% below the extension peak, closes immediately without waiting for the timer — protects against flash crashes during the extension
+- **Time decay exit** — closes stagnant positions after 30 minutes if momentum is flat or falling and P&L < +2%
+- **Ghost contract fix** — after any scale-out or close, syncs remaining quantity against Webull's live positions API to confirm the bot's internal count matches reality. Purges any position where Webull shows 0 contracts remaining
 - **Max 2 simultaneous positions** — portfolio heat monitor pauses new entries
 
 ### Risk & Safety
-- **Circuit breaker** — shuts down and closes all positions if daily loss hits -$150
+- **Circuit breaker** — percentage-based, not flat dollar. Shuts down and closes all positions if daily loss exceeds a set % of your account balance (default 15%). Scales automatically as your account grows — no manual adjustment needed
 - **Streak pause** — auto-pauses after 2 consecutive losses, alerts Discord + SMS/email. Streak tracked accurately via trade close callback
-- **AI PC verification** — every trade approved by your local LLM before execution (3 retries with 10s/20s gaps on failure)
-- **Budget enforcement** — rejects trades where estimated cost exceeds profile budget
+- **AI PC verification** — every trade approved by your local LLM before execution (3 retries with 10s/20s gaps on failure). Prompt explicitly clarifies strike vs stock price comparison to prevent false rejections
+- **Budget enforcement** — rejects trades where estimated OTM option cost exceeds profile budget. Uses price-aware OTM estimates (not ATM) so large-cap options aren't incorrectly blocked
 - **Spread check** — rejects options with bid/ask spread > 20%
 - **Cooldown** — same ticker locked out for 30 minutes after a trade
 - **Webull session auto-refresh** — detects stale token after 3 failures, re-authenticates automatically
+- **Expiry-day protection** — (pending) force-close at 3:45 PM on expiration day to avoid auto-exercise risk on in-the-money contracts
+
+### Bi-Directional Market Regime
+- **Bull market** — standard operation: RSI < threshold on 5-min chart, high call flow, buys CALLS
+- **Bear market** — inverted: targets RSI > 70 (overbought rallies), checks for unusual put volume or high PCR, buys PUTS with strikes slightly below current price
+- **Neutral** — calls only, standard RSI threshold
 
 ### Alerts
 - **Circuit breaker fired** — email + SMS immediately
@@ -254,11 +279,23 @@ Everything you can change to get different behavior, organized by file.
 
 ### `main.py`
 
-**`MAX_DAILY_LOSS` (line ~292)**
+**Circuit breaker — percentage of account (default: 15%)**
 ```python
-MAX_DAILY_LOSS = -150.0   # circuit breaker fires at -$150 session loss
+MAX_DAILY_LOSS_PCT = 15.0   # % of real account balance
 ```
-Change to `-$250`, `-$500`, etc. to allow more daily drawdown before the bot shuts down.
+The dollar threshold is calculated automatically at startup from your real Webull balance. Change to `10.0` for tighter protection or `20.0` for more room. Scales automatically when you add or withdraw funds — no manual adjustment needed.
+
+**Extension momentum threshold (default: +1%)**
+```python
+if momentum > 1.0:   # in time decay extension logic in trade_engine.py
+```
+Change to `0.5` to extend on smaller moves (more extensions but more theta risk) or `2.0` to only extend on strong momentum.
+
+**Extension trailing floor (default: 5% from peak)**
+```python
+trailing_floor = ext_peak - 5.0   # in trade_engine.py
+```
+Change to `3.0` for tighter crash protection during extensions, or `8.0` for more room on volatile options.
 
 **`consecutive_losses` pause threshold (line ~332)**
 ```python
@@ -318,13 +355,25 @@ In `webull_engine.place_otoco_bracket()`:
 ```python
 sl_limit = round(sl_trigger * 0.98, 2)   # 2% slippage ceiling below trigger
 ```
-Change `0.98` to `0.95` for a wider slippage allowance (fills more reliably in fast markets), or `0.99` for tighter execution. This is the minimum price Webull will accept when the stop triggers.
+Change `0.98` to `0.95` for a wider slippage allowance in fast markets, or `0.99` for tighter execution.
 
 **Scale-out trigger (default: +20%)**
 ```python
 scale_out_trigger_pct: float = 20.0   # sell half position at +20%
 ```
-Change to `30.0` to let winners run longer before taking partial profits, or `10.0` to lock in gains earlier.
+Change to `30.0` to let winners run longer, or `10.0` to lock in gains earlier. If you only trade 1 contract, scale-out closes the full position and purges it immediately — no ghost tracking.
+
+**Extension momentum threshold (default: +1%)**
+```python
+if momentum > 1.0:
+```
+Minimum P&L improvement over 5 minutes to grant a time extension. Keep at `1.0` to avoid extending on bid/ask spread noise.
+
+**Extension trailing floor (default: 5%)**
+```python
+trailing_floor = ext_peak - 5.0
+```
+If P&L drops 5% below the extension peak, closes immediately. Checked every 15 seconds — not just at the 5-minute checkpoint.
 
 **Trailing stop buffer (default: 8%)**
 ```python
@@ -405,6 +454,15 @@ Change `30` to `40` to only trade when hourly momentum is stronger. Lowered from
 if flow["score"] < 35:
 ```
 Change to `50` to only trade when there's clear unusual activity, or `20` to use flow as a loose filter only.
+
+**GEX threshold (default: ±$500k)**
+```python
+if net_gex < -500_000:    # negative — good for scalping
+    ...
+elif net_gex > 500_000:   # positive — stock pinned, skip
+    ...
+```
+Change `500_000` to `1_000_000` to only skip on very strong pinning, or `250_000` to be more aggressive about filtering pinned stocks. Setting to `999_000_000` effectively disables the GEX gate entirely while keeping the logging.
 
 **News score minimum (default: 40)**
 ```python
@@ -524,7 +582,12 @@ Ticker selected from watchlist
 [Gate 5] News score ≥ 40/100 (Yahoo Finance)
         │ PASS
         ▼
-[Gate 6] Options flow score ≥ 35/100 (Tradier)
+[Gate 6] Options flow score ≥ 35/100 + PCR < 1.0 (Tradier)
+        │ PASS
+        ▼
+[Gate 7] GEX (Gamma Exposure) negative or neutral
+         Net dealer gamma < -$500k means stock moves freely
+         Positive GEX = stock pinned = skip
         │ PASS
         ▼
 Kelly sizing → AI verification → BTO signal fired
@@ -575,7 +638,7 @@ SMS requires a free Twilio account (twilio.com). Email requires a Gmail App Pass
 | `webull_engine.py` | Webull API client, login, orders | Webull changes their API |
 | `trade_engine.py` | Order execution, P&L monitor, exits | Changing exit logic |
 | `market_feed.py` | Tradier WebSocket + yfinance fallback | Switching data providers |
-| `research_scanner.py` | 6-factor scanner, watchlist, Kelly sizing | Changing scanner filters |
+| `research_scanner.py` | 7-factor scanner, Alpha Sieve, GEX, watchlist, Kelly sizing | Changing scanner filters |
 | `discord_listener.py` | Discord bot, commands, signal parsing | Adding new commands |
 | `signal_parser.py` | Parses BTO/STC signal strings | Supporting new signal formats |
 | `news_filter.py` | Yahoo Finance news sentiment | Adding bad news keywords |
@@ -585,7 +648,7 @@ SMS requires a free Twilio account (twilio.com). Email requires a Gmail App Pass
 | `test_mode.py` | Dry-run any signal, no order placed | Debugging signals |
 | `full_system_test.py` | 31-test pre-flight check | Adding tests for new features |
 | `.env` | All credentials and switches | Never commit to git |
-| `trade_log.csv` | Trade history (auto-generated) | Has `mode` column — paper and live trades are completely separate |
+| `trade_log.csv` | Trade history (auto-generated) | Has `mode` column — paper and live trades are completely separate. Full columns: date, ticker, strike, option_type, expiry, quantity, entry_price, exit_price, outcome, profit_amt, cumulative_profit, reason, mode |
 | `account_cache.json` | Real-time Webull balance + positions (auto-generated) | Written every 30s by bot. Read by API server for dashboard. Delete to reset |
 | `brain.log` | Bot activity log (auto-generated) | Debugging |
 | `webull_profile/` | Browser session cache | **Never delete** — holds your login |
@@ -608,6 +671,11 @@ SMS requires a free Twilio account (twilio.com). Email requires a Gmail App Pass
 | Alpha Sieve picks bad tickers | Volume data unavailable pre-market | Run after 9:00 AM ET when yfinance has volume data. Sieve logs each score to terminal |
 | OTOCO bracket orders not in Webull | Paper account may not support GTC | Check Webull app → Paper Account → Orders. If missing, the Python monitor covers exits |
 | Ctrl+C leaves positions open | Graceful shutdown logged them | Check `brain.log` for `SHUTDOWN with N open positions` — re-run bot to resume monitoring |
+| Ghost contract in dashboard | Scale-out qty mismatch | Fixed in v2.2 — bot now syncs qty against Webull after every scale-out and purges positions with 0 remaining |
+| GEX always shows neutral | Tradier greeks not returning | GEX requires `greeks=true` on chain fetch — check Tradier token is valid. Falls back to neutral (allows trade through) if unavailable |
+| Too many signals blocked by GEX | Threshold too tight | Change `500_000` to `1_000_000` in `get_gex()` in `research_scanner.py` |
+| Day P&L shows $0 in dashboard | After-hours API limitation | Webull doesn't serve real-time P&L after 4 PM. Update `account_cache.json` manually or wait for next trading session |
+| Trade history empty | trade_log.csv missing columns | Delete `trade_log.csv` and restart — the new format writes all columns including strike, entry/exit price, expiry |
 | UI shows mock data | `.env.local` wrong | Set `VITE_DATA_PROVIDER=http` and `VITE_API_BASE=http://localhost:8000` |
 | `Expiry not found` | Wrong date in signal | Bot sends available expiries to Discord automatically |
 | `Spread too wide` | Illiquid option | Use a more liquid strike/expiry |
@@ -737,4 +805,4 @@ LIVE_TRADING_ENABLED=false
 
 ---
 
-*GilbertTrader v2.2 · Eyob Kabeto · Georgia Gwinnett College · Last updated May 2026*
+*GilbertTrader v2.2 · Eyob Kabeto · Georgia Gwinnett College · Last updated May 2026 · First live session: +$48.64 (+4.86%) on $1,000*

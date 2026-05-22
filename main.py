@@ -88,13 +88,14 @@ def ask_ai_for_verdict(signal_text, budget):
     payload = {
         "question": (
             f"Senior Risk Manager Role. INPUT: '{signal_text}'\n"
-            f"1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY]'\n"
-            f"2. BUDGET LIMIT: Max ${budget} for this trade.\n"
+            f"1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]' — keep the quantity\n"
+            f"2. BUDGET LIMIT: Max ${budget} for this trade. "
+            f"Each contract = premium * 100. Example: 3 contracts at $2.61 = $783 total — REJECT if over ${budget}. "
+            f"If quantity is too high, reduce it to the max affordable amount instead of rejecting entirely.\n"
             "3. The STRIKE is an options strike price, NOT the stock price. "
             "REJECT only if the strike is more than 20% away from the CURRENT STOCK PRICE. "
-            "A $305 call on a $300 stock is only 1.6% OTM — that is fine. "
-            "A $240 call on a $300 stock is 20% OTM — reject that.\n"
-            "OUTPUT: ONLY the cleaned BTO string or 'Rejected' + reason."
+            "A $220 call on a $218 stock is only 0.9% OTM — that is fine.\n"
+            "OUTPUT: ONLY the cleaned BTO string (with corrected quantity) or 'Rejected' + reason."
         )
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
@@ -310,6 +311,7 @@ def main():
 
     discord_token      = os.getenv("DISCORD_TOKEN", "")
     discord_channel_id = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
+    signal_channel_id  = int(os.getenv("DISCORD_SIGNAL_CHANNEL_ID", "0")) or None
     tradier_token      = os.getenv("TRADIER_TOKEN", "")
 
     run_health_check(discord_token, discord_channel_id)
@@ -427,11 +429,115 @@ def main():
             else:
                 listener.send_status_update(f"{ticker} not in watchlist.")
 
+        elif cmd == "sl":
+            # !sl off / !sl on / !sl 15
+            arg = args.strip().lower()
+            if arg == "off":
+                engine.stop_loss_pct = 999.0   # effectively disabled
+                listener.send_status_update(
+                    "⚠️ **Stop loss DISABLED** — positions will not auto-close on loss. "
+                    "Use `!sl on` or `!sl <pct>` to re-enable."
+                )
+            elif arg == "on":
+                engine.stop_loss_pct = profile["sl"]
+                listener.send_status_update(
+                    f"✅ **Stop loss re-enabled** at -{profile['sl']:.0f}%."
+                )
+            else:
+                try:
+                    pct = float(arg.replace("%", ""))
+                    engine.stop_loss_pct = pct
+                    listener.send_status_update(
+                        f"✅ **Stop loss set to -{pct:.0f}%**."
+                    )
+                except ValueError:
+                    listener.send_status_update(
+                        "Usage: `!sl off` | `!sl on` | `!sl 15`"
+                    )
+
+        elif cmd == "tp":
+            # !tp off / !tp on / !tp 50
+            arg = args.strip().lower()
+            if arg == "off":
+                engine.profit_target_pct = 999.0   # effectively disabled
+                listener.send_status_update(
+                    "⚠️ **Take profit DISABLED** — positions will not auto-close on gain. "
+                    "Use `!tp on` or `!tp <pct>` to re-enable."
+                )
+            elif arg == "on":
+                engine.profit_target_pct = profile["tp"]
+                listener.send_status_update(
+                    f"✅ **Take profit re-enabled** at +{profile['tp']:.0f}%."
+                )
+            else:
+                try:
+                    pct = float(arg.replace("%", ""))
+                    engine.profit_target_pct = pct
+                    listener.send_status_update(
+                        f"✅ **Take profit set to +{pct:.0f}%**."
+                    )
+                except ValueError:
+                    listener.send_status_update(
+                        "Usage: `!tp off` | `!tp on` | `!tp 50`"
+                    )
+
+        elif cmd == "scaleout":
+            # !scaleout off / !scaleout on
+            arg = args.strip().lower()
+            if arg == "off":
+                engine.scale_out_trigger_pct = 999.0
+                listener.send_status_update(
+                    "⚠️ **Scale-out DISABLED** — bot will hold full position to TP/SL. "
+                    "Use `!scaleout on` to re-enable."
+                )
+            elif arg == "on":
+                engine.scale_out_trigger_pct = 20.0
+                listener.send_status_update("✅ **Scale-out re-enabled** at +20%.")
+            else:
+                listener.send_status_update("Usage: `!scaleout off` | `!scaleout on`")
+
+        elif cmd == "limiters":
+            # !limiters off — disable all exits (manual control)
+            # !limiters on  — restore all exits to profile defaults
+            arg = args.strip().lower()
+            if arg == "off":
+                engine.stop_loss_pct        = 999.0
+                engine.profit_target_pct    = 999.0
+                engine.scale_out_trigger_pct = 999.0
+                listener.send_status_update(
+                    "⚠️ **ALL LIMITERS DISABLED** — SL, TP, and scale-out are off. "
+                    "You are in full manual control. Use `!limiters on` to restore."
+                )
+            elif arg == "on":
+                engine.stop_loss_pct        = profile["sl"]
+                engine.profit_target_pct    = profile["tp"]
+                engine.scale_out_trigger_pct = 20.0
+                listener.send_status_update(
+                    f"✅ **All limiters restored** — "
+                    f"TP +{profile['tp']:.0f}% | SL -{profile['sl']:.0f}% | Scale-out +20%."
+                )
+            else:
+                listener.send_status_update("Usage: `!limiters off` | `!limiters on`")
+
+        elif cmd == "settings":
+            sl_str = f"-{engine.stop_loss_pct:.0f}%" if engine.stop_loss_pct < 999 else "OFF"
+            tp_str = f"+{engine.profit_target_pct:.0f}%" if engine.profit_target_pct < 999 else "OFF"
+            so_str = f"+{engine.scale_out_trigger_pct:.0f}%" if engine.scale_out_trigger_pct < 999 else "OFF"
+            listener.send_status_update(
+                f"⚙️ **Current Settings**\n"
+                f"Stop Loss: **{sl_str}**\n"
+                f"Take Profit: **{tp_str}**\n"
+                f"Scale-out: **{so_str}**\n"
+                f"Profile: **{profile['name']}** | Budget: **${profile['budget']}**\n"
+                f"RSI threshold: **<{profile['rsi']}**"
+            )
+
     listener = DiscordListener(
         channel_id=discord_channel_id,
         token=discord_token,
         on_signal=lambda x: None,
         on_command=handle_discord_command,
+        signal_channel_id=signal_channel_id,
     )
     listener.start_in_thread()
     webull._listener = listener
@@ -442,6 +548,29 @@ def main():
         stop_loss_pct=profile['sl'],
         listener=listener
     )
+
+    # Sync any Webull orders from today that the bot may have missed
+    try:
+        engine.sync_webull_orders_to_log()
+        log.info("Webull order sync complete")
+    except Exception as e:
+        log.debug("Order sync skipped: %s", e)
+
+    # Resume any positions saved before last shutdown
+    try:
+        engine._load_positions()
+    except Exception as e:
+        log.debug("Position load skipped: %s", e)
+
+    # Sync Webull order history into DB on startup
+    try:
+        from api_server import _sync_webull_history, _save_account_snapshot, _bot_state as _api_state
+        _api_state["webull_engine"] = webull
+        _sync_webull_history()
+        _save_account_snapshot()
+        log.info("Startup history sync complete")
+    except Exception as e:
+        log.debug("Startup history sync error: %s", e)
 
     # ── Accurate streak tracking via on_trade_closed callback ────────────────
     consecutive_losses = 0
@@ -551,45 +680,137 @@ def main():
             if mode_choice in ["2", "3"]:
                 if time.time() - last_research_time > 300:
                     console.print(f"[dim]Scanning Small-Caps (RSI < {profile['rsi']})...[/dim]")
-                    found = research_scanner.scan_markets(
+                    found_signals = research_scanner.scan_markets(
                         rsi_threshold=profile['rsi'], listener=listener,
                         market=market, budget=float(profile['budget']),
                         tp_pct=profile['tp'], sl_pct=profile['sl'])
-                    if found:
-                        raw_text = found[0]
+
+                    # Iterate through every signal found in the scan one by one
+                    for raw_text in found_signals:
+                        parsed_te = engine.parse_signal(raw_text)
+                        ticker = parsed_te.ticker if parsed_te else "UNK"
+
+                        # Skip if the ticker is on a cooldown
+                        if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
+                            continue
+
+                        console.print(f"\n[bold cyan]▶ Sending to AI Risk Manager:[/bold cyan] {ticker} ({raw_text[:40]})")
+                        console.print("[dim]Waiting for AI response before proceeding...[/dim]")
+
+                        # This blocks and waits for the HTTP response dynamically
+                        verdict = ask_ai_for_verdict(raw_text, profile['budget'])
+
+                        if "BTO" in verdict:
+                            listener.send_status_update(f"✅ AI APPROVED: `{verdict}` — executing now")
+                            console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
+                            trade_cooldowns[ticker] = time.time()
+                            engine.on_raw_signal(verdict)
+
+                            if webull.last_order_confirmed:
+                                webull_refresh_fails = 0
+                                # Send rich signal card to Discord
+                                try:
+                                    parts   = verdict.split()
+                                    t_tick  = parts[1] if len(parts) > 1 else ticker
+                                    t_cont  = parts[2] if len(parts) > 2 else "?"
+                                    t_exp   = parts[3] if len(parts) > 3 else "?"
+                                    t_qty   = parts[4] if len(parts) > 4 else "x1"
+                                    strike  = t_cont[:-1]
+                                    opt     = t_cont[-1]
+                                    side    = "CALL" if opt == "C" else "PUT"
+                                    entry   = getattr(webull, "_last_fill_price", None)
+                                    tp_pct  = profile["tp"]
+                                    sl_pct  = profile["sl"]
+                                    tp_str  = f"+{tp_pct:.0f}% from entry" if not entry else f"${entry * (1 + tp_pct/100):.2f}"
+                                    sl_str  = f"-{sl_pct:.0f}% from entry" if not entry else f"${entry * (1 - sl_pct/100):.2f}"
+                                    entry_str = f"${entry:.2f}" if entry else "market mid"
+                                    signal_card = (
+                                        f"🚀 **LIVE TRADE ALERT** — GilbertTrader\n"
+                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"**{t_tick}** {strike} {side} exp {t_exp}\n"
+                                        f"📥 **Entry**: {entry_str}\n"
+                                        f"🎯 **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
+                                        f"🛑 **Stop**: {sl_str} (-{sl_pct:.0f}%)\n"
+                                        f"📦 **Size**: {t_qty.replace('x','')} contract(s)\n"
+                                        f"⚖️ **Scale-out**: sell half at +20%, trail remaining\n"
+                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"*Powered by GilbertTrader v2.2 — automated options scanner*"
+                                    )
+                                    listener.send_signal(signal_card)
+                                except Exception as e:
+                                    log.debug("Signal card error: %s", e)
+
+                                break  # Stop looking at other stocks completely since we entered a trade
+                            else:
+                                webull_refresh_fails += 1
+                        else:
+                            listener.send_status_update(f"AI REJECTED ${ticker}: {verdict}")
+                            console.print(f"[bold red]REJECTED ${ticker}: {verdict}[/bold red]")
+
+                            # Explicit pacing wait before sending the next ticker to the AI
+                            console.print("[dim]Pacing delay: Waiting 2 seconds before evaluating next signal...[/dim]")
+                            time.sleep(2)
+
                     last_research_time = time.time()
 
-            # Discord mode
+            # Discord mode (only runs if scanner didn't pick up a trade)
             if not raw_text and mode_choice in ["1", "3"]:
                 raw_text = listener.get_latest_signal()
+                if raw_text:
+                    parsed_te = engine.parse_signal(raw_text)
+                    ticker = parsed_te.ticker if parsed_te else "UNK"
 
-            if raw_text:
-                parsed_sp = parse_signal_safe(raw_text)
-                parsed_te = engine.parse_signal(raw_text)
-                parsed    = parsed_te
-
-                ticker = parsed.ticker if parsed else (parsed_sp.ticker if parsed_sp else "UNK")
-
-                if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
-                    pass
-                else:
-                    console.print(f"Signal: {raw_text[:60]}")
-                    console.print("[dim]Checking with AI Risk Manager...[/dim]")
-
-                    verdict = ask_ai_for_verdict(raw_text, profile['budget'])
-
-                    if "BTO" in verdict:
-                        listener.send_status_update(f"AI APPROVED: {verdict}")
-                        console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
-                        trade_cooldowns[ticker] = time.time()
-                        engine.on_raw_signal(verdict)
-                        if webull.last_order_confirmed:
-                            webull_refresh_fails = 0
-                        else:
-                            webull_refresh_fails += 1
+                    if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
+                        pass
                     else:
-                        listener.send_status_update(f"AI REJECTED: {verdict}")
-                        console.print(f"[bold red]REJECTED: {verdict}[/bold red]")
+                        console.print(f"Signal: {raw_text[:60]}")
+                        console.print("[dim]Checking with AI Risk Manager...[/dim]")
+
+                        verdict = ask_ai_for_verdict(raw_text, profile['budget'])
+
+                        if "BTO" in verdict:
+                            listener.send_status_update(f"✅ AI APPROVED: `{verdict}` — executing now")
+                            console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
+                            trade_cooldowns[ticker] = time.time()
+                            engine.on_raw_signal(verdict)
+                            if webull.last_order_confirmed:
+                                webull_refresh_fails = 0
+                                # Send rich signal card to Discord
+                                try:
+                                    parts   = verdict.split()
+                                    t_tick  = parts[1] if len(parts) > 1 else ticker
+                                    t_cont  = parts[2] if len(parts) > 2 else "?"
+                                    t_exp   = parts[3] if len(parts) > 3 else "?"
+                                    t_qty   = parts[4] if len(parts) > 4 else "x1"
+                                    strike  = t_cont[:-1]
+                                    opt     = t_cont[-1]
+                                    side    = "CALL" if opt == "C" else "PUT"
+                                    entry   = getattr(webull, "_last_fill_price", None)
+                                    tp_pct  = profile["tp"]
+                                    sl_pct  = profile["sl"]
+                                    tp_str  = f"+{tp_pct:.0f}% from entry" if not entry else f"${entry * (1 + tp_pct/100):.2f}"
+                                    sl_str  = f"-{sl_pct:.0f}% from entry" if not entry else f"${entry * (1 - sl_pct/100):.2f}"
+                                    entry_str = f"${entry:.2f}" if entry else "market mid"
+                                    signal_card = (
+                                        f"🚀 **LIVE TRADE ALERT** — GilbertTrader\n"
+                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"**{t_tick}** {strike} {side} exp {t_exp}\n"
+                                        f"📥 **Entry**: {entry_str}\n"
+                                        f"🎯 **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
+                                        f"🛑 **Stop**: {sl_str} (-{sl_pct:.0f}%)\n"
+                                        f"📦 **Size**: {t_qty.replace('x','')} contract(s)\n"
+                                        f"⚖️ **Scale-out**: sell half at +20%, trail remaining\n"
+                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"*Powered by GilbertTrader v2.2 — automated options scanner*"
+                                    )
+                                    listener.send_signal(signal_card)
+                                except Exception as e:
+                                    log.debug("Signal card error: %s", e)
+                            else:
+                                webull_refresh_fails += 1
+                        else:
+                            listener.send_status_update(f"AI REJECTED: {verdict}")
+                            console.print(f"[bold red]REJECTED: {verdict}[/bold red]")
 
             # Handle UI close requests
             try:
@@ -648,6 +869,14 @@ def main():
                     webull._write_account_cache()
                 except Exception:
                     pass
+                # Sync Webull history and save account snapshot to DB
+                try:
+                    from api_server import _sync_webull_history, _save_account_snapshot, _bot_state as _api_state
+                    _api_state["webull_engine"] = webull
+                    _sync_webull_history()
+                    _save_account_snapshot()
+                except Exception as e:
+                    log.debug("History sync error: %s", e)
 
             # ── UPGRADE 2: Alpha Sieve at 9:15 AM ET ─────────────────────────
             _maybe_run_alpha_sieve(listener=listener)

@@ -9,7 +9,12 @@ ENV/
 __pycache__/
 *.py[cod]
 
-# Frontend Dependencies
+# Local Engine Cache & Runtime Logs
+account_cache.json
+brain.log
+
+# Frontend Dependencies & Submodules
+pixel-perfect/
 node_modules/
 dist/
 .eslintcache
@@ -21,6 +26,7 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+*.zip
 
 # IDE Settings
 .idea/

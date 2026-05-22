@@ -12,6 +12,11 @@ UPGRADES:
      !watchlist    → show current scan tickers
      !add TICKER   → add ticker to watchlist
      !remove TICKER→ remove ticker from watchlist
+     !sl off/on/<pct> → disable/enable/set stop loss
+     !tp off/on/<pct> → disable/enable/set take profit
+     !scaleout off/on → disable/enable scale-out
+     !limiters off/on → disable/restore ALL exit rules
+     !settings     → show current TP/SL/scale-out values
      !help         → list all commands
   2. Message queue so no alerts get dropped under load
   3. Duplicate signal filter (same signal within 5 min = ignored)
@@ -35,24 +40,29 @@ SIGNAL_PATTERNS = [
     r"\b\d+[CP]\s+\d+/\d+\b",
 ]
 _SIGNAL_RE = re.compile("|".join(SIGNAL_PATTERNS), re.IGNORECASE)
-_CMD_RE    = re.compile(r"^!(status|scan|pause|resume|close|profile|watchlist|add|remove|help)\b",
-                        re.IGNORECASE)
+
+# All recognized commands — add new ones here
+_CMD_RE = re.compile(
+    r"^!(status|scan|pause|resume|close|profile|watchlist|add|remove|help"
+    r"|sl|tp|scaleout|limiters|settings)\b",
+    re.IGNORECASE
+)
 
 
 class DiscordListener:
     def __init__(self, channel_id: int, token: str,
                  on_signal: Callable[[str], None] = None,
-                 on_command: Callable[[str, str], None] = None):
-        self.channel_id  = channel_id
-        self.token       = token
-        self.on_signal   = on_signal
-        self.on_command  = on_command   # callback(command, args)
-        self._client     = None
+                 on_command: Callable[[str, str], None] = None,
+                 signal_channel_id: int = None):
+        self.channel_id        = channel_id
+        self.signal_channel_id = signal_channel_id
+        self.token      = token
+        self.on_signal  = on_signal
+        self.on_command = on_command
+        self._client    = None
         self._thread: Optional[threading.Thread] = None
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._latest_raw_message = None
-
-        # Upgrade 2: message queue so no alerts dropped
         self._send_queue: queue.Queue = queue.Queue()
 
         # Upgrade 3: duplicate signal filter
@@ -75,6 +85,19 @@ class DiscordListener:
                 self._loop
             )
 
+    def send_signal(self, message: str):
+        """
+        Send an AI-approved trade signal to the #option-trades channel.
+        Falls back to the main channel if signal_channel_id is not set.
+        """
+        if self.signal_channel_id and self._client and self._loop:
+            asyncio.run_coroutine_threadsafe(
+                self._client.send_to_channel(self.signal_channel_id, message),
+                self._loop
+            )
+        else:
+            self.send_status_update(message)
+
     def start_in_thread(self):
         self._thread = threading.Thread(
             target=self._run_loop, daemon=True, name="DiscordListener")
@@ -92,7 +115,6 @@ class DiscordListener:
         except ImportError:
             log.error("discord.py not installed.")
             return
-
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
         intents = discord.Intents.default()
@@ -107,14 +129,12 @@ class DiscordListener:
             self._loop.close()
 
     def _is_duplicate(self, text: str) -> bool:
-        """Upgrade 3: block same signal repeated within 5 minutes."""
         key = re.sub(r"\s+", " ", text.upper().strip())[:60]
         now = time.time()
         if key in self._recent_signals:
             if now - self._recent_signals[key] < 300:
                 return True
         self._recent_signals[key] = now
-        # Cleanup old entries
         self._recent_signals = {k: v for k, v in self._recent_signals.items()
                                 if now - v < 600}
         return False
@@ -138,11 +158,21 @@ class _SignalClient:
                 while not self_inner.parent._send_queue.empty():
                     try:
                         msg = self_inner.parent._send_queue.get_nowait()
-                        # Split long messages to stay under Discord 2000 char limit
                         for chunk in [msg[i:i+1990] for i in range(0, len(msg), 1990)]:
                             await channel.send(chunk)
                     except Exception as e:
                         log.error("Discord send error: %s", e)
+
+            async def send_to_channel(self_inner, channel_id: int, message: str):
+                try:
+                    ch = self_inner.get_channel(channel_id)
+                    if not ch:
+                        ch = await self_inner.fetch_channel(channel_id)
+                    if ch:
+                        for chunk in [message[i:i+1990] for i in range(0, len(message), 1990)]:
+                            await ch.send(chunk)
+                except Exception as e:
+                    log.error("Discord send_to_channel error: %s", e)
 
             async def send_alert(self_inner, message: str):
                 channel = self_inner.get_channel(self_inner.target_channel_id)
@@ -162,7 +192,6 @@ class _SignalClient:
                     return
                 if message.channel.id != self_inner.target_channel_id:
                     return
-
                 raw = message.content.strip()
                 if not raw:
                     return
@@ -180,19 +209,15 @@ class _SignalClient:
                         await self_inner.send_alert(
                             f"⚠️ Duplicate signal ignored: `{raw[:60]}`")
                         return
-
-                    # Paused check
                     if self_inner.parent.paused:
                         await self_inner.send_alert(
                             "⏸️ Bot is PAUSED — signal ignored. Type `!resume` to enable.")
                         return
-
                     log.info("Signal captured: %s", raw[:50])
                     self_inner.parent._latest_raw_message = raw
                     if self_inner.parent.on_signal:
                         self_inner.parent.on_signal(raw)
 
-            # ── Upgrade 1: Command implementations ────────────────────────
             async def handle_command(self_inner, raw: str):
                 parts   = raw.strip().split()
                 cmd     = parts[0].lower().lstrip("!")
@@ -202,38 +227,46 @@ class _SignalClient:
                 if cmd == "help":
                     await channel.send(
                         "**GilbertTrader Commands**\n"
-                        "`!status`         — show open positions + P&L\n"
-                        "`!scan`           — force immediate market scan\n"
-                        "`!pause`          — stop new entries\n"
-                        "`!resume`         — allow new entries\n"
-                        "`!close ALL`      — emergency close all positions\n"
-                        "`!profile safe|normal|risky` — switch risk level\n"
-                        "`!watchlist`      — show current scan tickers\n"
-                        "`!add TICKER`     — add to watchlist\n"
-                        "`!remove TICKER`  — remove from watchlist\n"
-                        "`!help`           — this menu"
+                        "`!status`                   — open positions + P&L\n"
+                        "`!scan`                     — force immediate scan\n"
+                        "`!pause` / `!resume`        — pause/resume new entries\n"
+                        "`!close ALL`                — emergency close all\n"
+                        "`!profile safe|normal|risky` — switch risk profile\n"
+                        "`!watchlist`                — show scan tickers\n"
+                        "`!add TICKER` / `!remove TICKER` — edit watchlist\n"
+                        "────────────────────────────\n"
+                        "`!sl off|on|<pct>`          — stop loss control\n"
+                        "`!tp off|on|<pct>`          — take profit control\n"
+                        "`!scaleout off|on`          — scale-out control\n"
+                        "`!limiters off|on`          — disable/restore ALL exits\n"
+                        "`!settings`                 — show current values"
                     )
 
                 elif cmd == "pause":
                     self_inner.parent.paused = True
-                    await channel.send("⏸️ **Trading PAUSED** — no new entries will be made.")
+                    await channel.send("⏸️ **Trading PAUSED** — no new entries.")
 
                 elif cmd == "resume":
                     self_inner.parent.paused = False
                     await channel.send("▶️ **Trading RESUMED** — bot is active.")
 
-                elif cmd == "status":
-                    # Delegate to on_command callback in main.py
+                elif cmd in ("status", "sl", "tp", "scaleout", "limiters",
+                             "settings", "scan", "close", "profile",
+                             "watchlist", "add", "remove"):
+                    # Delegate to main.py on_command in thread pool
+                    # (avoids blocking Discord heartbeat on slow commands)
                     if self_inner.parent.on_command:
-                        self_inner.parent.on_command("status", args)
-                    else:
-                        await channel.send("Status: bot running. No position data available.")
-
-                else:
-                    # Delegate all other commands to main.py
-                    if self_inner.parent.on_command:
-                        self_inner.parent.on_command(cmd, args)
+                        import concurrent.futures
+                        loop = asyncio.get_event_loop()
+                        await loop.run_in_executor(
+                            None,
+                            self_inner.parent.on_command,
+                            cmd, args
+                        )
                     else:
                         await channel.send(f"Command `{cmd}` received.")
+
+                else:
+                    await channel.send(f"Unknown command `!{cmd}`. Type `!help`.")
 
         return _Inner()
