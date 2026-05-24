@@ -53,7 +53,7 @@ AI_PC_KEY = os.getenv("AI_PC_KEY", "sk-7d643db8")
 
 
 def get_risk_profile():
-    console.print("\n[bold yellow]\U0001f6e1\ufe0f  SELECT RISK PROFILE[/bold yellow]")
+    console.print("\n[bold yellow]🛡️  SELECT RISK PROFILE[/bold yellow]")
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Option", style="dim")
     table.add_column("Profile")
@@ -83,18 +83,48 @@ def get_risk_profile():
         return {"name": "NORMAL", "tp": 30.0,  "sl": 20.0, "rsi": 30, "budget": 300}
 
 
-def ask_ai_for_verdict(signal_text, budget):
-    """Call AI PC risk manager with retry on failure."""
+def select_execution_mode() -> dict:
+    """
+    Prompt user to select trading direction.
+    LONG  — buys calls on oversold dips  (RSI < threshold)
+    SHORT — buys puts on overbought peaks (RSI > 100 - threshold)
+    """
+    console.print("\n[bold yellow]📈  SELECT EXECUTION DIRECTION[/bold yellow]")
+    dir_table = Table(show_header=True, header_style="bold cyan")
+    dir_table.add_column("Option", style="dim")
+    dir_table.add_column("Mode")
+    dir_table.add_column("Trigger")
+    dir_table.add_column("Contract")
+    dir_table.add_column("Strategy")
+    dir_table.add_row("1", "LONG ONLY",  "RSI < 30 (oversold)",   "CALLS (C)", "Buy dips — mean reversion up")
+    dir_table.add_row("2", "SHORT ONLY", "RSI > 70 (overbought)", "PUTS  (P)", "Sell rallies — mean reversion down")
+    console.print(dir_table)
+    d = input("\nSelect Direction (1/2): ").strip()
+    if d == "2":
+        return {"mode": "SHORT", "label": "SHORT ONLY — Puts on Overbought Rallies",
+                "option_type": "P"}
+    return {"mode": "LONG",  "label": "LONG ONLY  — Calls on Oversold Dips",
+            "option_type": "C"}
+
+
+def ask_ai_for_verdict(signal_text, budget, stock_price: float = None):
+    price_context = (
+        f"Current stock price: ${stock_price:.2f}. "
+        if stock_price else ""
+    )
     payload = {
         "question": (
             f"Senior Risk Manager Role. INPUT: '{signal_text}'\n"
             f"1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]' — keep the quantity\n"
+            f"   CRITICAL: Do NOT change the ticker symbol. Input ticker must match output ticker exactly.\n"
             f"2. BUDGET LIMIT: Max ${budget} for this trade. "
             f"Each contract = premium * 100. Example: 3 contracts at $2.61 = $783 total — REJECT if over ${budget}. "
             f"If quantity is too high, reduce it to the max affordable amount instead of rejecting entirely.\n"
-            "3. The STRIKE is an options strike price, NOT the stock price. "
-            "REJECT only if the strike is more than 20% away from the CURRENT STOCK PRICE. "
-            "A $220 call on a $218 stock is only 0.9% OTM — that is fine.\n"
+            f"3. {price_context}The STRIKE is an options strike price, NOT the stock price. "
+            f"REJECT only if the strike is more than 20% away from the current stock price. "
+            f"A $415 call on a $411 stock is only 1% OTM — APPROVE. "
+            f"A $220 call on a $218 stock is 0.9% OTM — APPROVE. "
+            f"Only reject if strike differs from stock price by more than 20%.\n"
             "OUTPUT: ONLY the cleaned BTO string (with corrected quantity) or 'Rejected' + reason."
         )
     }
@@ -320,7 +350,9 @@ def main():
         Text.assemble(
             ("GILBERT TRADER SYSTEM ARMED\n", "bold white"),
             (f"Active Strategy: {profile['name']}\n", "bold green"),
-            (f"Parameters: TP {profile['tp']}% | SL {profile['sl']}% | RSI <{profile['rsi']} | Budget ${profile['budget']}", "dim"),
+            (f"Parameters: TP {profile['tp']}% | SL {profile['sl']}% | "
+             f"RSI <{profile['rsi']} | Budget ${profile['budget']}\n", "dim"),
+            ("Direction: AUTO — Calls in bull market, Puts in bear market", "bold cyan"),
         ),
         border_style="bright_blue", padding=(1, 4),
     ))
@@ -679,7 +711,11 @@ def main():
             # Research / scanner mode
             if mode_choice in ["2", "3"]:
                 if time.time() - last_research_time > 300:
-                    console.print(f"[dim]Scanning Small-Caps (RSI < {profile['rsi']})...[/dim]")
+                    direction_label = (
+                        "Overbought Rallies (RSI > 70)" if regime_data.get("regime") == "bear"
+                        else f"Oversold Dips (RSI < {profile['rsi']})"
+                    ) if 'regime_data' in dir() else f"Oversold Dips (RSI < {profile['rsi']})"
+                    console.print(f"[dim]Scanning for {direction_label}...[/dim]")
                     found_signals = research_scanner.scan_markets(
                         rsi_threshold=profile['rsi'], listener=listener,
                         market=market, budget=float(profile['budget']),
@@ -697,10 +733,26 @@ def main():
                         console.print(f"\n[bold cyan]▶ Sending to AI Risk Manager:[/bold cyan] {ticker} ({raw_text[:40]})")
                         console.print("[dim]Waiting for AI response before proceeding...[/dim]")
 
-                        # This blocks and waits for the HTTP response dynamically
-                        verdict = ask_ai_for_verdict(raw_text, profile['budget'])
+                        # Get current stock price to help AI validate the strike
+                        stock_price = None
+                        try:
+                            stock_price = market.get_price(ticker)
+                        except Exception:
+                            pass
+
+                        verdict = ask_ai_for_verdict(raw_text, profile['budget'], stock_price)
 
                         if "BTO" in verdict:
+                            # ── Ticker validation — AI must not change the ticker ──
+                            verdict_parts  = verdict.strip().split()
+                            verdict_ticker = verdict_parts[1].upper() if len(verdict_parts) > 1 else ""
+                            if verdict_ticker != ticker.upper():
+                                console.print(
+                                    f"[bold red]⚠️  AI changed ticker {ticker} → {verdict_ticker} "
+                                    f"— REJECTING and using original signal[/bold red]")
+                                # Rebuild verdict with original signal ticker preserved
+                                verdict = raw_text   # fall back to bot's original signal
+
                             listener.send_status_update(f"✅ AI APPROVED: `{verdict}` — executing now")
                             console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                             trade_cooldowns[ticker] = time.time()
@@ -740,15 +792,19 @@ def main():
                                 except Exception as e:
                                     log.debug("Signal card error: %s", e)
 
-                                break  # Stop looking at other stocks completely since we entered a trade
+                                break  # Trade confirmed — stop processing other signals
                             else:
+                                # Order was rejected by Webull (no bid/ask, expiry issue etc)
+                                console.print(
+                                    f"[yellow]⚠️  Order rejected for {ticker} — "
+                                    f"trying next signal if available[/yellow]")
                                 webull_refresh_fails += 1
+                                time.sleep(2)
+                                continue  # ← KEY FIX: move to next signal instead of freezing
                         else:
                             listener.send_status_update(f"AI REJECTED ${ticker}: {verdict}")
                             console.print(f"[bold red]REJECTED ${ticker}: {verdict}[/bold red]")
-
-                            # Explicit pacing wait before sending the next ticker to the AI
-                            console.print("[dim]Pacing delay: Waiting 2 seconds before evaluating next signal...[/dim]")
+                            console.print("[dim]Pacing delay: 2s before next signal...[/dim]")
                             time.sleep(2)
 
                     last_research_time = time.time()
@@ -769,6 +825,15 @@ def main():
                         verdict = ask_ai_for_verdict(raw_text, profile['budget'])
 
                         if "BTO" in verdict:
+                            # Ticker validation — reject if AI changed the ticker
+                            v_parts  = verdict.strip().split()
+                            v_ticker = v_parts[1].upper() if len(v_parts) > 1 else ""
+                            if v_ticker != ticker.upper():
+                                console.print(
+                                    f"[bold red]⚠️  AI changed ticker {ticker} → {v_ticker} "
+                                    f"— using original signal[/bold red]")
+                                verdict = raw_text
+
                             listener.send_status_update(f"✅ AI APPROVED: `{verdict}` — executing now")
                             console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                             trade_cooldowns[ticker] = time.time()
@@ -807,6 +872,9 @@ def main():
                                 except Exception as e:
                                     log.debug("Signal card error: %s", e)
                             else:
+                                console.print(
+                                    f"[yellow]⚠️  Order rejected for {ticker} — "
+                                    f"continuing to monitor for next signal[/yellow]")
                                 webull_refresh_fails += 1
                         else:
                             listener.send_status_update(f"AI REJECTED: {verdict}")

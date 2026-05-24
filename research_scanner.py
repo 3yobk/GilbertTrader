@@ -538,22 +538,27 @@ def get_atr_adjustment(df, base_threshold):
 
 
 def _build_signal(ticker: str, current_price: float,
-                  contracts: int = 1, option_type: str = "C") -> str:
+                  contracts: int = 1,
+                  option_type: str = "C",
+                  execution_mode: dict = None) -> tuple:
     """
-    Price-aware adaptive strike selector with expiry routing.
+    Price-aware strike selector with auto expiry routing.
 
-    Strike tiers (OTM for calls, OTM for puts):
-      Tier 1 (<= $30):  $0.50 intervals
-      Tier 2 (<= $100): $1.00 intervals
-      Tier 3 (> $100):  $5.00 intervals
+    CALLS (bull market): OTM strike just above spot — max gamma leverage
+    PUTS  (bear market): strike at/slightly above spot — captures downside move
 
-    Expiry routing:
-      Mon/Tue/Wed → this Friday (0-4 DTE, normal theta)
-      Thursday    → NEXT Friday (8 DTE, theta protection)
-      Friday      → week after next Friday (15 DTE, max protection)
+    Tiers:
+      <= $30:  $0.50 intervals
+      <= $100: $1.00 intervals
+      > $100:  $5.00 intervals
+
+    Expiry:
+      Mon/Tue/Wed → this Friday
+      Thursday    → next Friday (skip overnight theta crush)
+      Friday      → next Friday
     """
-    # ── Strike selection ──────────────────────────────────────────────────────
     if option_type == "C":
+        # OTM call — slightly above spot
         if current_price <= 30.0:
             strike = round(current_price * 2) / 2 + 0.5
             strike = int(strike) if strike == int(strike) else strike
@@ -561,31 +566,39 @@ def _build_signal(ticker: str, current_price: float,
             strike = int(round(current_price)) + 1
         else:
             strike = int((current_price // 5) * 5) + 5
-    else:  # PUT
+    else:
+        # PUT — strike AT or slightly above spot to be ATM/slightly ITM
         if current_price <= 30.0:
-            strike = round(current_price * 2) / 2 - 0.5
+            strike = round(current_price * 2) / 2
             strike = int(strike) if strike == int(strike) else strike
         elif current_price <= 100.0:
-            strike = int(round(current_price)) - 1
+            strike = int(round(current_price))
         else:
-            strike = int((current_price // 5) * 5)
+            strike = int((current_price // 5) * 5) + 5
 
     # ── Expiry routing ────────────────────────────────────────────────────────
-    # Same-day scalping strategy: always use nearest Friday for maximum gamma.
-    # 0-1DTE options move faster and react more dramatically to intraday moves.
-    today          = datetime.now()
-    weekday        = today.weekday()   # 0=Mon, 1=Tue, 2=Wed, 3=Thu, 4=Fri
-    days_to_friday = (4 - weekday) % 7
+    today      = datetime.now()
+    weekday    = today.weekday()
+    days_to_fri = (4 - weekday) % 7
 
-    if weekday == 4:
-        # Today IS Friday — can't use today, use next Friday
-        days_to_friday = 7
+    if weekday == 3:       # Thursday → skip to next Friday
+        days_to_fri = 8
+        theta_rolled = True
+    elif weekday == 4:     # Friday → next Friday
+        days_to_fri = 7
+        theta_rolled = False
+    else:
+        theta_rolled = False
 
-    exp_dt = today + timedelta(days=days_to_friday)
+    exp_dt = today + timedelta(days=days_to_fri)
     expiry = f"{exp_dt.month}/{exp_dt.day}"
+    qty    = f" x{contracts}" if contracts > 1 else ""
 
-    qty = f" x{contracts}" if contracts > 1 else ""
-    return f"BTO {ticker} {strike}{option_type} {expiry}{qty}"
+    if theta_rolled:
+        log.info("Thursday — expiry rolled to next Friday: %s %s%s %s",
+                 ticker, strike, option_type, expiry)
+
+    return f"BTO {ticker} {strike}{option_type} {expiry}{qty}", theta_rolled
 
 
 # ── Session stats (module-level, reset each scan call) ────────────────────────
@@ -600,14 +613,22 @@ def print_session_stats():
 # ── Main scanner ───────────────────────────────────────────────────────────────
 def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                  market=None, budget: float = 300.0,
-                 tp_pct: float = 30.0, sl_pct: float = 20.0):
+                 tp_pct: float = 30.0, sl_pct: float = 20.0,
+                 execution_mode: dict = None):
     """
-    Five-Factor Verified Scanner:
-    1. RSI Oversold (5-min) + ATR adaptive threshold
-    2. Volume surge (1.5x 20-period average)
+    Seven-Gate Verified Scanner — Bi-directional.
+
+    LONG  mode: RSI < threshold → oversold dip → BUY CALLS
+    SHORT mode: RSI > (100 - threshold) → overbought rally → BUY PUTS
+
+    Gates:
+    1. RSI threshold (inverted for SHORT mode)
+    2. Volume surge (> 30% of 20-period average)
     3. SMA-200 trend alignment
     4. 1-hour RSI alignment
-    5. Options flow confirmation (Tradier)
+    5. News filter
+    6. Options flow + PCR check (bullish for LONG, bearish for SHORT)
+    7. GEX (Gamma Exposure) — negative = stock moves freely
 
     UPGRADES:
     - Market regime gate (SPY trend)
@@ -631,7 +652,9 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     print(f"\n  [Regime] SPY {regime_icon} {regime.upper()} | SPY vs SMA20: {spy_vs_sma:+.1f}%")
 
     if regime == "bear":
-        print("  [Regime] Bear market — scanning for overbought rallies (RSI > 70) to buy PUTS")
+        print("  [Regime] 🔴 Bear market — AUTO-SWITCHING to PUT mode (RSI > 70 overbought signals)")
+    else:
+        print(f"  [Regime] SPY {regime_icon} {regime.upper()} | SPY vs SMA20: {spy_vs_sma:+.1f}% — CALL mode (RSI < {rsi_threshold} oversold)")
 
     # ── VIX filter ────────────────────────────────────────────────────────────
     vix_level = _get_vix()
@@ -662,6 +685,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
 
     # ── Skip reason tracker for this scan ────────────────────────────────────
     skip_reasons: dict = {}
+    skip_reasons_detail: dict = {"rsi_values": [], "closest_rsi": []}
 
     signals = []
 
@@ -695,6 +719,13 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             current_rsi   = float(latest_rsi)
             current_price = rt_price or float(close.iloc[-1])
             eff_threshold = get_atr_adjustment(df, rsi_threshold)
+
+            # Track RSI for no-signal explanation
+            skip_reasons_detail["rsi_values"].append(current_rsi)
+            # Track close misses — tickers within 5 pts of triggering
+            if current_rsi < eff_threshold + 5:
+                skip_reasons_detail["closest_rsi"].append((ticker, current_rsi))
+
             # Tighten RSI by 3 when VIX elevated
             if vix_level and vix_level > 25:
                 eff_threshold = max(eff_threshold - 3, 15)
@@ -718,22 +749,22 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 "kind":   "skip",
             })
 
-            if current_rsi >= eff_threshold:
-                _session_stats["skipped"] += 1
-                continue
-
-            # ── Gate 1: Regime-based direction filter ─────────────────────────
-            # Bull → look for oversold dips → buy CALLS
-            # Bear → look for overbought rallies → buy PUTS
-            # Neutral → calls only, standard RSI threshold
+            # ── Gate 1: Auto regime-driven direction ──────────────────────────
+            # Bull market  → scan for oversold RSI < threshold → buy CALLS
+            # Bear market  → scan for overbought RSI > (100-threshold) → buy PUTS
+            # Neutral      → bull logic (calls only)
             if regime == "bear":
-                # In bear regime invert: target overbought tickers (RSI > 70)
-                # and look for put flow instead of call flow
-                if current_rsi <= 70:
+                # Inverted: look for overbought to short
+                short_threshold = 100 - rsi_threshold   # e.g. 100-30 = 70
+                if current_rsi < short_threshold:
                     _session_stats["skipped"] += 1
                     continue
                 target_option_type = "P"
             else:
+                # Bull/neutral: look for oversold to go long
+                if current_rsi >= eff_threshold:
+                    _session_stats["skipped"] += 1
+                    continue
                 target_option_type = "C"
 
             # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
@@ -866,7 +897,9 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             print(f"  🔥 [HIGH CONVICTION] {ticker} | RSI={current_rsi:.1f} "
                   f"flow={flow['score']} regime={regime} -> {contracts}x contracts")
 
-            signal_str = _build_signal(ticker, current_price, contracts, target_option_type)
+            signal_str, theta_rolled = _build_signal(
+                ticker, current_price, contracts,
+                target_option_type, execution_mode)
             _session_stats["signals"] += 1
             _broadcast({
                 "id":     int(time.time() * 1000),
@@ -896,11 +929,14 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 listener.send_status_update(
                     f"🚀 **HIGH CONVICTION SIGNAL**{unusual_tag}\n"
                     f"**Ticker**: ${ticker}\n"
-                    f"**Price**: ${current_price:.2f} → Strike: {strike}  Expiry: {expiry}\n"
-                    f"**RSI**: {current_rsi:.1f} (target <{eff_threshold}) | "
-                    f"Vol: {vol_ratio:.1f}x avg\n"
-                    f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
-                    f"**GEX**: {gex['gex']}M {gex['gex_signal'].upper()} pin=${gex['pin_level']}\n" if gex.get("available") else
+                    f"**Price**: ${current_price:.2f} → Strike: {strike}  "
+                    f"Expiry: {expiry}"
+                    + (" ⏰ *Next-week rolled — Thu theta protection*"
+                       if theta_rolled else "") + "\n"
+                                                  f"**RSI**: {current_rsi:.1f} (target <{eff_threshold}) | "
+                                                  f"Vol: {vol_ratio:.1f}x avg\n"
+                                                  f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
+                                                  f"**GEX**: {gex['gex']}M {gex['gex_signal'].upper()} pin=${gex['pin_level']}\n" if gex.get("available") else
                     f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
                     f"**Regime**: {regime.upper()} ({spy_vs_sma:+.1f}% vs SMA20)\n"
                     f"{news_line}{vwap_line}"
@@ -918,9 +954,65 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
         except Exception as e:
             print(f"  [Scanner] {ticker.ljust(5)} | Error: {e}")
 
-    # Skip reason summary for this scan
+    # ── Scan complete — explain results ──────────────────────────────────────
+    total_scanned = len(tickers)
+
     if skip_reasons:
-        print("  [Skip Summary]", " | ".join(f"{r}:{n}" for r,n in sorted(skip_reasons.items(), key=lambda x:-x[1])))
+        print("  [Skip Summary]", " | ".join(
+            f"{r}:{n}" for r, n in sorted(skip_reasons.items(), key=lambda x: -x[1])))
+
+    if not signals:
+        # Build a human-readable explanation of why nothing fired
+        lines = ["\n  ⚠️  No signals this scan. Here's why:"]
+
+        # RSI distribution
+        rsi_above = sum(1 for r in skip_reasons_detail.get("rsi_values", []) if r >= rsi_threshold)
+        if rsi_above:
+            lines.append(f"  • {rsi_above}/{total_scanned} tickers have RSI above {rsi_threshold} "
+                         f"— market is NOT oversold enough yet")
+
+        # Top skip reasons
+        top_reasons = sorted(skip_reasons.items(), key=lambda x: -x[1])[:4]
+        reason_map = {
+            "1hr RSI too weak":        "still falling on hourly chart (downtrend not done)",
+            "Below SMA-200":           "long-term downtrend — bot avoids weak stocks",
+            "Weak volume":             "not enough trader interest to confirm the move",
+            "Options flow too bearish":"institutions are buying puts, not calls",
+            "GEX pinned":              "market makers pinning price — won't move enough",
+            "Bad news":                "recent negative news on the ticker",
+        }
+        for reason, count in top_reasons:
+            explanation = reason_map.get(reason, "filter threshold not met")
+            lines.append(f"  • {count} ticker(s) skipped: {reason} — {explanation}")
+
+        # Market condition
+        if regime == "bear":
+            lines.append(f"  • Bear market detected — scanning for RSI > {100-rsi_threshold} "
+                         f"(overbought) to buy PUTS")
+        elif regime == "bull" and spy_vs_sma > 1.5:
+            lines.append(f"  • Market is strongly bullish (+{spy_vs_sma:.1f}% vs SMA20) "
+                         f"— everything is overbought, RSI < {rsi_threshold} is rare today")
+        if vix_level and vix_level < 15:
+            lines.append(f"  • VIX={vix_level:.1f} very low — low volatility means smaller moves, "
+                         f"options premiums are cheap but moves are slow")
+
+        # Closest missed tickers
+        closest = skip_reasons_detail.get("closest_rsi", [])
+        if closest:
+            closest_str = ", ".join(
+                f"{t} (RSI {r:.1f})" for t, r in sorted(closest, key=lambda x: x[1])[:3])
+            lines.append(f"  • Closest to triggering: {closest_str}")
+            lines.append(f"    → Watch these — if RSI drops below {rsi_threshold} next scan they fire")
+
+        lines.append(f"\n  💡 Tip: This is normal on strong bull days. "
+                     f"Wait for a dip or use !scan to check again in 5 min.")
+
+        no_signal_msg = "\n".join(lines)
+        print(no_signal_msg)
+
+        # Send to Discord so you can see it on mobile
+        if listener and _session_stats["scans"] % 3 == 0:  # every 3rd scan to avoid spam
+            listener.send_status_update(no_signal_msg)
 
     # Session stats
     print_session_stats()
