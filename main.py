@@ -796,18 +796,8 @@ def main():
     # ── Accurate streak tracking via on_trade_closed callback ────────────────
     consecutive_losses = 0
     consecutive_wins   = 0
-
-    def _on_trade_closed(outcome: str, profit_amt: float):
-        nonlocal consecutive_losses, consecutive_wins
-        if outcome == "Win":
-            consecutive_wins   += 1
-            consecutive_losses  = 0
-            if profit_amt >= 50:
-                alert_big_winner(profit_amt)
-        else:
-            consecutive_losses += 1
-            consecutive_wins    = 0
-    engine.on_trade_closed = _on_trade_closed
+    # Same-session re-entry block: tickers stopped out today cannot re-enter
+    session_stopped_tickers: set = set()
 
     # ── UPGRADE 3: Register graceful shutdown handlers ────────────────────────
     register_graceful_shutdown_handlers(webull, market, listener, engine)
@@ -826,6 +816,7 @@ def main():
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
     MAX_DAILY_LOSS_PCT  = 15.0
+    MAX_DAILY_TRADES    = 4      # max entries per day — prevents overtrading on choppy days
     _cache_path = os.path.join(os.path.dirname(__file__), "account_cache.json")
     try:
         import json as _json
@@ -858,11 +849,17 @@ def main():
     _consecutive_wins = 0
     _consecutive_loss = 0
 
-    def _update_streak_budget(outcome: str):
+    def _update_streak_budget(outcome: str, profit_amt: float = 0.0, ticker: str = ""):
         nonlocal _current_budget, _consecutive_wins, _consecutive_loss
+        nonlocal consecutive_wins, consecutive_losses
+        # ── Streak counters (used by dashboard) ──────────────────────────────
         if outcome == "Win":
-            _consecutive_wins += 1
-            _consecutive_loss  = 0
+            consecutive_wins   += 1
+            consecutive_losses  = 0
+            _consecutive_wins  += 1
+            _consecutive_loss   = 0
+            if profit_amt >= 50:
+                alert_big_winner(profit_amt)
             if _consecutive_wins >= 3:
                 new_budget = min(_current_budget * 1.10, _base_budget * 2.0)
                 if new_budget != _current_budget:
@@ -873,8 +870,21 @@ def main():
                             f"Budget raised to ${_current_budget:.0f}"
                         )
         else:
-            _consecutive_loss += 1
-            _consecutive_wins  = 0
+            consecutive_losses += 1
+            consecutive_wins    = 0
+            _consecutive_loss  += 1
+            _consecutive_wins   = 0
+            # ── Same-session re-entry block ───────────────────────────────────
+            # A ticker stopped out today is blocked for the rest of the session.
+            # Prevents revenge trading the same move twice.
+            if ticker:
+                session_stopped_tickers.add(ticker.upper())
+                log.info("Re-entry blocked for %s for rest of session (stop loss)", ticker)
+                if listener:
+                    listener.send_status_update(
+                        f"🚫 **RE-ENTRY BLOCKED**: {ticker} stopped out — "
+                        f"no new signals on this ticker today."
+                    )
             if _consecutive_loss >= 2:
                 new_budget = max(_current_budget * 0.80, _base_budget * 0.5)
                 if new_budget != _current_budget:
@@ -888,6 +898,8 @@ def main():
     engine.on_trade_closed = _update_streak_budget
 
     last_research_time   = 0
+    daily_trades_count   = 0     # resets at midnight via date check
+    _last_trade_date     = datetime.now().strftime("%Y-%m-%d")
     trade_cooldowns      = {}
     last_heat_alert_ts   = 0
     last_daily_summary   = ""
@@ -951,24 +963,69 @@ def main():
             raw_text = None
 
             # Research / scanner mode
+            # Reset daily counters at midnight
+            _today_str = datetime.now().strftime("%Y-%m-%d")
+            if _today_str != _last_trade_date:
+                _last_trade_date     = _today_str
+                daily_trades_count   = 0
+                session_stopped_tickers.clear()
+                log.info("New trading day — daily counters reset")
+
             if mode_choice in ["2", "3"]:
-                if time.time() - last_research_time > 300:
-                    direction_label = (
-                        "Overbought Rallies (RSI > 70)" if regime_data.get("regime") == "bear"
-                        else f"Oversold Dips (RSI < {profile['rsi']})"
-                    ) if 'regime_data' in dir() else f"Oversold Dips (RSI < {profile['rsi']})"
-                    console.print(f"[dim]Scanning for {direction_label}...[/dim]")
-                    found_signals = research_scanner.scan_markets(
-                        rsi_threshold=profile['rsi'], listener=listener,
-                        market=market, budget=float(_current_budget),
-                        tp_pct=profile['tp'], sl_pct=profile['sl'])
+                # Adaptive scan interval:
+                # 9:30–10:30 AM ET (open volatility)  → 2 min
+                # 3:00–4:00 PM ET (power hour)        → 2 min
+                # 11:45–1:30 PM ET (lunch, skipped)   → 5 min (scanner returns [] anyway)
+                # All other times                     → 4 min
+                try:
+                    import pytz as _pytz_si
+                    _et_si = datetime.now(_pytz_si.timezone("America/New_York"))
+                    _hm_si = _et_si.hour * 60 + _et_si.minute
+                    if _hm_si <= 10 * 60 + 30 or _hm_si >= 15 * 60:
+                        _scan_interval = 120   # 2 min — open volatility / power hour
+                    else:
+                        _scan_interval = 240   # 4 min — mid-session
+                except Exception:
+                    _scan_interval = 300
+                if time.time() - last_research_time > _scan_interval:
+                    if daily_trades_count >= MAX_DAILY_TRADES:
+                        now_ts = time.time()
+                        if now_ts - last_heat_alert_ts >= 600:
+                            console.print(
+                                f"[yellow]📊 Daily trade limit reached ({daily_trades_count}/{MAX_DAILY_TRADES}) "
+                                f"— no new entries today.[/yellow]"
+                            )
+                            listener.send_status_update(
+                                f"📊 **DAILY LIMIT**: {daily_trades_count}/{MAX_DAILY_TRADES} trades taken. "
+                                f"No new entries until tomorrow."
+                            )
+                            last_heat_alert_ts = now_ts
+                        last_research_time = time.time()
+                    else:
+                        direction_label = (
+                            "Overbought Rallies (RSI > 70)" if regime_data.get("regime") == "bear"
+                            else f"Oversold Dips (RSI < {profile['rsi']})"
+                        ) if 'regime_data' in dir() else f"Oversold Dips (RSI < {profile['rsi']})"
+                        console.print(f"[dim]Scanning for {direction_label} [{daily_trades_count}/{MAX_DAILY_TRADES} trades today]...[/dim]")
+                        found_signals = research_scanner.scan_markets(
+                            rsi_threshold=profile['rsi'], listener=listener,
+                            market=market, budget=float(_current_budget),
+                            tp_pct=profile['tp'], sl_pct=profile['sl'])
 
                     # Iterate through every signal found in the scan one by one
                     for raw_text in found_signals:
                         parsed_te = engine.parse_signal(raw_text)
                         ticker = parsed_te.ticker if parsed_te else "UNK"
 
-                        # Skip if the ticker is on a cooldown
+                        # Block tickers stopped out earlier today — no revenge trades
+                        if ticker.upper() in session_stopped_tickers:
+                            console.print(
+                                f"[yellow]🚫 {ticker} blocked — stopped out earlier today. "
+                                f"No re-entry until tomorrow.[/yellow]"
+                            )
+                            continue
+
+                        # Skip if the ticker is on a 30-min cooldown
                         if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
                             continue
 
@@ -1001,7 +1058,8 @@ def main():
                             engine.on_raw_signal(verdict)
 
                             if webull.last_order_confirmed:
-                                webull_refresh_fails = 0
+                                webull_refresh_fails  = 0
+                                daily_trades_count   += 1
                                 # Send rich signal card to Discord
                                 try:
                                     parts   = verdict.split()
@@ -1063,7 +1121,13 @@ def main():
                     parsed_te = engine.parse_signal(raw_text)
                     ticker = parsed_te.ticker if parsed_te else "UNK"
 
-                    if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
+                    # Block tickers stopped out today (same rule as scanner path)
+                    if ticker.upper() in session_stopped_tickers:
+                        console.print(
+                            f"[yellow]🚫 {ticker} blocked (Discord signal) — "
+                            f"stopped out earlier today.[/yellow]"
+                        )
+                    elif ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
                         pass
                     else:
                         console.print(f"Signal: {raw_text[:60]}")
@@ -1086,7 +1150,8 @@ def main():
                             trade_cooldowns[ticker] = time.time()
                             engine.on_raw_signal(verdict)
                             if webull.last_order_confirmed:
-                                webull_refresh_fails = 0
+                                webull_refresh_fails  = 0
+                                daily_trades_count   += 1
                                 # Send rich signal card to Discord
                                 try:
                                     parts   = verdict.split()

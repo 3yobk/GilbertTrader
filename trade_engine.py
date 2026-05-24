@@ -182,9 +182,9 @@ class TradeEngine:
                       f"entry=${pos.entry_price:.2f} exit=${fill_price:.2f} "
                       f"P&L=${profit_amt:.2f}[/bold magenta]")
 
-        # Callback so main.py can update streak accurately
+        # Callback so main.py can update streak and re-entry block
         if hasattr(self, 'on_trade_closed') and callable(self.on_trade_closed):
-            self.on_trade_closed(outcome, profit_amt)
+            self.on_trade_closed(outcome, profit_amt, pos.signal.ticker)
 
     def sync_webull_orders_to_log(self):
         """
@@ -570,7 +570,15 @@ class TradeEngine:
                 if position_key not in self._positions:
                     return
 
-            time.sleep(15)
+            # Adaptive polling — fast when near TP or SL, normal otherwise.
+            # Near edge: within 10% of TP or within 10% of current SL.
+            # Also fast during first 5 min of a position (most volatile period).
+            _elapsed_for_poll = (time.time() - start_ts) / 60
+            _near_tp  = pos.highest_pnl >= (self.profit_target_pct - 10)
+            _near_sl  = hasattr(pos, "_sl_first_hit_t") and pos._sl_first_hit_t is not None
+            _early    = _elapsed_for_poll < 5
+            _poll_sec = 5 if (_near_tp or _near_sl or _early) else 15
+            time.sleep(_poll_sec)
             if not self.market.is_market_open():
                 continue
 
@@ -650,8 +658,38 @@ class TradeEngine:
                         f"\U0001f6e1\ufe0f **BREAKEVEN**: {position_key} hit +10%. SL -> 0%."
                     )
 
+            # ── Hard EOD close — never hold into close ────────────────────────
+            # Close all positions at 3:55 PM ET regardless of P&L.
+            # Same-week expiry options lose all time value overnight.
+            try:
+                import pytz as _pytz
+                _et_now  = datetime.now(_pytz.timezone("America/New_York"))
+                _eod_hm  = _et_now.hour * 60 + _et_now.minute
+                if _eod_hm >= 15 * 60 + 55:   # 3:55 PM ET
+                    console.print(
+                        f"  [bold yellow]🔔 EOD CLOSE: {position_key} — "
+                        f"3:55 PM ET, closing before market close[/bold yellow]"
+                    )
+                    if self.listener:
+                        self.listener.send_status_update(
+                            f"🔔 **EOD CLOSE**: {position_key} @ {pnl_pct:+.1f}% — "
+                            f"3:55 PM ET forced close. Never hold overnight."
+                        )
+                    self._auto_close(position_key, pos, reason="EOD Close")
+                    return
+            except Exception:
+                pass
+
             elapsed_mins = (time.time() - start_ts) / 60
-            if elapsed_mins > 30 and pnl_pct < 2.0 and not trailing_tp_active:
+            # Time decay: only fire after 10:30 AM ET (market needs time to warm up)
+            # and only when we're not already in a trailing TP
+            _et_hm_decay = 0
+            try:
+                _et_hm_decay = _et_now.hour * 60 + _et_now.minute
+            except Exception:
+                _et_hm_decay = 999
+            _past_warmup = _et_hm_decay >= 10 * 60 + 30
+            if elapsed_mins > 30 and pnl_pct < 2.0 and not trailing_tp_active and _past_warmup:
                 last_pnl     = getattr(pos, "_last_decay_check_pnl", None)
                 last_check_t = getattr(pos, "_last_decay_check_t", 0)
                 ext_peak     = getattr(pos, "_extension_peak_pnl", None)

@@ -112,17 +112,19 @@ def alert_circuit_breaker(daily_pnl: float, limit: float):
     _alert(subject, body, f"Circuit breaker! P&L ${daily_pnl:.2f} hit limit ${limit:.2f}")
 
 
-def alert_big_winner(ticker: str, strike: float, opt_type: str, pnl_pct: float):
-    """Called when a position hits +50% or more."""
-    subject = f"BIG WINNER: {ticker} {strike}{opt_type} +{pnl_pct:.0f}%"
+def alert_big_winner(profit_amt: float, ticker: str = "", strike: float = 0,
+                     opt_type: str = ""):
+    """Called when a position closes with profit >= $50."""
+    contract_str = f"{ticker} {strike}{opt_type}" if ticker else "position"
+    subject = f"BIG WINNER: {contract_str} +${profit_amt:.2f}"
     body = (
-        f"Position is up significantly!\n\n"
-        f"Contract:  {ticker} {strike}{opt_type}\n"
-        f"P&L:       +{pnl_pct:.1f}%\n"
+        f"Position closed with a big gain!\n\n"
+        f"Contract:  {contract_str}\n"
+        f"P&L:       +${profit_amt:.2f}\n"
         f"Time:      {datetime.now().strftime('%Y-%m-%d %H:%M ET')}\n\n"
-        f"Check the dashboard to manage this position."
+        f"Check the dashboard for details."
     )
-    _alert(subject, body, f"BIG WIN: {ticker} {strike}{opt_type} +{pnl_pct:.0f}%!")
+    _alert(subject, body, f"BIG WIN: {contract_str} +${profit_amt:.2f}!")
 
 
 def alert_streak_pause(consecutive_losses: int):
@@ -138,7 +140,7 @@ def alert_streak_pause(consecutive_losses: int):
 
 
 def alert_daily_summary(total_trades: int, wins: int, losses: int,
-                         total_pnl: float, best_trade: str, worst_trade: str):
+                        total_pnl: float, best_trade: str, worst_trade: str):
     """Called at 4 PM ET with the day's summary."""
     win_rate = round(wins / total_trades * 100) if total_trades else 0
     subject  = f"Daily Summary: ${total_pnl:+.2f} | {win_rate}% win rate"

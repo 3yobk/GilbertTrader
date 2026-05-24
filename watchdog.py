@@ -123,10 +123,16 @@ def run():
         log.info("Starting main.py (restart #%d)", restarts_today)
 
         try:
-            proc = subprocess.run(
+            proc = subprocess.Popen(
                 [sys.executable, MAIN_SCRIPT],
                 cwd=os.path.dirname(__file__),
             )
+            # Poll every 5s so watchdog stays alive and responsive
+            while proc.poll() is None:
+                time.sleep(5)
+                if not is_market_hours():
+                    # Market closed mid-run — let it finish naturally
+                    pass
             exit_code = proc.returncode
         except Exception as e:
             exit_code = -1
