@@ -10516,3 +10516,19 @@ Loop thread traceback (most recent call last):
 2026-05-24 12:47:05,593 [INFO] main — Webull order sync complete
 2026-05-24 12:47:05,769 [INFO] main — Startup history sync complete
 2026-05-24 12:47:06,182 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-24 13:15:14,998 [INFO] webull — Attempting to extract tokens from browser session...
+2026-05-24 13:15:15,005 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e47d14cfb-f...
+2026-05-24 13:15:15,005 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-05-24 13:15:16,100 [INFO] webull — Webull API ready via cookie token
+2026-05-24 13:15:17,494 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-05-24 13:15:17,494 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-05-24 13:15:17,494 [INFO] discord.client — logging in using static token
+2026-05-24 13:15:17,711 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-05-24 13:15:18,102 [INFO] market_feed — Tradier stream session: 5610b616-1e6...
+2026-05-24 13:15:18,317 [INFO] websocket — Websocket connected
+2026-05-24 13:15:18,318 [INFO] market_feed — Tradier WebSocket connected
+2026-05-24 13:15:18,320 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6438757608a1a677810a6ac086088c4b).
+2026-05-24 13:15:19,216 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-05-24 13:15:20,320 [INFO] main — Webull order sync complete
+2026-05-24 13:15:20,340 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-05-24 13:15:20,448 [INFO] main — Startup history sync complete

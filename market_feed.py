@@ -93,6 +93,20 @@ class MarketFeed:
             return self._quotes[ticker]
         return self._tradier_rest_quote(ticker) if self._token else self._yf_quote(ticker)
 
+    def get_price(self, ticker: str) -> Optional[float]:
+        """Return the last/mid price for a ticker. Used by AI risk manager."""
+        q = self.get_quote(ticker)
+        if not q:
+            return None
+        last = q.get("last")
+        bid  = q.get("bid")
+        ask  = q.get("ask")
+        if last and float(last) > 0:
+            return float(last)
+        if bid and ask and float(bid) > 0 and float(ask) > 0:
+            return round((float(bid) + float(ask)) / 2, 2)
+        return None
+
     def get_option_greeks(self, ticker: str, expiry: str,
                           strike: float, option_type: str) -> Optional[dict]:
         if not self._token:

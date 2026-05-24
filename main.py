@@ -952,13 +952,27 @@ def main():
                     f"pausing new entries.[/bold red]"
                 )
 
-            if len(engine._positions) >= 2:
-                now_ts = time.time()
-                if now_ts - last_heat_alert_ts >= 120:
-                    listener.send_status_update("Portfolio heat: 2 positions open. Waiting.")
-                    last_heat_alert_ts = now_ts
-                time.sleep(10)
-                continue
+            # Portfolio heat check — dollar-based, not just count
+            # Cap total deployed capital at 80% of current budget × max positions
+            # This prevents over-leveraging when positions are large
+            with engine._lock:
+                _open_pos = dict(engine._positions)
+            if _open_pos:
+                _deployed = sum(
+                    p.entry_price * p.signal.quantity * 100
+                    for p in _open_pos.values()
+                )
+                _max_deploy = _current_budget * 2.0   # allow up to 2 concurrent positions worth
+                if len(_open_pos) >= 2 or _deployed >= _max_deploy:
+                    now_ts = time.time()
+                    if now_ts - last_heat_alert_ts >= 120:
+                        listener.send_status_update(
+                            f"🔥 Portfolio heat: {len(_open_pos)} position(s) | "
+                            f"${_deployed:.0f} deployed. Waiting for close."
+                        )
+                        last_heat_alert_ts = now_ts
+                    time.sleep(10)
+                    continue
 
             raw_text = None
 

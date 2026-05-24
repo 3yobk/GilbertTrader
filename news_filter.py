@@ -31,7 +31,7 @@ log = logging.getLogger("news_filter")
 
 FINNHUB_KEY = os.getenv("FINNHUB_KEY", "")
 
-# Keywords that indicate bad news for a long call position
+# Keywords that indicate bad news for a CALL position
 BAD_NEWS_KEYWORDS = [
     # Earnings
     "miss", "misses", "missed", "disappoints", "disappointing",
@@ -48,6 +48,9 @@ BAD_NEWS_KEYWORDS = [
     "short seller", "short report", "hindenburg", "citron",
 ]
 
+# These same keywords are PUT TAILWINDS — stock likely to fall further
+PUT_TAILWIND_KEYWORDS = BAD_NEWS_KEYWORDS
+
 GOOD_NEWS_KEYWORDS = [
     "beats", "beat", "exceeds", "upgrade", "upgraded", "buy rating",
     "price target raised", "partnership", "contract", "fda approves",
@@ -63,6 +66,7 @@ def check_news(ticker: str) -> dict:
     """
     Check recent news for a ticker.
     Returns: {score, verdict, headlines, bad_found, good_found}
+    Score 0-100: < 40 bad news, 40-70 caution, > 70 clean.
     """
     now = time.time()
     if ticker in _cache and now - _cache[ticker]["ts"] < CACHE_TTL:
@@ -73,6 +77,32 @@ def check_news(ticker: str) -> dict:
 
     _cache[ticker] = {"ts": now, "data": result}
     return result
+
+
+def check_news_for_direction(ticker: str, option_type: str) -> dict:
+    """
+    Direction-aware news check.
+    Calls:  bad news blocks (score < 40 → skip)
+    Puts:   bad news confirms (score < 40 → tailwind, don't skip)
+            good news blocks puts (score > 70 → headwind, skip)
+    Returns: {passes, score, verdict, reason}
+    """
+    result = check_news(ticker)
+    score  = result["score"]
+
+    if option_type == "C":
+        passes = score >= 40
+        reason = f"score={score} — {'blocked: bad news' if not passes else 'clean'}"
+    else:  # PUT
+        passes = score <= 70   # good news is the headwind for puts
+        if score < 40:
+            reason = f"score={score} — bad news tailwind for put ✅"
+        elif score > 70:
+            reason = f"score={score} — too much good news, headwind for put"
+        else:
+            reason = f"score={score} — neutral, put allowed"
+
+    return {**result, "passes": passes, "reason": reason}
 
 
 def _fetch_headlines(ticker: str) -> list:

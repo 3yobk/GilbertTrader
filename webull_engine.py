@@ -721,6 +721,7 @@ class WebullEngine:
                                     d.get("cashBalance") or 0)
                     log.debug("Paper account: net=$%.2f buying_power=$%.2f", net, cash)
                     return {"net_value": net, "buying_power": cash,
+                            "settled_cash": cash,
                             "day_pnl": float(d.get("unrealizedProfitLoss") or 0),
                             "paper": True}
             else:
@@ -759,7 +760,11 @@ class WebullEngine:
 
                     log.debug("Live: net=$%.2f cash=$%.2f day_pnl=$%.2f",
                               net, cash, day_pnl)
+                    # settled_cash: Webull reports settledFunds or usableCash
+                    settled = float(members.get("settledFunds") or
+                                    members.get("settledCash") or cash)
                     return {"net_value": net, "buying_power": cash,
+                            "settled_cash": settled,
                             "day_pnl": day_pnl, "paper": False}
         except Exception as e:
             log.info("get_account_value error: %s", e)

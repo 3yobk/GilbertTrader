@@ -294,40 +294,81 @@ _iv_rank_cache: dict = {}   # ticker -> (iv_rank, timestamp)
 def get_iv_rank(ticker: str) -> float:
     """
     IV Rank = where current IV sits in its 30-day range (0–100).
-    IV Rank 0  = cheapest options have been in 30 days → good time to buy.
+    IV Rank 0  = cheapest options in 30 days → good time to buy.
     IV Rank 100 = most expensive options in 30 days → buying expensive premium.
-    Skip entry when IV Rank > 60 to avoid overpaying for options.
-    Returns 50.0 on error (neutral — don't block).
-    Uses yfinance implied vol as a proxy (30-day history).
-    Cached per ticker for 10 minutes.
+    Skip entry when IV Rank > 60.
+
+    Primary source: Tradier options chain (real implied volatility).
+    Fallback:       yfinance 30-day realized vol as a proxy.
+    Cached 10 min per ticker.
     """
     now = time.time()
     cached = _iv_rank_cache.get(ticker)
     if cached and now - cached[1] < 600:
         return cached[0]
+
+    # ── Primary: Tradier real IV ─────────────────────────────────────────────
+    if _HAS_TRADIER:
+        try:
+            exp_r = requests.get(
+                "https://api.tradier.com/v1/markets/options/expirations",
+                headers=_tradier_headers(),
+                params={"symbol": ticker, "includeAllRoots": "true"},
+                timeout=5,
+            )
+            if exp_r.ok:
+                exps = exp_r.json().get("expirations", {}).get("date", [])
+                if isinstance(exps, str):
+                    exps = [exps]
+                if exps:
+                    expiry = sorted(exps)[0]
+                    chain_r = requests.get(
+                        "https://api.tradier.com/v1/markets/options/chains",
+                        headers=_tradier_headers(),
+                        params={"symbol": ticker, "expiration": expiry, "greeks": "true"},
+                        timeout=5,
+                    )
+                    if chain_r.ok:
+                        chain = chain_r.ok and chain_r.json().get("options", {}).get("option", [])
+                        if isinstance(chain, dict):
+                            chain = [chain]
+                        ivs = [float(o["greeks"]["smv_vol"]) * 100
+                               for o in (chain or [])
+                               if o.get("greeks") and o["greeks"].get("smv_vol")]
+                        if ivs:
+                            current_iv = sum(ivs) / len(ivs)
+                            # Build 30-day IV history via yfinance realized vol as range anchor
+                            import yfinance as yf
+                            hist = yf.Ticker(ticker).history(period="30d", interval="1d")
+                            if not hist.empty and len(hist) >= 10:
+                                rets  = hist["Close"].pct_change().dropna()
+                                vols  = rets.rolling(5).std().dropna() * (252 ** 0.5) * 100
+                                low   = float(vols.min())
+                                high  = float(vols.max()) * 1.5  # scale to option IV range
+                                if high > low:
+                                    iv_rank = round(max(0, min(100, (current_iv - low) / (high - low) * 100)), 1)
+                                    _iv_rank_cache[ticker] = (iv_rank, now)
+                                    return iv_rank
+        except Exception as e:
+            log.debug("get_iv_rank Tradier error for %s: %s", ticker, e)
+
+    # ── Fallback: yfinance realized vol ──────────────────────────────────────
     try:
         import yfinance as yf
-        tk = yf.Ticker(ticker)
-        # Use 30-day historical volatility as an IV proxy from option chain
-        hist = tk.history(period="30d", interval="1d")
+        hist = yf.Ticker(ticker).history(period="30d", interval="1d")
         if hist.empty or len(hist) < 10:
             return 50.0
-        # Annualized daily returns std as realized vol proxy
-        returns  = hist["Close"].pct_change().dropna()
-        vols     = returns.rolling(5).std() * (252 ** 0.5) * 100  # annualized %
-        vols     = vols.dropna()
-        if len(vols) < 5:
-            return 50.0
-        current_vol = float(vols.iloc[-1])
-        min_vol     = float(vols.min())
-        max_vol     = float(vols.max())
+        rets     = hist["Close"].pct_change().dropna()
+        vols     = rets.rolling(5).std().dropna() * (252 ** 0.5) * 100
+        min_vol  = float(vols.min())
+        max_vol  = float(vols.max())
         if max_vol == min_vol:
             return 50.0
-        iv_rank = round((current_vol - min_vol) / (max_vol - min_vol) * 100, 1)
+        iv_rank = round((float(vols.iloc[-1]) - min_vol) / (max_vol - min_vol) * 100, 1)
         _iv_rank_cache[ticker] = (iv_rank, now)
         return iv_rank
     except Exception as e:
-        log.debug("get_iv_rank error for %s: %s", ticker, e)
+        log.debug("get_iv_rank fallback error for %s: %s", ticker, e)
         return 50.0
 
 
@@ -1130,12 +1171,67 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     _session_stats["skipped"] += 1
                     continue
 
-                # ── Gate 4: 1-hour RSI ────────────────────────────────────────────
-                if not get_hour_rsi_alignment(ticker):
-                    skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak",0)+1
-                    print(f"    [Skip] {ticker}: 1hr RSI too weak")
-                    _session_stats["skipped"] += 1
-                    continue
+                # ── Gate 5: News filter ────────────────────────────────────────────
+                # Calls: bad news (earnings miss, lawsuit, etc.) → skip
+                # Puts:  bad news is a TAILWIND → skip only if GOOD news dominates
+                # Score 0-100: < 40 = bad news, > 70 = clean, 40-70 = caution
+                if _HAS_NEWS_FILTER:
+                    news_r     = check_news(ticker)
+                    news_score = news_r["score"]
+                    news_verdict = news_r["verdict"]
+                    if target_option_type == "C":
+                        if news_score < 40:
+                            skip_reasons["Bad news"] = skip_reasons.get("Bad news", 0) + 1
+                            print(f"    [Skip] {ticker}/C: Bad news score={news_score} ({news_verdict}) — {news_r['bad_found'][:1]}")
+                            _session_stats["skipped"] += 1
+                            continue
+                        else:
+                            print(f"    [News] {ticker}/C: score={news_score} {news_verdict} ✅")
+                    else:  # PUT — bad news is a tailwind, good news is a headwind
+                        if news_score > 70:
+                            skip_reasons["Good news blocks put"] = skip_reasons.get("Good news blocks put", 0) + 1
+                            print(f"    [Skip] {ticker}/P: Too much good news score={news_score} — headwind for puts")
+                            _session_stats["skipped"] += 1
+                            continue
+                        else:
+                            mood = "tailwind" if news_score < 40 else "neutral"
+                            print(f"    [News] {ticker}/P: score={news_score} {news_verdict} ✅ ({mood})")
+
+                # ── Gate 4: 1-hour RSI — direction-aware, skip before 10 AM ─────────
+                # Calls: hourly RSI > 40 — not in hourly freefall
+                # Puts:  hourly RSI < 60 — actually weakening on hourly, not a blip
+                # Before 10 AM: skip (not enough hourly bars since open)
+                _skip_gate4 = False
+                try:
+                    import pytz as _pytz_g4
+                    _et_g4 = datetime.now(_pytz_g4.timezone("America/New_York"))
+                    if _et_g4.hour < 10:
+                        _skip_gate4 = True
+                        print(f"    [Gate4] {ticker}: skipping hourly RSI before 10 AM")
+                except Exception:
+                    pass
+
+                if not _skip_gate4:
+                    try:
+                        _df1h = _flatten(yf.download(ticker, period="5d", interval="1h", progress=False))
+                        if not _df1h.empty and len(_df1h) >= 14:
+                            _rsi1h_s = ta.rsi(_df1h["Close"].dropna(), length=14)
+                            if _rsi1h_s is not None and not _rsi1h_s.dropna().empty:
+                                _rsi1h = float(_rsi1h_s.dropna().iloc[-1])
+                                if target_option_type == "C" and _rsi1h <= 40:
+                                    skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak", 0) + 1
+                                    print(f"    [Skip] {ticker}/C: 1hr RSI={_rsi1h:.1f} ≤ 40 — hourly downtrend")
+                                    _session_stats["skipped"] += 1
+                                    continue
+                                elif target_option_type == "P" and _rsi1h >= 60:
+                                    skip_reasons["1hr RSI too strong"] = skip_reasons.get("1hr RSI too strong", 0) + 1
+                                    print(f"    [Skip] {ticker}/P: 1hr RSI={_rsi1h:.1f} ≥ 60 — not weakening on hourly")
+                                    _session_stats["skipped"] += 1
+                                    continue
+                                else:
+                                    print(f"    [Gate4] {ticker}/{target_option_type}: 1hr RSI={_rsi1h:.1f} ✅")
+                    except Exception as _g4e:
+                        log.debug("Gate 4 hourly RSI error: %s", _g4e)
 
                 # ── Gate 4b: 15-minute RSI multi-timeframe ────────────────────────
                 # 5-min AND 15-min both oversold = much higher conviction.
