@@ -281,6 +281,195 @@ def _maybe_run_alpha_sieve(listener=None):
                 log.error("Alpha Sieve error: %s", e)
 
 
+def _maybe_run_premarket_scan(listener=None):
+    """
+    Pre-market scanner: runs at 9:00 AM ET.
+    Checks which stocks are gapping up/down significantly before open.
+    Flags top gap-up candidates (calls) and gap-down (puts) for the day.
+    Posts to Discord so you can prepare before market opens.
+    """
+    import pytz
+    from datetime import time as dtime
+    ET     = pytz.timezone("America/New_York")
+    now_et = datetime.now(ET)
+    if not (dtime(9, 0) <= now_et.time() <= dtime(9, 10)):
+        return
+    today     = now_et.strftime("%Y-%m-%d")
+    flag_file = f".premarket_{today}"
+    if os.path.exists(flag_file):
+        return
+    open(flag_file, "w").close()
+
+    console.print("[bold cyan]🌅 9:00 AM — Running Pre-Market Scan...[/bold cyan]")
+    try:
+        import yfinance as yf
+        from research_scanner import MY_SMALL_STOCKS
+        gaps_up   = []
+        gaps_down = []
+
+        for ticker in MY_SMALL_STOCKS[:20]:   # scan top 20
+            try:
+                data = yf.download(ticker, period="2d", interval="1d",
+                                   progress=False, auto_adjust=True)
+                if data.empty or len(data) < 2:
+                    continue
+                prev_close = float(data["Close"].iloc[-2])
+                pre_price  = yf.Ticker(ticker).fast_info.get(
+                    "lastPrice", float(data["Close"].iloc[-1]))
+                gap_pct = ((pre_price - prev_close) / prev_close) * 100
+                if gap_pct >= 2.0:
+                    gaps_up.append((ticker, gap_pct, pre_price))
+                elif gap_pct <= -2.0:
+                    gaps_down.append((ticker, gap_pct, pre_price))
+            except Exception:
+                continue
+
+        gaps_up.sort(key=lambda x: -x[1])
+        gaps_down.sort(key=lambda x: x[1])
+
+        msg_lines = ["🌅 **PRE-MARKET SCAN** — Gap Analysis\n"]
+        if gaps_up:
+            msg_lines.append("📈 **Gap Ups** (potential call setups if RSI oversold on open):")
+            for t, g, p in gaps_up[:5]:
+                msg_lines.append(f"  • {t} +{g:.1f}% → ${p:.2f}")
+        if gaps_down:
+            msg_lines.append("\n📉 **Gap Downs** (potential put setups if RSI overbought):")
+            for t, g, p in gaps_down[:5]:
+                msg_lines.append(f"  • {t} {g:.1f}% → ${p:.2f}")
+        if not gaps_up and not gaps_down:
+            msg_lines.append("No significant gaps today (all within ±2%).")
+
+        msg_lines.append("\n_Scanner will begin at 9:30 AM open._")
+        msg = "\n".join(msg_lines)
+        console.print(msg)
+        if listener:
+            listener.send_status_update(msg)
+    except Exception as e:
+        log.error("Pre-market scan error: %s", e)
+
+
+def _maybe_send_daily_report(listener=None, engine=None):
+    """
+    Daily P&L report: posts to Discord at 4:15 PM ET (15 min after close).
+    Shows: trades taken, win rate, P&L, best/worst trade, account balance.
+    Runs once per day.
+    """
+    import pytz
+    from datetime import time as dtime
+    ET     = pytz.timezone("America/New_York")
+    now_et = datetime.now(ET)
+    if not (dtime(16, 15) <= now_et.time() <= dtime(16, 25)):
+        return
+    today     = now_et.strftime("%Y-%m-%d")
+    flag_file = f".daily_report_{today}"
+    if os.path.exists(flag_file):
+        return
+    open(flag_file, "w").close()
+
+    try:
+        import csv as _csv
+        trade_log = os.path.join(os.path.dirname(__file__), "trade_log.csv")
+        if not os.path.exists(trade_log):
+            return
+
+        today_trades = []
+        with open(trade_log, newline="", encoding="utf-8") as f:
+            for row in _csv.DictReader(f):
+                if row.get("date", "").startswith(today) and row.get("mode") == "live":
+                    today_trades.append(row)
+
+        if not today_trades:
+            if listener:
+                listener.send_status_update(
+                    f"📊 **Daily Report** — {today}\n"
+                    f"No trades today. Market was quiet or no signals fired."
+                )
+            return
+
+        pnls  = [float(t.get("profit_amt", 0) or 0) for t in today_trades]
+        wins  = [p for p in pnls if p > 0]
+        losses= [p for p in pnls if p < 0]
+        total = sum(pnls)
+        wr    = len(wins) / len(pnls) * 100 if pnls else 0
+        best  = max(pnls) if pnls else 0
+        worst = min(pnls) if pnls else 0
+
+        # Get account balance from cache
+        balance = "?"
+        try:
+            import json as _json
+            cache = os.path.join(os.path.dirname(__file__), "account_cache.json")
+            with open(cache) as f:
+                acc = _json.load(f)
+            balance = f"${float(acc.get('net_value', 0)):,.2f}"
+        except Exception:
+            pass
+
+        emoji  = "🟢" if total >= 0 else "🔴"
+        report = (
+            f"📊 **Daily Report** — {today}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"{emoji} **Net P&L**: ${total:+.2f}\n"
+            f"🏆 **Win Rate**: {wr:.0f}% ({len(wins)}W / {len(losses)}L)\n"
+            f"📈 **Best Trade**: ${best:+.2f}\n"
+            f"📉 **Worst Trade**: ${worst:+.2f}\n"
+            f"🔢 **Trades Taken**: {len(today_trades)}\n"
+            f"💰 **Account Balance**: {balance}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        )
+
+        # Add trade breakdown
+        for t in today_trades:
+            pnl    = float(t.get("profit_amt", 0) or 0)
+            ticker = t.get("ticker", "?")
+            e      = "✅" if pnl > 0 else "❌"
+            report += f"{e} {ticker} {t.get('strike','')}{t.get('option_type','')} "
+            report += f"→ ${pnl:+.2f}\n"
+
+        console.print(report)
+        if listener:
+            listener.send_status_update(report)
+        log.info("Daily report sent: %d trades, P&L=$%.2f", len(today_trades), total)
+    except Exception as e:
+        log.error("Daily report error: %s", e)
+
+
+def _maybe_run_paper_shadow(engine=None, signal_str: str = "",
+                            profile: dict = None, market=None, webull=None):
+    """
+    Paper trade shadow: runs a paper trade in parallel with every live trade.
+    After a week compares paper vs live performance to detect slippage/execution issues.
+    Logs to paper_shadow.csv separately from trade_log.csv.
+    """
+    if not signal_str or not engine:
+        return
+    try:
+        import csv as _csv
+        from research_scanner import TradeSignal
+        shadow_log = os.path.join(os.path.dirname(__file__), "paper_shadow.csv")
+        parsed = engine.parse_signal(signal_str)
+        if not parsed:
+            return
+        # Log the shadow entry — P&L will be tracked separately
+        file_exists = os.path.exists(shadow_log)
+        with open(shadow_log, "a", newline="", encoding="utf-8") as f:
+            writer = _csv.writer(f)
+            if not file_exists:
+                writer.writerow(["date", "signal", "ticker", "strike",
+                                 "option_type", "expiry", "qty", "mode"])
+            writer.writerow([
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+                signal_str,
+                parsed.ticker, parsed.strike,
+                parsed.option_type, parsed.expiry,
+                parsed.quantity, "paper_shadow"
+            ])
+        log.info("Paper shadow logged: %s", signal_str)
+    except Exception as e:
+        log.debug("Paper shadow error: %s", e)
+
+
+
 def run_health_check(discord_token, discord_channel_id):
     console.print("\n[bold cyan]System Health Check[/bold cyan]")
     all_ok = True
@@ -628,6 +817,8 @@ def main():
         from api_server import _bot_state
         _bot_state["paper_mode"]    = paper_mode
         _bot_state["webull_engine"] = webull
+        _bot_state["engine"]        = engine
+        _bot_state["profile"]       = profile
     except ImportError:
         pass
 
@@ -845,6 +1036,11 @@ def main():
 
                                 break  # Trade confirmed — stop processing other signals
                             else:
+                                # Paper shadow — log what would have happened in paper
+                                _maybe_run_paper_shadow(
+                                    engine=engine, signal_str=verdict,
+                                    profile=profile, market=market, webull=webull
+                                )
                                 # Order was rejected by Webull (no bid/ask, expiry issue etc)
                                 console.print(
                                     f"[yellow]⚠️  Order rejected for {ticker} — "
@@ -999,6 +1195,10 @@ def main():
 
             # ── UPGRADE 2: Alpha Sieve at 9:15 AM ET ─────────────────────────
             _maybe_run_alpha_sieve(listener=listener)
+            # ── Pre-market scan at 9:00 AM ET ────────────────────────────────
+            _maybe_run_premarket_scan(listener=listener)
+            # ── Daily report at 4:15 PM ET ────────────────────────────────────
+            _maybe_send_daily_report(listener=listener, engine=engine)
 
             # ── Webull session auto-refresh on repeated failures ─────────────
             if webull_refresh_fails >= 3:

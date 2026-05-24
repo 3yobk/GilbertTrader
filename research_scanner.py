@@ -643,6 +643,7 @@ def is_trend_bullish(ticker):
 
 
 def get_hour_rsi_alignment(ticker):
+    """Gate 4: 1-hour RSI must be > 40 (not in freefall on hourly)."""
     try:
         df = _flatten(yf.download(ticker, period="5d", interval="1h", progress=False))
         if df.empty or len(df) < 14:
@@ -653,6 +654,112 @@ def get_hour_rsi_alignment(ticker):
         return float(rsi.dropna().iloc[-1]) > 40
     except Exception:
         return True
+
+
+def get_15min_rsi(ticker: str) -> float:
+    """
+    Returns the 15-minute RSI for multi-timeframe confirmation.
+    If both 5-min AND 15-min are oversold, signal is much stronger.
+    Returns 50.0 on error (neutral — don't block).
+    """
+    try:
+        df = _flatten(yf.download(ticker, period="5d", interval="15m",
+                                  progress=False, auto_adjust=True))
+        if df.empty or len(df) < 14:
+            return 50.0
+        rsi = ta.rsi(df["Close"].dropna(), length=14)
+        if rsi is None or rsi.dropna().empty:
+            return 50.0
+        return float(rsi.dropna().iloc[-1])
+    except Exception:
+        return 50.0
+
+
+# Sector ETF map — used for sector correlation gate
+_SECTOR_MAP = {
+    "NVDA": "SOXX", "AMD": "SOXX", "AVGO": "SOXX", "ARM": "SOXX",
+    "SMCI": "SOXX", "MU": "SOXX", "SOXL": "SOXX",
+    "AAPL": "XLK",  "MSFT": "XLK", "GOOGL": "XLK", "META": "XLK",
+    "AMZN": "XLK",
+    "TSLA": "XLY",
+    "COIN": "XLF",  "HOOD": "XLF",
+    "CVNA": "XLY",
+    "MARA": "XLK",  "RIOT": "XLK",
+    "PLTR": "XLK",
+    "SHOP": "XLK",  "AFRM": "XLF", "UPST": "XLF",
+    "SOFI": "XLF",  "HIMS": "XLV",
+    "RBLX": "XLY",  "TQQQ": "QQQ", "IWM":  "IWM",
+}
+
+_sector_cache: dict = {}   # ticker → (pct_change, timestamp)
+
+def get_sector_change(ticker: str) -> float:
+    """
+    Returns the sector ETF's intraday % change.
+    If sector is down > 0.5% when buying calls, signal is weaker.
+    Cached per sector for 5 minutes.
+    """
+    sector = _SECTOR_MAP.get(ticker.upper(), "SPY")
+    now    = time.time()
+    cached = _sector_cache.get(sector)
+    if cached and now - cached[1] < 300:
+        return cached[0]
+    try:
+        df = _flatten(yf.download(sector, period="1d", interval="5m",
+                                  progress=False, auto_adjust=True))
+        if df.empty:
+            return 0.0
+        open_price = float(df["Open"].iloc[0])
+        last_price = float(df["Close"].iloc[-1])
+        pct = ((last_price - open_price) / open_price) * 100
+        _sector_cache[sector] = (round(pct, 3), now)
+        return pct
+    except Exception:
+        return 0.0
+
+
+def check_spread_pct(ticker: str, strike: float,
+                     option_type: str, expiry_str: str) -> float:
+    """
+    Returns bid/ask spread as a percentage of the mid price.
+    High spread (> 15%) = expensive slippage — skip the trade.
+    Uses Tradier options chain.
+    Returns 0.0 if unavailable (don't block).
+    """
+    if not _HAS_TRADIER:
+        return 0.0
+    try:
+        # Convert expiry M/D to YYYY-MM-DD
+        from datetime import datetime as _dt
+        parts = expiry_str.split("/")
+        year  = _dt.now().year
+        expiry_full = f"{year}-{int(parts[0]):02d}-{int(parts[1]):02d}"
+
+        r = requests.get(
+            "https://api.tradier.com/v1/markets/options/chains",
+            headers=_tradier_headers(),
+            params={"symbol": ticker, "expiration": expiry_full,
+                    "greeks": "false"},
+            timeout=6,
+        )
+        if not r.ok:
+            return 0.0
+        chain = r.json().get("options", {}).get("option", [])
+        if isinstance(chain, dict):
+            chain = [chain]
+        otype = "call" if option_type == "C" else "put"
+        for opt in chain:
+            if (abs(float(opt.get("strike", 0)) - strike) < 0.01 and
+                    opt.get("option_type") == otype):
+                bid = float(opt.get("bid", 0) or 0)
+                ask = float(opt.get("ask", 0) or 0)
+                if bid > 0 and ask > 0:
+                    mid    = (bid + ask) / 2
+                    spread = (ask - bid) / mid * 100
+                    return round(spread, 1)
+        return 0.0
+    except Exception:
+        return 0.0
 
 
 def get_atr_adjustment(df, base_threshold):
@@ -960,6 +1067,24 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 _session_stats["skipped"] += 1
                 continue
 
+            # ── Gate 4b: 15-minute RSI multi-timeframe ────────────────────────
+            # 5-min AND 15-min both oversold = much higher conviction.
+            # Doesn't block but shown in output. High conviction when both align.
+            rsi_15m       = get_15min_rsi(ticker)
+            mtf_confirmed = rsi_15m < (rsi_threshold + 5)
+            mtf_tag       = f"✅15m={rsi_15m:.1f}" if mtf_confirmed else f"⚠️15m={rsi_15m:.1f}"
+
+            # ── Gate 4c: Sector correlation ───────────────────────────────────
+            # Skip calls if sector ETF is down > 0.8% on the day.
+            if target_option_type == "C":
+                sector_chg = get_sector_change(ticker)
+                if sector_chg < -0.8:
+                    skip_reasons["Sector falling"] = skip_reasons.get("Sector falling", 0) + 1
+                    print(f"    [Skip] {ticker}: Sector down {sector_chg:.2f}% today")
+                    _session_stats["skipped"] += 1
+                    continue
+                elif sector_chg < -0.3:
+                    print(f"    [⚠️ Sector] {ticker}: Sector soft {sector_chg:.2f}%")
 
             # ── Options flow check ───────────────────────────────────────────
             flow     = check_options_flow(ticker, target_option_type)
@@ -1062,11 +1187,32 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             contracts = min(contracts, max_affordable)
 
             print(f"  🔥 [HIGH CONVICTION] {ticker} | RSI={current_rsi:.1f} "
-                  f"flow={flow['score']} regime={regime} -> {contracts}x contracts")
+                  f"flow={flow['score']} regime={regime} -> {contracts}x contracts | {mtf_tag}")
 
             signal_str, theta_rolled = _build_signal(
                 ticker, current_price, contracts,
                 target_option_type, execution_mode)
+
+            # ── Spread check ──────────────────────────────────────────────────
+            # Extract strike and expiry from signal for spread lookup
+            try:
+                _sig_parts  = signal_str.split()
+                _sig_cont   = _sig_parts[2] if len(_sig_parts) > 2 else ""
+                _sig_strike = float("".join(c for c in _sig_cont[:-1] if c.isdigit() or c == "."))
+                _sig_expiry = _sig_parts[3] if len(_sig_parts) > 3 else ""
+                spread_pct  = check_spread_pct(ticker, _sig_strike,
+                                               target_option_type, _sig_expiry)
+                if spread_pct > 15.0:
+                    skip_reasons["Spread too wide"] = skip_reasons.get("Spread too wide", 0) + 1
+                    print(f"    [Skip] {ticker}: Bid/ask spread {spread_pct:.1f}% > 15% — "
+                          f"too expensive to enter")
+                    _session_stats["skipped"] += 1
+                    continue
+                elif spread_pct > 0:
+                    print(f"    [Spread] {ticker}: {spread_pct:.1f}% bid/ask spread ✅")
+            except Exception as e:
+                log.debug("Spread check error: %s", e)
+
             _session_stats["signals"] += 1
             _broadcast({
                 "id":     int(time.time() * 1000),

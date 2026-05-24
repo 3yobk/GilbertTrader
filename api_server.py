@@ -315,6 +315,7 @@ def portfolio_summary():
     cached_day_pnl = None   # real-time day P&L from Webull
 
     cache_file = os.path.join(os.path.dirname(__file__), "account_cache.json")
+    settled_cash = None
     if os.path.exists(cache_file):
         try:
             import json as _json
@@ -324,6 +325,8 @@ def portfolio_summary():
                 net_value      = float(acc.get("net_value", 0)) or None
                 buying_power   = float(acc.get("buying_power", 0)) or None
                 cached_day_pnl = float(acc.get("day_pnl", 0) or 0)
+                # Settled cash — funds available to trade (T+1 settlement)
+                settled_cash   = float(acc.get("settled_cash") or acc.get("buying_power", 0) or 0)
                 for pos in acc.get("positions", []):
                     market_value += float(pos.get("marketValue", 0) or 0)
         except Exception:
@@ -333,6 +336,10 @@ def portfolio_summary():
         buying_power = 100000.0 if _is_paper_mode() else 0.0
     if not net_value:
         net_value = buying_power
+    if not settled_cash:
+        settled_cash = buying_power
+
+    unsettled = max(0.0, buying_power - settled_cash)
 
     # Use Webull's real-time day P&L if available, else fall back to trade_log sum
     if cached_day_pnl is not None and cached_day_pnl != 0:
@@ -346,6 +353,8 @@ def portfolio_summary():
         "dayChangePct": round(day_change / buying_power * 100, 3) if buying_power else 0,
         "buyingPower":  round(buying_power, 2),
         "cash":         round(buying_power, 2),
+        "settledCash":  round(settled_cash, 2),
+        "unsettledCash":round(unsettled, 2),
         "marketValue":  round(market_value, 2),
         "paper_mode":   _is_paper_mode(),
     })
@@ -597,7 +606,7 @@ def watchlist():
         from research_scanner import MY_SMALL_STOCKS
         import yfinance as yf
         result = []
-        for ticker in MY_SMALL_STOCKS[:12]:
+        for ticker in MY_SMALL_STOCKS:
             try:
                 info   = yf.Ticker(ticker).fast_info
                 price  = float(getattr(info, "last_price", 0) or 0)
@@ -605,16 +614,48 @@ def watchlist():
                 change = (price - prev) / prev * 100 if prev > 0 else 0
                 result.append({
                     "ticker":    ticker,
-                    "name":      ticker,
                     "price":     round(price, 2),
                     "changePct": round(change, 2),
-                    "spark":     [],
                 })
             except Exception:
-                continue
+                result.append({"ticker": ticker, "price": 0, "changePct": 0})
         return jsonify(result)
     except Exception:
         return jsonify([]), 200
+
+
+@app.post("/api/watchlist/add")
+def watchlist_add():
+    """Add a ticker to the scanner watchlist."""
+    try:
+        data   = request.get_json(silent=True) or {}
+        ticker = str(data.get("ticker", "")).upper().strip()
+        if not ticker:
+            return jsonify({"ok": False, "error": "No ticker"}), 400
+        from research_scanner import MY_SMALL_STOCKS
+        if ticker not in MY_SMALL_STOCKS:
+            MY_SMALL_STOCKS.append(ticker)
+            log.info("Watchlist add: %s (total: %d)", ticker, len(MY_SMALL_STOCKS))
+        return jsonify({"ok": True, "ticker": ticker, "total": len(MY_SMALL_STOCKS)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
+@app.post("/api/watchlist/remove")
+def watchlist_remove():
+    """Remove a ticker from the scanner watchlist."""
+    try:
+        data   = request.get_json(silent=True) or {}
+        ticker = str(data.get("ticker", "")).upper().strip()
+        from research_scanner import MY_SMALL_STOCKS
+        if ticker in MY_SMALL_STOCKS:
+            MY_SMALL_STOCKS.remove(ticker)
+            log.info("Watchlist remove: %s (total: %d)", ticker, len(MY_SMALL_STOCKS))
+        return jsonify({"ok": True, "ticker": ticker, "total": len(MY_SMALL_STOCKS)})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
+
+
 
 # ── Scanner SSE stream ────────────────────────────────────────────────────────
 
@@ -782,6 +823,101 @@ def _execute_command(cmd: str, args: str) -> str:
                 MY_SMALL_STOCKS.remove(ticker)
                 return f"Removed {ticker}."
             return f"{ticker} not in watchlist."
+        elif cmd == "sl":
+            arg = args.strip().lower()
+            engine = _bot_state.get("engine")
+            if arg == "off":
+                _bot_state["sl_override"] = 999.0
+                if engine: engine.stop_loss_pct = 999.0
+                return "⚠️ Stop loss DISABLED — positions will not auto-close on loss. Use !sl on to re-enable."
+            elif arg == "on":
+                _bot_state["sl_override"] = None
+                default = _bot_state.get("profile", {}).get("sl", 20.0)
+                if engine: engine.stop_loss_pct = default
+                return f"✅ Stop loss re-enabled at -{default:.0f}%."
+            else:
+                try:
+                    pct = float(arg.replace("%", ""))
+                    _bot_state["sl_override"] = pct
+                    if engine: engine.stop_loss_pct = pct
+                    return f"✅ Stop loss set to -{pct:.0f}%."
+                except ValueError:
+                    return "Usage: !sl off | !sl on | !sl 15"
+
+        elif cmd == "tp":
+            arg = args.strip().lower()
+            engine = _bot_state.get("engine")
+            if arg == "off":
+                _bot_state["tp_override"] = 999.0
+                if engine: engine.profit_target_pct = 999.0
+                return "⚠️ Take profit DISABLED — positions will not auto-close on gain. Use !tp on to re-enable."
+            elif arg == "on":
+                _bot_state["tp_override"] = None
+                default = _bot_state.get("profile", {}).get("tp", 30.0)
+                if engine: engine.profit_target_pct = default
+                return f"✅ Take profit re-enabled at +{default:.0f}%."
+            else:
+                try:
+                    pct = float(arg.replace("%", ""))
+                    _bot_state["tp_override"] = pct
+                    if engine: engine.profit_target_pct = pct
+                    return f"✅ Take profit set to +{pct:.0f}%."
+                except ValueError:
+                    return "Usage: !tp off | !tp on | !tp 50"
+
+        elif cmd == "scaleout":
+            arg = args.strip().lower()
+            engine = _bot_state.get("engine")
+            if arg == "off":
+                if engine: engine.scale_out_trigger_pct = 999.0
+                return "⚠️ Scale-out DISABLED — bot will hold full position to TP/SL. Use !scaleout on to re-enable."
+            elif arg == "on":
+                if engine: engine.scale_out_trigger_pct = 20.0
+                return "✅ Scale-out re-enabled at +20%."
+            return "Usage: !scaleout off | !scaleout on"
+
+        elif cmd == "limiters":
+            arg = args.strip().lower()
+            engine = _bot_state.get("engine")
+            if arg == "off":
+                if engine:
+                    engine.stop_loss_pct        = 999.0
+                    engine.profit_target_pct    = 999.0
+                    engine.scale_out_trigger_pct = 999.0
+                _bot_state["sl_override"] = 999.0
+                _bot_state["tp_override"] = 999.0
+                return "⚠️ ALL LIMITERS DISABLED — SL, TP, and scale-out are off. You are in full manual control. Use !limiters on to restore."
+            elif arg == "on":
+                profile = _bot_state.get("profile", {})
+                sl  = profile.get("sl", 20.0)
+                tp  = profile.get("tp", 30.0)
+                if engine:
+                    engine.stop_loss_pct        = sl
+                    engine.profit_target_pct    = tp
+                    engine.scale_out_trigger_pct = 20.0
+                _bot_state["sl_override"] = None
+                _bot_state["tp_override"] = None
+                return f"✅ All limiters restored — TP +{tp:.0f}% | SL -{sl:.0f}% | Scale-out +20%."
+            return "Usage: !limiters off | !limiters on"
+
+        elif cmd == "settings":
+            engine  = _bot_state.get("engine")
+            profile = _bot_state.get("profile", {})
+            sl  = getattr(engine, "stop_loss_pct", profile.get("sl", 20.0)) if engine else profile.get("sl", 20.0)
+            tp  = getattr(engine, "profit_target_pct", profile.get("tp", 30.0)) if engine else profile.get("tp", 30.0)
+            so  = getattr(engine, "scale_out_trigger_pct", 20.0) if engine else 20.0
+            sl_str = f"-{sl:.0f}%" if sl < 999 else "OFF"
+            tp_str = f"+{tp:.0f}%" if tp < 999 else "OFF"
+            so_str = f"+{so:.0f}%" if so < 999 else "OFF"
+            return (
+                f"⚙️ Current Settings\n"
+                f"Stop Loss: {sl_str}\n"
+                f"Take Profit: {tp_str}\n"
+                f"Scale-out: {so_str}\n"
+                f"Profile: {profile.get('name', 'CUSTOM')} | Budget: ${profile.get('budget', 500)}\n"
+                f"RSI threshold: <{profile.get('rsi', 30)}"
+            )
+
         return f"Unknown command: {cmd}"
     except Exception as e:
         return f"Error: {e}"
