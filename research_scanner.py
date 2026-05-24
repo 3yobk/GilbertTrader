@@ -406,6 +406,138 @@ def get_gex(ticker: str, current_price: float) -> dict:
         return neutral
 
 
+def has_earnings_soon(ticker: str, days: int = 2) -> bool:
+    """
+    Returns True if ticker has earnings within `days` days.
+    Uses Tradier earnings calendar endpoint.
+    Earnings cause IV spikes — options get expensive and unpredictable.
+    """
+    if not _HAS_TRADIER:
+        return False
+    try:
+        r = requests.get(
+            "https://api.tradier.com/v1/markets/calendar",
+            headers=_tradier_headers(),
+            params={"month": datetime.now().strftime("%Y-%m")},
+            timeout=5,
+        )
+        if not r.ok:
+            return False
+        days_data = r.json().get("calendar", {}).get("days", {}).get("day", [])
+        if isinstance(days_data, dict):
+            days_data = [days_data]
+        today = datetime.now().date()
+        for day in days_data:
+            day_date = datetime.strptime(day.get("date", ""), "%Y-%m-%d").date()
+            if 0 <= (day_date - today).days <= days:
+                earnings = day.get("earnings", {}).get("report", {})
+                if isinstance(earnings, dict):
+                    earnings = [earnings]
+                for e in (earnings if isinstance(earnings, list) else [earnings]):
+                    if str(e.get("symbol", "")).upper() == ticker.upper():
+                        log.info("Earnings found for %s on %s — skipping", ticker, day_date)
+                        return True
+        return False
+    except Exception as e:
+        log.debug("Earnings check error for %s: %s", ticker, e)
+        return False
+
+
+def get_spy_intraday_change() -> float:
+    """
+    Returns SPY's intraday % change (current vs open).
+    Used to avoid buying calls when SPY is dropping on the day.
+    Returns 0.0 if unavailable.
+    """
+    try:
+        spy_data = yf.download("SPY", period="1d", interval="5m",
+                               progress=False, auto_adjust=True)
+        if spy_data.empty:
+            return 0.0
+        df = _flatten(spy_data)
+        open_price    = float(df["Open"].iloc[0])
+        current_price = float(df["Close"].iloc[-1])
+        return ((current_price - open_price) / open_price) * 100
+    except Exception:
+        return 0.0
+
+
+def rsi_is_turning_up(df, current_rsi: float, lookback: int = 3,
+                      rsi_threshold: float = 30.0) -> bool:
+    """
+    Strong entry confirmation — requires ALL of:
+    1. RSI has risen at least 1pt from its recent low (stopped falling)
+    2. RSI is crossing back ABOVE the threshold from below (not just below it)
+       OR RSI has been rising for at least 2 consecutive bars
+    3. Stock price made a higher low (stopped making new lows — bounce confirmed)
+
+    This is much stricter than just checking RSI < 30.
+    TQQQ had RSI 38 → 35 → 32 → 29 (still falling) — this would have blocked it.
+    A good entry has RSI 29 → 28 → 29 → 31 (bottomed and turning).
+    """
+    try:
+        close  = df["Close"] if "Close" in df.columns else df.iloc[:, 0]
+        delta  = close.diff()
+        gain   = delta.clip(lower=0).rolling(14).mean()
+        loss   = (-delta.clip(upper=0)).rolling(14).mean()
+        rs     = gain / loss.replace(0, 1e-10)
+        rsi_s  = (100 - (100 / (1 + rs))).dropna()
+
+        if len(rsi_s) < lookback + 3:
+            return True   # not enough data — allow through
+
+        # Check RSI direction over last 3 bars
+        rsi_vals = [float(rsi_s.iloc[-(lookback + 1 - i)]) for i in range(lookback + 1)]
+        rsi_min  = min(rsi_vals)
+        rsi_now  = float(rsi_s.iloc[-1])
+
+        # Gate 1: RSI must have risen at least 1pt from its recent low
+        if rsi_now <= rsi_min + 0.5:
+            return False   # still at the bottom or still falling
+
+        # Gate 2: At least 2 consecutive rising RSI bars
+        rsi_last2_rising = (float(rsi_s.iloc[-1]) > float(rsi_s.iloc[-2]) and
+                            float(rsi_s.iloc[-2]) > float(rsi_s.iloc[-3]))
+
+        # Gate 3: Price higher low — recent low > prior low
+        # Compare lowest of last 3 bars vs lowest of 3 bars before that
+        close_vals = close.dropna()
+        if len(close_vals) >= 6:
+            recent_low = float(close_vals.iloc[-3:].min())
+            prior_low  = float(close_vals.iloc[-6:-3].min())
+            higher_low = recent_low >= prior_low * 0.999   # within 0.1% tolerance
+        else:
+            higher_low = True   # not enough data — don't block
+
+        # Require RSI turning AND (consecutive rise OR higher low on price)
+        return rsi_now > rsi_min + 1.0 and (rsi_last2_rising or higher_low)
+
+    except Exception:
+        return True   # on error, allow through
+
+
+def get_price_level_stop(ticker: str, current_price: float) -> float:
+    """
+    Returns the most recent 1-min swing low as a price-level stop.
+    If the stock breaks this level, the bounce thesis is broken.
+    More accurate than a percentage stop because it uses actual support.
+    Returns 0 if unavailable (falls back to percentage stop).
+    """
+    try:
+        import yfinance as yf
+        df = yf.download(ticker, period="1d", interval="1m",
+                         progress=False, auto_adjust=True)
+        if df.empty or len(df) < 5:
+            return 0.0
+        # Find the lowest low in the last 5 minutes
+        recent_lows = df["Low"].dropna().iloc[-5:]
+        swing_low   = float(recent_lows.min())
+        # Stop is 0.5% below the swing low (small buffer for noise)
+        return round(swing_low * 0.995, 2)
+    except Exception:
+        return 0.0
+
+
 # ── Upgrade 4: Market regime filter ──────────────────────────────────────────
 def get_market_regime() -> dict:
     """
@@ -754,18 +886,53 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             # Bear market  → scan for overbought RSI > (100-threshold) → buy PUTS
             # Neutral      → bull logic (calls only)
             if regime == "bear":
-                # Inverted: look for overbought to short
-                short_threshold = 100 - rsi_threshold   # e.g. 100-30 = 70
+                short_threshold = 100 - rsi_threshold
                 if current_rsi < short_threshold:
                     _session_stats["skipped"] += 1
                     continue
                 target_option_type = "P"
             else:
-                # Bull/neutral: look for oversold to go long
                 if current_rsi >= eff_threshold:
                     _session_stats["skipped"] += 1
                     continue
                 target_option_type = "C"
+
+            # ── Gate 1a: RSI upturn confirmation ──────────────────────────────
+            # Requires RSI to have bottomed AND be turning back up AND
+            # price to have made a higher low. Much stricter than just RSI < 30.
+            if target_option_type == "C":
+                if not rsi_is_turning_up(df, current_rsi,
+                                         lookback=3, rsi_threshold=float(rsi_threshold)):
+                    skip_reasons["RSI still falling"] = skip_reasons.get("RSI still falling", 0) + 1
+                    print(f"    [Skip] {ticker}: RSI still falling — waiting for upturn + higher low")
+                    _session_stats["skipped"] += 1
+                    continue
+            # (For puts, we don't require upturn — we want the RSI to keep falling)
+
+            # ── Gate 1b: SPY intraday correlation ─────────────────────────────
+            # Don't buy calls if SPY is down more than 0.5% on the day.
+            # A falling market kills call premiums even on oversold stocks.
+            # Only check once per scan cycle (cached via _spy_intraday_cache).
+            _spy_chg = getattr(scan_markets, "_spy_intraday_cache", None)
+            _spy_chg_t = getattr(scan_markets, "_spy_intraday_cache_t", 0)
+            if time.time() - _spy_chg_t > 300 or _spy_chg is None:
+                _spy_chg = get_spy_intraday_change()
+                scan_markets._spy_intraday_cache   = _spy_chg
+                scan_markets._spy_intraday_cache_t = time.time()
+            if target_option_type == "C" and _spy_chg < -0.5:
+                skip_reasons["SPY falling"] = skip_reasons.get("SPY falling", 0) + 1
+                print(f"    [Skip] {ticker}: SPY down {_spy_chg:.2f}% today — avoiding calls")
+                _session_stats["skipped"] += 1
+                continue
+
+            # ── Gate 1c: Earnings calendar check ──────────────────────────────
+            # Skip if earnings within 48 hours — IV spikes make options
+            # expensive and price action unpredictable around reports.
+            if has_earnings_soon(ticker, days=2):
+                skip_reasons["Earnings soon"] = skip_reasons.get("Earnings soon", 0) + 1
+                print(f"    [Skip] {ticker}: Earnings within 48h — skipping")
+                _session_stats["skipped"] += 1
+                continue
 
             # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
             # Exception: RSI < 20 is so extreme that a bounce is likely

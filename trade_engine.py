@@ -57,13 +57,14 @@ class TradeSignal:
 
 @dataclass
 class OpenPosition:
-    signal:         TradeSignal
-    entry_price:    float
-    entry_time:     str = ""
-    paper:          bool = True
-    highest_pnl:    float = 0.0
-    scaled_out:     bool = False   # True once we've sold the first 50%
-    monitor_thread: Optional[threading.Thread] = field(default=None, repr=False)
+    signal:            TradeSignal
+    entry_price:       float
+    entry_time:        str = ""
+    paper:             bool = True
+    highest_pnl:       float = 0.0
+    scaled_out:        bool = False
+    price_level_stop:  float = 0.0   # swing low price stop (0 = use % stop)
+    monitor_thread:    Optional[threading.Thread] = field(default=None, repr=False)
 
     def __post_init__(self):
         if not self.entry_time:
@@ -555,9 +556,14 @@ class TradeEngine:
 
     def _monitor_loop(self, position_key: str, pos: OpenPosition):
         log.info("P&L monitor started: %s @ entry $%.2f", position_key, pos.entry_price)
-        start_ts         = time.time()
-        breakeven_active = False
-        current_sl       = self.stop_loss_pct
+        start_ts              = time.time()
+        breakeven_active      = False
+        current_sl            = self.stop_loss_pct
+        trailing_tp_active    = False
+        trailing_tp_active   = False
+        # Dynamic pullback: tighter near TP, wider as option runs
+        # +30-50%: 12% | +50-100%: 18% | +100%+: 25%
+        tp_activated_at      = 0.0
 
         while True:
             with self._lock:
@@ -574,7 +580,6 @@ class TradeEngine:
             if data and data.get("pnl_pct") is not None:
                 pnl_pct = data["pnl_pct"]
             else:
-                # Get option price directly, not stock price
                 option_quote = self.webull.get_option_quote(pos.signal.ticker)
                 if option_quote:
                     bid = option_quote.get("bid", 0)
@@ -587,111 +592,114 @@ class TradeEngine:
                 else:
                     continue
 
-            # Track all-time high P&L for trailing stop
             if pnl_pct > pos.highest_pnl:
                 pos.highest_pnl = pnl_pct
+                self._save_positions()
 
-            # ── UPGRADE: Trailing stop — trails below peak ────────────────────
-            # Once we've hit the scale-out trigger, the stop trails the peak
-            # rather than sitting at a fixed level. This locks in gains as the
-            # position keeps running.
-            if pos.scaled_out and pos.highest_pnl > self.scale_out_trigger_pct:
+            # Trailing TP: activates at profit_target_pct, then trails 15% below peak
+            # Fixes TQQQ problem: hit -20% SL then went +100% — trailing TP rides it up
+            if not trailing_tp_active and pnl_pct >= self.profit_target_pct:
+                trailing_tp_active = True
+                tp_activated_at    = pnl_pct
+                if self.listener:
+                    self.listener.send_status_update(
+                        f"🚀 **TRAILING TP ACTIVE**: {position_key} hit "
+                        f"{pnl_pct:+.1f}% — now trailing below peak. "
+                        f"Letting winner run! (+30-50%=12% trail, +50-100%=18%, +100%+=25%)"
+                    )
+
+            if trailing_tp_active:
+                # Dynamic pullback based on how far the option has run:
+                # Just past TP (+30-50%): tight 12% trail — protect base gain
+                # Running well (+50-100%): medium 18% trail — room to breathe
+                # Big winner (+100%+): wide 25% trail — let it run far
+                if pos.highest_pnl >= 100:
+                    trailing_tp_pullback = 25.0
+                elif pos.highest_pnl >= 50:
+                    trailing_tp_pullback = 18.0
+                else:
+                    trailing_tp_pullback = 12.0
+
+                trail_stop = pos.highest_pnl - trailing_tp_pullback
+                if pnl_pct <= trail_stop:
+                    console.print(
+                        f"  [bold green]\U0001f3af TRAILING TP: {position_key} "
+                        f"peaked {pos.highest_pnl:+.1f}%, now {pnl_pct:+.1f}% "
+                        f"(dropped {pos.highest_pnl - pnl_pct:.1f}% from peak)[/bold green]"
+                    )
+                    if self.listener:
+                        self.listener.send_status_update(
+                            f"\U0001f3af **TRAILING TP**: {position_key} closed "
+                            f"@ {pnl_pct:+.1f}% (peak {pos.highest_pnl:+.1f}%)"
+                        )
+                    self._auto_close(position_key, pos, reason="Trailing TP")
+                    return
+
+            elif pos.scaled_out and pos.highest_pnl > self.scale_out_trigger_pct:
                 trailing_stop = pos.highest_pnl - self.trailing_stop_buffer_pct
-                # Never let the trailing stop go below breakeven once we've
-                # activated the breakeven guard
                 if breakeven_active:
                     trailing_stop = max(trailing_stop, 0.0)
                 current_sl = trailing_stop
-                log.debug(
-                    "%s trailing stop: peak=%.1f%% → stop=%.1f%%",
-                    position_key, pos.highest_pnl, current_sl,
-                )
 
-            # BREAKEVEN guard (existing logic, unchanged)
-            if pnl_pct >= 10.0 and not breakeven_active:
-                if not pos.scaled_out:          # only snap to 0 if no trailing yet
+            if pnl_pct >= 10.0 and not breakeven_active and not trailing_tp_active:
+                if not pos.scaled_out:
                     current_sl = 0.0
                 breakeven_active = True
                 if self.listener:
                     self.listener.send_status_update(
-                        f"🛡️ **BREAKEVEN**: {position_key} hit 10%. SL moved to 0.0%."
+                        f"\U0001f6e1\ufe0f **BREAKEVEN**: {position_key} hit +10%. SL -> 0%."
                     )
 
-            # ── TIME DECAY EXIT — momentum-aware with extension trailing stop ─
-            # After 30 min with P&L < +2%, check momentum before closing.
-            # If still moving up, extend 5 min — but add a hard trailing floor
-            # so a sudden crash during the extension triggers an immediate close.
             elapsed_mins = (time.time() - start_ts) / 60
-            if elapsed_mins > 30 and pnl_pct < 2.0:
+            if elapsed_mins > 30 and pnl_pct < 2.0 and not trailing_tp_active:
                 last_pnl     = getattr(pos, "_last_decay_check_pnl", None)
                 last_check_t = getattr(pos, "_last_decay_check_t", 0)
                 ext_peak     = getattr(pos, "_extension_peak_pnl", None)
                 now_t        = time.time()
-
-                # If in extension window, enforce hard trailing floor continuously
                 if ext_peak is not None:
-                    # Update peak if we've gone higher during extension
                     if pnl_pct > ext_peak:
                         pos._extension_peak_pnl = pnl_pct
                         ext_peak = pnl_pct
-                    # Hard trailing floor: 5% pullback from extension peak = close now
-                    trailing_floor = ext_peak - 5.0
-                    if pnl_pct < trailing_floor:
+                    if pnl_pct < ext_peak - 5.0:
                         if self.listener:
                             self.listener.send_status_update(
-                                f"🚨 **EXTENSION STOP**: {position_key} dropped "
-                                f"{ext_peak - pnl_pct:.1f}% from extension peak "
-                                f"({ext_peak:+.1f}% → {pnl_pct:+.1f}%). Closing now."
+                                f"\U0001f6a8 **EXTENSION STOP**: {position_key} dropped "
+                                f"{ext_peak - pnl_pct:.1f}% from peak. Closing."
                             )
                         self._auto_close(position_key, pos, reason="Extension Stop")
                         return
-
                 if last_pnl is None:
-                    # First time hitting 30min — record P&L, set extension peak, wait 5 min
                     pos._last_decay_check_pnl = pnl_pct
                     pos._last_decay_check_t   = now_t
                     pos._extension_peak_pnl   = pnl_pct
                     if self.listener:
                         self.listener.send_status_update(
-                            f"⏱️ {position_key} at 30min P&L={pnl_pct:+.1f}% — "
-                            f"watching 5 more minutes for momentum."
+                            f"\u23f1\ufe0f {position_key} at 30min P&L={pnl_pct:+.1f}% — "
+                            f"watching 5 more minutes."
                         )
-                elif now_t - last_check_t >= 300:  # 5 more minutes passed
+                elif now_t - last_check_t >= 300:
                     momentum = pnl_pct - last_pnl
                     if momentum > 1.0:
-                        # Still moving up — extend another 5 min, update baseline
                         pos._last_decay_check_pnl = pnl_pct
                         pos._last_decay_check_t   = now_t
                         if self.listener:
                             self.listener.send_status_update(
-                                f"⏱️ {position_key} momentum +{momentum:.1f}% — "
-                                f"extending 5 more minutes."
+                                f"\u23f1\ufe0f {position_key} momentum +{momentum:.1f}% — extending 5 min."
                             )
                     else:
-                        # Flat or falling — close now
-                        if self.listener:
-                            self.listener.send_status_update(
-                                f"⏱️ **TIME EXIT**: {position_key} stagnant "
-                                f"(momentum {momentum:+.1f}%). Closing."
-                            )
                         self._auto_close(position_key, pos, reason="Time Decay")
                         return
 
+            trail_tag = f" [TRAILING PEAK {pos.highest_pnl:+.1f}%]" if trailing_tp_active else ""
             color = "green" if pnl_pct >= 0 else "red"
             console.print(
-                f"  [{color}]📊 {position_key}  P&L: {pnl_pct:+.1f}%  "
-                f"peak: {pos.highest_pnl:+.1f}%  stop: {current_sl:+.1f}%[/{color}]"
+                f"  [{color}]\U0001f4ca {position_key}  P&L: {pnl_pct:+.1f}%  "
+                f"peak: {pos.highest_pnl:+.1f}%  stop: {current_sl:+.1f}%{trail_tag}[/{color}]"
             )
 
-            # ── UPGRADE: Scale-out — sell 50% at scale_out_trigger_pct ──────
-            # Fires once per position. Reduces qty by half in Webull, logs the
-            # partial fill, then lets the remainder run with the trailing stop.
-            if not pos.scaled_out and pnl_pct >= self.scale_out_trigger_pct:
+            if not pos.scaled_out and not trailing_tp_active                     and pnl_pct >= self.scale_out_trigger_pct:
                 half_qty = max(1, pos.signal.quantity // 2)
-                console.print(
-                    f"  [bold cyan]💰 SCALE-OUT: Selling {half_qty}x at "
-                    f"{pnl_pct:+.1f}% — locking in gains[/bold cyan]"
-                )
+                console.print(f"  [bold cyan]\U0001f4b0 SCALE-OUT: Selling {half_qty}x @ {pnl_pct:+.1f}%[/bold cyan]")
                 ok = self.webull.navigate_to_option(
                     pos.signal.ticker, pos.signal.expiry,
                     pos.signal.strike, pos.signal.option_type,
@@ -710,27 +718,11 @@ class TradeEngine:
                     pos.scaled_out      = True
                     remaining_qty       = pos.signal.quantity - half_qty
                     pos.signal.quantity = remaining_qty
-
-                    # ── GHOST CONTRACT FIX ────────────────────────────────────
-                    # If remaining qty is 0 or less after scale-out (e.g. only
-                    # had 1 contract), purge the position entirely right now.
-                    # Don't leave a ghost tracking a flat position in Webull.
                     if remaining_qty <= 0:
-                        log.info("Scale-out reduced qty to 0 — purging %s", position_key)
-                        if self.listener:
-                            self.listener.send_status_update(
-                                f"💰 **SCALE-OUT COMPLETE**: {position_key} fully closed "
-                                f"@ {pnl_pct:+.1f}%. No contracts remaining."
-                            )
                         with self._lock:
                             self._positions.pop(position_key, None)
-                        # Sync with Webull to confirm flat
-                        try:
-                            self.webull._write_account_cache()
-                        except Exception:
-                            pass
+                        self._save_positions()
                         return
-                    # Sync remaining qty against Webull before continuing
                     try:
                         wb_positions = self.webull.get_open_positions_from_webull() or []
                         wb_qty = next(
@@ -739,8 +731,6 @@ class TradeEngine:
                             None
                         )
                         if wb_qty is not None and wb_qty != remaining_qty:
-                            log.warning("Qty mismatch after scale-out: local=%d webull=%d — syncing",
-                                        remaining_qty, wb_qty)
                             pos.signal.quantity = wb_qty
                             if wb_qty <= 0:
                                 with self._lock:
@@ -748,42 +738,174 @@ class TradeEngine:
                                 return
                     except Exception as e:
                         log.debug("Webull qty sync error: %s", e)
-
                     if self.listener:
                         self.listener.send_status_update(
-                            f"💰 **SCALE-OUT**: Sold {half_qty}x {position_key} "
-                            f"@ {pnl_pct:+.1f}%. {pos.signal.quantity}x remaining."
+                            f"\U0001f4b0 **SCALE-OUT**: Sold {half_qty}x {position_key} "
+                            f"@ {pnl_pct:+.1f}%. {pos.signal.quantity}x remaining — trailing TP now active."
                         )
+                    trailing_tp_active = True
+                    tp_activated_at    = pnl_pct
 
-            # Full profit target hit
-            if pnl_pct >= self.profit_target_pct:
-                console.print(
-                    f"  [bold green]🎯 Profit target hit ({pnl_pct:+.1f}%) — auto-closing[/bold green]"
-                )
-                self._auto_close(position_key, pos, reason="Profit Target")
-                return
+            if not trailing_tp_active:
+                if pos.entry_price <= 1.00:
+                    effective_sl = max(current_sl, 35.0)
+                elif pos.entry_price <= 2.00:
+                    effective_sl = max(current_sl, 25.0)
+                else:
+                    effective_sl = current_sl
 
-            # ── Adaptive stop loss for cheap options ─────────────────────────
-            # Cheap options ($0.50-$1.50) have wide bid/ask spreads that can
-            # trigger a -20% stop on normal noise. Use a wider SL for cheap
-            # options but also check if the trend is still going down before closing.
-            if pos.entry_price <= 1.00:
-                # Very cheap option — use -35% SL (spread noise is $0.20+)
-                effective_sl = max(current_sl, 35.0)
-            elif pos.entry_price <= 2.00:
-                # Cheap option — use -25% SL
-                effective_sl = max(current_sl, 25.0)
-            else:
-                effective_sl = current_sl
+                if pnl_pct <= -effective_sl:
+                    # ── Smart confirmation stop ───────────────────────────────
+                    # Before closing, check if the stock is actually reversing
+                    # or just continuing down. Uses 1-min RSI and price vs
+                    # stop-trigger price to decide.
+                    #
+                    # HOLD if:
+                    #   1. Stock RSI on 1-min is turning up (oversold bounce)
+                    #   2. Stock price is higher than when stop first triggered
+                    #   3. We're within the first 5 min of the stop triggering
+                    #      AND RSI < 20 (extreme oversold — likely to bounce)
+                    #
+                    # CLOSE if:
+                    #   1. RSI still falling after stop triggered
+                    #   2. Stock price lower than trigger price
+                    #   3. Been below stop for more than 10 minutes
 
-            # Stop-loss hit (uses effective_sl)
-            if pnl_pct <= -effective_sl:
-                console.print(
-                    f"  [bold red]🛑 Stop-loss hit ({pnl_pct:+.1f}% vs -{effective_sl:.0f}%) "
-                    f"— auto-closing[/bold red]"
-                )
-                self._auto_close(position_key, pos, reason="Stop Loss")
-                return
+                    sl_first_hit_t     = getattr(pos, "_sl_first_hit_t", None)
+                    sl_trigger_price   = getattr(pos, "_sl_trigger_price", None)
+                    sl_trigger_pnl     = getattr(pos, "_sl_trigger_pnl", None)
+                    sl_checks          = getattr(pos, "_sl_checks", 0)
+
+                    if sl_first_hit_t is None:
+                        # First time hitting stop — record state
+                        pos._sl_first_hit_t   = time.time()
+                        pos._sl_trigger_pnl   = pnl_pct
+                        pos._sl_checks        = 0
+                        # Get current stock price as reference
+                        try:
+                            import yfinance as yf
+                            _tmp = yf.download(
+                                pos.signal.ticker, period="1d",
+                                interval="1m", progress=False, auto_adjust=True)
+                            pos._sl_trigger_price = float(_tmp["Close"].iloc[-1]) if not _tmp.empty else None
+                        except Exception:
+                            pos._sl_trigger_price = None
+
+                        console.print(
+                            f"  [yellow]⚠️  Stop triggered ({pnl_pct:+.1f}% vs "
+                            f"-{effective_sl:.0f}%) — checking for reversal...[/yellow]"
+                        )
+                        if self.listener:
+                            self.listener.send_status_update(
+                                f"⚠️ **STOP TRIGGERED**: {position_key} at "
+                                f"{pnl_pct:+.1f}% — checking RSI + price action "
+                                f"before closing"
+                            )
+                    else:
+                        # Already triggered — run smart confirmation
+                        time_in_stop = time.time() - sl_first_hit_t
+                        pos._sl_checks = sl_checks + 1
+
+                        should_close  = False
+                        close_reason  = ""
+                        should_hold   = False
+                        hold_reason   = ""
+
+                        try:
+                            import yfinance as yf
+                            _df1m = yf.download(
+                                pos.signal.ticker, period="1d",
+                                interval="1m", progress=False, auto_adjust=True)
+
+                            if not _df1m.empty:
+                                _close1m = _df1m["Close"]
+                                current_stock = float(_close1m.iloc[-1])
+
+                                # 1-min RSI
+                                _delta = _close1m.diff()
+                                _gain  = _delta.clip(lower=0).rolling(9).mean()
+                                _loss  = (-_delta.clip(upper=0)).rolling(9).mean()
+                                _rs    = _gain / _loss.replace(0, 1e-10)
+                                _rsi1m = float((100 - 100 / (1 + _rs)).iloc[-1])
+                                _rsi1m_prev = float((100 - 100 / (1 + _rs)).iloc[-2])
+
+                                rsi_turning_up   = _rsi1m > _rsi1m_prev + 0.5
+                                price_recovering = sl_trigger_price and current_stock > sl_trigger_price * 0.999
+                                extreme_oversold = _rsi1m < 20
+
+                                # Price level stop — support broken = close immediately
+                                if pos.price_level_stop > 0 and current_stock < pos.price_level_stop:
+                                    should_close = True
+                                    close_reason = (
+                                        f"price ${current_stock:.2f} broke swing low "
+                                        f"${pos.price_level_stop:.2f} — support gone"
+                                    )
+                                elif rsi_turning_up:
+                                    should_hold = True
+                                    hold_reason = f"RSI1m turning up {_rsi1m_prev:.1f}→{_rsi1m:.1f}"
+                                elif price_recovering:
+                                    should_hold = True
+                                    hold_reason = f"price recovering ${current_stock:.2f} > trigger"
+                                elif extreme_oversold and time_in_stop < 600:
+                                    should_hold = True
+                                    hold_reason = f"RSI1m={_rsi1m:.1f} extreme oversold — bounce likely"
+                                elif time_in_stop > 600:
+                                    should_close = True
+                                    close_reason = f"10 min below stop, RSI={_rsi1m:.1f} no recovery"
+                                elif not rsi_turning_up and not price_recovering:
+                                    if pos._sl_checks >= 4:  # 4 checks × 15s = 1 min
+                                        should_close = True
+                                        close_reason = f"RSI still falling, price not recovering"
+                            else:
+                                # No data — fall back to time-based after 3 min
+                                if time_in_stop > 180:
+                                    should_close = True
+                                    close_reason = "no market data, 3min elapsed"
+
+                        except Exception as e:
+                            log.debug("Smart SL check error: %s", e)
+                            if time_in_stop > 300:
+                                should_close = True
+                                close_reason = "data error, 5min elapsed"
+
+                        if should_hold:
+                            console.print(
+                                f"  [green]⏳ Holding through stop — {hold_reason} "
+                                f"({time_in_stop:.0f}s in stop)[/green]"
+                            )
+                        elif should_close:
+                            console.print(
+                                f"  [bold red]🛑 Stop confirmed — {close_reason}[/bold red]"
+                            )
+                            if self.listener:
+                                self.listener.send_status_update(
+                                    f"🛑 **STOP CLOSED**: {position_key} @ {pnl_pct:+.1f}% "
+                                    f"({close_reason})"
+                                )
+                            self._auto_close(position_key, pos, reason="Stop Loss")
+                            return
+                        else:
+                            console.print(
+                                f"  [yellow]⏳ Watching... {pnl_pct:+.1f}% "
+                                f"({time_in_stop:.0f}s in stop)[/yellow]"
+                            )
+                else:
+                    # Recovered above stop — reset all confirmation state
+                    if getattr(pos, "_sl_first_hit_t", None) is not None:
+                        console.print(
+                            f"  [green]✅ Recovered to {pnl_pct:+.1f}% — "
+                            f"resetting stop confirmation[/green]"
+                        )
+                        if self.listener:
+                            self.listener.send_status_update(
+                                f"✅ **RECOVERED**: {position_key} bounced to "
+                                f"{pnl_pct:+.1f}% — still holding"
+                            )
+                    pos._sl_first_hit_t    = None
+                    pos._sl_trigger_price  = None
+                    pos._sl_trigger_pnl    = None
+                    pos._sl_checks         = 0
+
 
     def _auto_close(self, position_key: str, pos: OpenPosition, reason: str):
         close_signal = TradeSignal(

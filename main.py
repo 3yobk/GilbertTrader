@@ -634,23 +634,74 @@ def main():
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
-    MAX_DAILY_LOSS_PCT  = 15.0   # % of account balance — circuit breaker threshold
-    # Read real account balance from cache to compute dollar limit
+    MAX_DAILY_LOSS_PCT  = 15.0
     _cache_path = os.path.join(os.path.dirname(__file__), "account_cache.json")
     try:
         import json as _json
         with open(_cache_path) as f:
             _acc = _json.load(f)
         _account_balance = float(_acc.get("net_value") or _acc.get("buying_power") or 500.0)
+        # T+1 settlement: use settled cash only to avoid using unsettled funds
+        _settled_cash    = float(_acc.get("settled_cash") or _acc.get("buying_power") or _account_balance)
+        _unsettled       = _account_balance - _settled_cash
+        if _unsettled > 10:
+            console.print(
+                f"[yellow]⚠️  T+1 Settlement: ${_unsettled:.2f} unsettled from recent trades. "
+                f"Using settled cash ${_settled_cash:.2f} for budget.[/yellow]"
+            )
     except Exception:
-        _account_balance = 500.0   # fallback if cache not written yet
+        _account_balance = 500.0
+        _settled_cash    = 500.0
+
     MAX_DAILY_LOSS = -round(_account_balance * MAX_DAILY_LOSS_PCT / 100, 2)
     console.print(
         f"[dim]Circuit breaker: -{MAX_DAILY_LOSS_PCT:.0f}% of "
         f"${_account_balance:.2f} = ${abs(MAX_DAILY_LOSS):.2f}[/dim]"
     )
-    last_research_time  = 0
-    trade_cooldowns     = {}
+
+    # ── Profit streak scaling ─────────────────────────────────────────────────
+    # After 3 consecutive wins: +10% budget
+    # After 2 consecutive losses: -20% budget (protect during drawdown)
+    _base_budget      = float(profile['budget'])
+    _current_budget   = _base_budget
+    _consecutive_wins = 0
+    _consecutive_loss = 0
+
+    def _update_streak_budget(outcome: str):
+        nonlocal _current_budget, _consecutive_wins, _consecutive_loss
+        if outcome == "Win":
+            _consecutive_wins += 1
+            _consecutive_loss  = 0
+            if _consecutive_wins >= 3:
+                new_budget = min(_current_budget * 1.10, _base_budget * 2.0)
+                if new_budget != _current_budget:
+                    _current_budget = round(new_budget, 0)
+                    if listener:
+                        listener.send_status_update(
+                            f"📈 **STREAK BONUS**: {_consecutive_wins} wins in a row! "
+                            f"Budget raised to ${_current_budget:.0f}"
+                        )
+        else:
+            _consecutive_loss += 1
+            _consecutive_wins  = 0
+            if _consecutive_loss >= 2:
+                new_budget = max(_current_budget * 0.80, _base_budget * 0.5)
+                if new_budget != _current_budget:
+                    _current_budget = round(new_budget, 0)
+                    if listener:
+                        listener.send_status_update(
+                            f"📉 **DRAWDOWN PROTECTION**: {_consecutive_loss} losses. "
+                            f"Budget reduced to ${_current_budget:.0f}"
+                        )
+
+    engine.on_trade_closed = _update_streak_budget
+
+    last_research_time   = 0
+    trade_cooldowns      = {}
+    last_heat_alert_ts   = 0
+    last_daily_summary   = ""
+    last_vix_alert_lvl   = 0
+    webull_refresh_fails = 0
     last_heat_alert_ts  = 0
     last_daily_summary  = ""
     last_vix_alert_lvl  = 0
@@ -718,7 +769,7 @@ def main():
                     console.print(f"[dim]Scanning for {direction_label}...[/dim]")
                     found_signals = research_scanner.scan_markets(
                         rsi_threshold=profile['rsi'], listener=listener,
-                        market=market, budget=float(profile['budget']),
+                        market=market, budget=float(_current_budget),
                         tp_pct=profile['tp'], sl_pct=profile['sl'])
 
                     # Iterate through every signal found in the scan one by one
