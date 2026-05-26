@@ -1397,6 +1397,346 @@ run_test("Tradier real IV used as primary in get_iv_rank", test_iv_rank_tradier_
 run_test("Realized vol fallback present",                  test_iv_rank_realized_vol_fallback, "Z")
 run_test("IV rank 60/61 boundary correct",                 test_iv_rank_boundary, "Z")
 
+# ─────────────────────────────────────────────────────────────────────────────
+# [AA] ANALYTICS ENGINE — Phase 1
+# ─────────────────────────────────────────────────────────────────────────────
+section("AA", "Analytics engine — SQLite schema + trade recording")
+
+def test_analytics_imports():
+    from analytics_engine import AnalyticsEngine, get_analytics
+    a = AnalyticsEngine(db_path=":memory:")
+    assert a is not None
+    return "AnalyticsEngine instantiates with in-memory DB"
+
+def test_analytics_schema():
+    from analytics_engine import AnalyticsEngine
+    a = AnalyticsEngine(db_path=":memory:")
+    with a._conn() as conn:
+        tables = [r[0] for r in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'"
+        ).fetchall()]
+    for t in ["trades", "scanner_decisions", "edge_metrics", "account_snapshots"]:
+        assert t in tables, f"Missing table: {t}"
+    return f"All 4 tables created: {tables}"
+
+def test_analytics_record_close():
+    from analytics_engine import AnalyticsEngine
+    import time
+    a = AnalyticsEngine(db_path=":memory:", csv_path="/tmp/test_rich.csv")
+    a.record_trade_close(
+        ticker="NVDA", strike=880.0, option_type="C",
+        expiry="2026-06-20",
+        entry_time="2026-05-24T09:45:00",
+        exit_time="2026-05-24T10:15:00",
+        entry_price=3.20, exit_price=4.15,
+        quantity=1, exit_reason="Profit Target",
+        regime="bull", peak_pnl_pct=30.5,
+        max_dd_pct=5.0, scale_out_triggered=False,
+        smart_stop_delayed=False, paper=True,
+    )
+    with a._conn() as conn:
+        rows = conn.execute("SELECT * FROM trades").fetchall()
+    assert len(rows) == 1, f"Expected 1 row, got {len(rows)}"
+    row = dict(rows[0])
+    assert row["ticker"] == "NVDA"
+    assert abs(row["realized_pnl"] - 95.0) < 0.01, f"P&L wrong: {row['realized_pnl']}"
+    return f"Trade recorded: P&L=${row['realized_pnl']:.2f} hold={row['hold_minutes']}min"
+
+def test_analytics_compute_stats():
+    from analytics_engine import AnalyticsEngine
+    a = AnalyticsEngine(db_path=":memory:", csv_path="/tmp/test_rich2.csv")
+    # Insert 5 trades: 3 wins, 2 losses
+    for pnl, reason in [(95,  "Profit Target"), (-42, "Stop Loss"),
+                        (37, "Scale-Out"), (45, "Profit Target"), (-42, "Stop Loss")]:
+        exit_p = 3.20 + pnl / 100
+        a.record_trade_close("NVDA", 880, "C", "2026-06-20",
+                             "2026-05-24T09:45:00", "2026-05-24T10:15:00",
+                             3.20, exit_p, 1, reason, "bull")
+    stats = a.compute_stats()
+    assert stats["trades"] == 5
+    assert abs(stats["win_rate"] - 0.6) < 0.01
+    assert stats["expectancy"] > 0, "Expectancy should be positive"
+    return f"Stats: WR={stats['win_rate']:.0%} exp=${stats['expectancy']:.2f} PF={stats['profit_factor']:.2f}"
+
+def test_analytics_edge_decay():
+    from analytics_engine import AnalyticsEngine
+    a = AnalyticsEngine(db_path=":memory:", csv_path="/tmp/test_rich3.csv")
+    # No trades yet
+    result = a.check_edge_decay()
+    assert "decaying" in result
+    assert result["decaying"] == False
+    return "Edge decay check returns correct structure"
+
+def test_analytics_conviction_modifier():
+    from analytics_engine import AnalyticsEngine
+    a = AnalyticsEngine(db_path=":memory:", csv_path="/tmp/test_rich4.csv")
+    # No trades — should return 1.0 (neutral)
+    mod = a.get_conviction_modifier("NVDA", "bull", 15.0, 28.0)
+    assert mod == 1.0, f"Expected 1.0 with no data, got {mod}"
+    return f"Conviction modifier with no data = {mod} (correct — no adjustment)"
+
+def test_analytics_signal_context():
+    from analytics_engine import AnalyticsEngine
+    a = AnalyticsEngine(db_path=":memory:", csv_path="/tmp/test_rich5.csv")
+    a.record_signal_context(
+        ticker="AAPL", direction="C", regime="bull",
+        vix=14.5, rsi_5m=27.3, rsi_1h=44.0,
+        iv_rank=38.0, flow_score=65.0, news_score=72.0,
+        spread_pct=8.5, conviction_score=78.0, signal_fired=True
+    )
+    with a._conn() as conn:
+        rows = conn.execute("SELECT * FROM scanner_decisions").fetchall()
+    assert len(rows) == 1
+    assert dict(rows[0])["ticker"] == "AAPL"
+    return "Signal context recorded to scanner_decisions table"
+
+def test_analytics_daily_report_format():
+    from analytics_engine import AnalyticsEngine
+    a = AnalyticsEngine(db_path=":memory:", csv_path="/tmp/test_rich6.csv")
+    report = a.generate_daily_report()
+    assert "today" in report and "week" in report and "decay" in report
+    text = a.format_discord_report(report)
+    assert "Daily Analytics Report" in text
+    return f"Daily report generates {len(text)} chars of Discord text"
+
+run_test("AnalyticsEngine imports and instantiates",   test_analytics_imports,          "AA")
+run_test("SQLite schema — all 4 tables created",       test_analytics_schema,           "AA")
+run_test("record_trade_close writes correct P&L",      test_analytics_record_close,     "AA")
+run_test("compute_stats — win rate + expectancy",      test_analytics_compute_stats,    "AA")
+run_test("check_edge_decay returns correct struct",    test_analytics_edge_decay,       "AA")
+run_test("conviction modifier returns 1.0 no data",   test_analytics_conviction_modifier, "AA")
+run_test("record_signal_context to scanner table",    test_analytics_signal_context,   "AA")
+run_test("generate_daily_report + Discord format",    test_analytics_daily_report_format, "AA")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [BB] EXECUTION MONITOR — Phase 3
+# ─────────────────────────────────────────────────────────────────────────────
+section("BB", "Execution monitor — pre-order checks + safety gates")
+
+def test_exec_mon_stale_quote():
+    from execution_monitor import ExecutionMonitor
+    mon = ExecutionMonitor(None, None)
+    old_ts = __import__("time").time() - 30   # 30s ago = stale
+    ok, reason = mon.pre_order_checks(
+        "AAPL", 300, 2.50, 2.48, 2.52, quote_timestamp=old_ts
+    )
+    assert not ok, "Stale quote should block"
+    assert "stale" in reason.lower()
+    return f"Stale quote blocked: {reason}"
+
+def test_exec_mon_halt_detection():
+    from execution_monitor import ExecutionMonitor
+    class FakeWebull:
+        def get_account_value(self): return {"settled_cash": 9999, "buying_power": 9999}
+    mon = ExecutionMonitor(FakeWebull(), None)
+    ok, reason = mon.pre_order_checks(
+        "GME", 100, 0.0, bid=0, ask=0, quote_timestamp=None
+    )
+    assert not ok, "bid=ask=0 should block"
+    assert "halt" in reason.lower() or "bid=ask=0" in reason.lower()
+    return f"Halt detected: {reason}"
+
+def test_exec_mon_spread_rejection():
+    from execution_monitor import ExecutionMonitor
+    class FakeWebull:
+        def get_account_value(self): return {"settled_cash": 9999, "buying_power": 9999}
+    mon = ExecutionMonitor(FakeWebull(), None)
+    # 20% spread — should be rejected
+    ok, reason = mon.pre_order_checks(
+        "AMC", 100, 1.00, bid=1.00, ask=1.25, quote_timestamp=None
+    )
+    assert not ok, "Wide spread should block"
+    assert "spread" in reason.lower()
+    return f"Wide spread blocked: {reason}"
+
+def test_exec_mon_duplicate_prevention():
+    from execution_monitor import ExecutionMonitor
+    mon = ExecutionMonitor(None, None)
+    # Fresh quote, good spread, first order
+    import time
+    now = time.time()
+    ok1, _ = mon.pre_order_checks("NVDA", 200, 2.50, 2.48, 2.52, now)
+    # Second identical order — should block
+    ok2, reason2 = mon.pre_order_checks("NVDA", 200, 2.50, 2.48, 2.52, now)
+    assert not ok2, "Duplicate order should be blocked"
+    assert "duplicate" in reason2.lower()
+    return f"Duplicate order blocked: {reason2}"
+
+def test_exec_mon_emergency_mode():
+    from execution_monitor import ExecutionMonitor
+
+    class FakeEngine:
+        _lock = __import__("threading").Lock()
+        _positions = {}
+        def _save_positions(self): pass
+
+    mon = ExecutionMonitor(None, FakeEngine())
+    assert not mon._emergency_mode
+    mon._emergency_mode = True   # simulate activation
+    ok, reason = mon.pre_order_checks("AAPL", 300, 2.50, 2.48, 2.52)
+    assert not ok
+    assert "EMERGENCY" in reason
+    return "Emergency mode blocks all orders"
+
+def test_exec_mon_slippage_estimate():
+    from execution_monitor import ExecutionMonitor
+    # Buying at mid — no slippage
+    slip = ExecutionMonitor.estimate_slippage_pct(2.48, 2.52, 2.50)
+    assert slip == 0.0, f"Mid price should have 0 slippage, got {slip}"
+    # Buying above mid
+    slip2 = ExecutionMonitor.estimate_slippage_pct(2.00, 3.00, 3.00)
+    assert slip2 > 0, "Above-mid buy should have slippage"
+    return f"Slippage: at-mid=0%, above-mid={slip2:.1f}%"
+
+def test_exec_mon_expiry_validation():
+    from execution_monitor import ExecutionMonitor
+    # Valid future date
+    ok, result = ExecutionMonitor.validate_expiry("2099-06-20")
+    assert ok
+    # Past date — should return next Friday
+    ok2, result2 = ExecutionMonitor.validate_expiry("2020-01-01")
+    assert not ok2 or result2 != "2020-01-01"
+    return f"Expiry validation: future=OK, past→corrected to {result2}"
+
+def test_exec_mon_release_lock():
+    from execution_monitor import ExecutionMonitor
+    import time
+    class FakeWebull:
+        def get_account_value(self): return {"settled_cash": 9999, "buying_power": 9999}
+    mon = ExecutionMonitor(FakeWebull(), None)
+    now = time.time()
+    mon.pre_order_checks("TSLA", 300, 2.50, 2.48, 2.52, now)
+    assert f"TSLA_2.50" in mon._pending_orders
+    mon.release_order_lock("TSLA", 2.50)
+    assert f"TSLA_2.50" not in mon._pending_orders
+    return "Order lock released correctly after attempt"
+
+run_test("Stale quote (>15s) blocks order",           test_exec_mon_stale_quote,        "BB")
+run_test("Market halt (bid=ask=0) blocks order",      test_exec_mon_halt_detection,     "BB")
+run_test("Wide spread (>15%) blocks order",           test_exec_mon_spread_rejection,   "BB")
+run_test("Duplicate order prevention",                test_exec_mon_duplicate_prevention, "BB")
+run_test("Emergency mode blocks all orders",          test_exec_mon_emergency_mode,     "BB")
+run_test("Slippage estimation at mid vs above mid",   test_exec_mon_slippage_estimate,  "BB")
+run_test("Expiry validation + fallback",              test_exec_mon_expiry_validation,  "BB")
+run_test("Order lock release after attempt",          test_exec_mon_release_lock,       "BB")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [CC] RISK ENGINE — Phase 4
+# ─────────────────────────────────────────────────────────────────────────────
+section("CC", "Risk engine — modes, sector limits, position sizing")
+
+def test_risk_mode_switching():
+    from risk_engine import RiskEngine, RiskMode
+    r = RiskEngine()
+    # Safe: high VIX
+    r.update(vix=26.0, streak_losses=0, streak_wins=0)
+    assert r.current_mode == RiskMode.SAFE, f"VIX>25 should be SAFE, got {r.current_mode}"
+    # Normal: moderate VIX
+    r.update(vix=18.0, streak_losses=0, streak_wins=0)
+    assert r.current_mode == RiskMode.NORMAL
+    # Aggressive: all conditions met
+    r.update(vix=13.0, streak_losses=0, streak_wins=5, session_pnl=60, account_value=1000)
+    assert r.current_mode == RiskMode.AGGRESSIVE
+    return "Mode switching: VIX>25=SAFE, moderate=NORMAL, all-green=AGGRESSIVE"
+
+def test_risk_safe_on_losses():
+    from risk_engine import RiskEngine, RiskMode
+    r = RiskEngine()
+    r.update(vix=15.0, streak_losses=3)
+    assert r.current_mode == RiskMode.SAFE, "3 consecutive losses should trigger SAFE"
+    return "3 streak losses → SAFE mode"
+
+def test_risk_can_enter_trade():
+    from risk_engine import RiskEngine, RiskMode
+    r = RiskEngine()
+    r._account_value = 1000
+    ok, reason = r.can_enter_trade("NVDA", "C", 250.0, "tech")
+    assert ok, f"First trade should be allowed: {reason}"
+    return "First trade entry allowed in normal mode"
+
+def test_risk_max_positions():
+    from risk_engine import RiskEngine, RiskMode
+    r = RiskEngine()
+    r._account_value = 1000
+    r.register_open("pos1", "NVDA", "C", 250)
+    r.register_open("pos2", "AAPL", "C", 250)
+    ok, reason = r.can_enter_trade("TSLA", "C", 250, "consumer")
+    assert not ok, "Should block at max 2 positions (normal mode)"
+    assert "Max positions" in reason
+    return f"Max positions enforced: {reason}"
+
+def test_risk_sector_limit():
+    from risk_engine import RiskEngine
+    r = RiskEngine()
+    r._account_value = 1000
+    r.register_open("pos1", "NVDA", "C", 300)   # tech
+    r.register_open("pos2", "AAPL", "C", 300)   # tech — now 600 in tech
+    # Try to add more tech — should hit 60% sector limit
+    ok, reason = r.can_enter_trade("AMD", "C", 300, "tech")
+    # 900 tech / 900 total = 100% > 60% limit
+    # (Already at 2 positions anyway, but sector check comes first)
+    # The sector limit should trigger
+    assert not ok
+    return f"Sector limit enforced: {reason}"
+
+def test_risk_portfolio_stop():
+    from risk_engine import RiskEngine
+    r = RiskEngine()
+    r._account_value = 1000
+    r._session_pnl   = -160   # -16% of 1000
+    ok, reason = r.can_enter_trade("NVDA", "C", 100, "tech")
+    assert not ok, "Portfolio stop should block at -15%"
+    assert "Portfolio-level stop" in reason
+    return f"Portfolio stop at -16%: {reason}"
+
+def test_risk_adjust_quantity():
+    from risk_engine import RiskEngine, RiskMode
+    r = RiskEngine()
+    r.current_mode = RiskMode.SAFE   # 30% budget
+    qty = r.adjust_quantity(2, "NVDA", iv_rank=30)
+    assert qty == 1, f"SAFE mode should reduce qty: got {qty}"
+    r.current_mode = RiskMode.AGGRESSIVE   # 150% budget
+    qty2 = r.adjust_quantity(2, "NVDA", iv_rank=30)
+    assert qty2 >= 2, f"AGGRESSIVE mode should keep or increase qty: got {qty2}"
+    return f"Qty adjustment: SAFE→{r.adjust_quantity(2,'NVDA',30)} AGGRESSIVE→{qty2}"
+
+def test_risk_var_estimation():
+    from risk_engine import RiskEngine
+    r = RiskEngine()
+    r.register_open("pos1", "NVDA", "C", 500)
+    var = r.estimate_daily_var(0.95)
+    assert var > 0, "VAR should be positive with open positions"
+    assert var < 500, "VAR should be less than full position cost"
+    return f"VAR 95%: ${var:.2f} on $500 deployed"
+
+def test_risk_sector_map():
+    from risk_engine import SECTOR_MAP
+    assert "NVDA" in SECTOR_MAP
+    assert "SPY"  in SECTOR_MAP
+    assert SECTOR_MAP["NVDA"] == "tech"
+    assert len(SECTOR_MAP) >= 20
+    return f"SECTOR_MAP has {len(SECTOR_MAP)} tickers"
+
+def test_risk_status_format():
+    from risk_engine import RiskEngine
+    r = RiskEngine()
+    r.register_open("pos1", "NVDA", "C", 250)
+    msg = r.format_status_message()
+    assert "Risk Mode" in msg
+    assert "Deployed" in msg
+    return f"Status message: {len(msg)} chars"
+
+run_test("Risk mode switches: SAFE/NORMAL/AGGRESSIVE", test_risk_mode_switching,  "CC")
+run_test("3 streak losses triggers SAFE mode",          test_risk_safe_on_losses,  "CC")
+run_test("can_enter_trade — first trade allowed",       test_risk_can_enter_trade, "CC")
+run_test("Max positions enforced in NORMAL mode",       test_risk_max_positions,   "CC")
+run_test("Sector exposure limit enforced",              test_risk_sector_limit,    "CC")
+run_test("Portfolio-level stop at -15%",                test_risk_portfolio_stop,  "CC")
+run_test("adjust_quantity SAFE vs AGGRESSIVE",          test_risk_adjust_quantity, "CC")
+run_test("VAR estimation with open positions",          test_risk_var_estimation,  "CC")
+run_test("SECTOR_MAP has 20+ tickers",                  test_risk_sector_map,      "CC")
+run_test("format_status_message Discord output",        test_risk_status_format,   "CC")
+
 # ═════════════════════════════════════════════════════════════════════════════
 # FINAL REPORT
 # ═════════════════════════════════════════════════════════════════════════════

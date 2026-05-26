@@ -20,6 +20,28 @@ from rich.console import Console
 from rich.table import Table
 from rich.text import Text
 
+# ── Phase 1 + 3 integrations ──────────────────────────────────────────────────
+try:
+    from analytics_engine import get_analytics
+    _analytics = get_analytics()
+    _HAS_ANALYTICS = True
+except ImportError:
+    _HAS_ANALYTICS = False
+    _analytics = None
+
+try:
+    from execution_monitor import ExecutionMonitor
+    _HAS_EXEC_MON = True
+except ImportError:
+    _HAS_EXEC_MON = False
+
+try:
+    from risk_engine import RiskEngine, SECTOR_MAP
+    _HAS_RISK = True
+except ImportError:
+    _HAS_RISK = False
+    SECTOR_MAP = {}
+
 log     = logging.getLogger("trade_engine")
 console = Console()
 
@@ -102,6 +124,18 @@ class TradeEngine:
         self.max_spread_pct   = getattr(self, "max_spread_pct", 0.20)
         self._lock = threading.Lock()
 
+        # Phase 1: analytics engine
+        self.analytics = _analytics
+
+        # Phase 3: execution monitor (wired in after construction by main.py)
+        self.exec_monitor = None
+
+        # Phase 4: risk engine (wired in after construction by main.py)
+        self.risk_engine = None
+
+        # Track smart stop delay per position for analytics
+        self._smart_stop_delayed: dict = {}
+
     # ── FIX: get_session_pnl — reads realized P&L from trade_log.csv ─────────
     def get_session_pnl(self) -> float:
         """
@@ -181,6 +215,48 @@ class TradeEngine:
                       f"{pos.signal.ticker} {pos.signal.strike}{pos.signal.option_type} "
                       f"entry=${pos.entry_price:.2f} exit=${fill_price:.2f} "
                       f"P&L=${profit_amt:.2f}[/bold magenta]")
+
+        # Phase 1: Write rich analytics record
+        if _HAS_ANALYTICS and self.analytics:
+            try:
+                import yfinance as _yf
+                _spy_hist = _yf.Ticker("SPY").history(period="2d", interval="1d")
+                _spy_chg  = 0.0
+                if len(_spy_hist) >= 2:
+                    _spy_chg = float(
+                        (_spy_hist["Close"].iloc[-1] - _spy_hist["Close"].iloc[-2])
+                        / _spy_hist["Close"].iloc[-2] * 100
+                    )
+            except Exception:
+                _spy_chg = 0.0
+
+            _smart_delayed = self._smart_stop_delayed.pop(
+                f"{pos.signal.ticker}_{pos.signal.strike}{pos.signal.option_type}", False
+            )
+            self.analytics.record_trade_close(
+                ticker=pos.signal.ticker,
+                strike=pos.signal.strike,
+                option_type=pos.signal.option_type,
+                expiry=pos.signal.expiry,
+                entry_time=pos.entry_time,
+                exit_time=datetime.utcnow().isoformat(),
+                entry_price=pos.entry_price,
+                exit_price=fill_price,
+                quantity=qty,
+                exit_reason=reason,
+                regime=getattr(self, "_current_regime", "unknown"),
+                peak_pnl_pct=pos.highest_pnl,
+                max_dd_pct=0.0,
+                scale_out_triggered=pos.scaled_out,
+                smart_stop_delayed=_smart_delayed,
+                paper=pos.paper,
+                spy_change_pct=_spy_chg,
+            )
+
+        # Phase 4: update risk engine on close
+        if _HAS_RISK and self.risk_engine:
+            position_key = f"{pos.signal.ticker}_{pos.signal.strike}{pos.signal.option_type}_{pos.signal.expiry}"
+            self.risk_engine.register_close(position_key, profit_amt)
 
         # Callback so main.py can update streak and re-entry block
         if hasattr(self, 'on_trade_closed') and callable(self.on_trade_closed):
@@ -459,6 +535,17 @@ class TradeEngine:
                 f"@ ${fill_price:.2f} x{signal.quantity}\n"
                 f"**{tp_str}** | **{sl_str}**{bracket_note}"
             )
+        # Phase 4: register with risk engine
+        if _HAS_RISK and self.risk_engine:
+            cost = fill_price * 100 * signal.quantity if fill_price else 0
+            self.risk_engine.register_open(
+                position_key, signal.ticker,
+                signal.option_type, cost
+            )
+
+        # Track current regime for analytics
+        self._current_regime = getattr(self, "_current_regime", "unknown")
+
         self._start_monitor(position_key, pos)
 
     def _close_position(self, signal: TradeSignal, position_key: str):
@@ -815,6 +902,9 @@ class TradeEngine:
                     sl_checks          = getattr(pos, "_sl_checks", 0)
 
                     if sl_first_hit_t is None:
+                        # Mark that smart stop delay was used (for analytics)
+                        _delay_key = f"{pos.signal.ticker}_{pos.signal.strike}{pos.signal.option_type}"
+                        self._smart_stop_delayed[_delay_key] = True
                         # First time hitting stop — record state
                         pos._sl_first_hit_t   = time.time()
                         pos._sl_trigger_pnl   = pnl_pct

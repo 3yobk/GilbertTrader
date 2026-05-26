@@ -35,6 +35,30 @@ import research_scanner
 from alerts import (alert_circuit_breaker, alert_big_winner,
                     alert_streak_pause, alert_daily_summary, alert_vix_spike)
 
+# ── Phase 1/3/4 integrations ──────────────────────────────────────────────────
+try:
+    from analytics_engine import get_analytics
+    analytics = get_analytics()
+    log.info("Analytics engine loaded — trade_history.db ready")
+except ImportError:
+    analytics = None
+    log.warning("analytics_engine.py not found — trade recording disabled")
+
+try:
+    from execution_monitor import ExecutionMonitor
+    _HAS_EXEC_MON = True
+except ImportError:
+    _HAS_EXEC_MON = False
+    log.warning("execution_monitor.py not found — execution hardening disabled")
+
+try:
+    from risk_engine import RiskEngine
+    risk_engine = RiskEngine(analytics)
+    log.info("Risk engine loaded — mode: %s", risk_engine.current_mode)
+except ImportError:
+    risk_engine = None
+    log.warning("risk_engine.py not found — advanced risk management disabled")
+
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stdout.reconfigure(line_buffering=True)
 console = Console()
@@ -348,7 +372,7 @@ def _maybe_run_premarket_scan(listener=None):
         log.error("Pre-market scan error: %s", e)
 
 
-def _maybe_send_daily_report(listener=None, engine=None):
+def _maybe_send_daily_report(listener=None, engine=None, analytics_eng=None):
     """
     Daily P&L report: posts to Discord at 4:15 PM ET (15 min after close).
     Shows: trades taken, win rate, P&L, best/worst trade, account balance.
@@ -763,6 +787,7 @@ def main():
     listener.start_in_thread()
     webull._listener = listener
 
+    # ── Construct trade engine ────────────────────────────────────────────────
     engine = TradeEngine(
         webull=webull, market=market, paper=paper_mode,
         profit_target_pct=profile['tp'],
@@ -895,6 +920,19 @@ def main():
                             f"Budget reduced to ${_current_budget:.0f}"
                         )
 
+    # Wire Phase 1/3/4 engines into trade_engine
+    engine.analytics   = analytics
+    engine.risk_engine = risk_engine
+
+    # Wire execution monitor
+    if _HAS_EXEC_MON:
+        exec_monitor = ExecutionMonitor(webull, engine, listener)
+        exec_monitor.start()
+        engine.exec_monitor = exec_monitor
+        log.info("Execution monitor started")
+    else:
+        exec_monitor = None
+
     engine.on_trade_closed = _update_streak_budget
 
     last_research_time   = 0
@@ -976,6 +1014,22 @@ def main():
 
             raw_text = None
 
+            # Update risk engine state every scan cycle
+            if risk_engine:
+                try:
+                    from analytics_engine import AnalyticsEngine
+                    _vix = AnalyticsEngine.get_current_vix()
+                    risk_engine.update(
+                        vix=_vix,
+                        streak_losses=streak_losses,
+                        streak_wins=streak_wins,
+                        session_pnl=engine.get_session_pnl(),
+                        account_value=profile.get("budget", 500) * 2,
+                    )
+                    engine._current_regime = regime_state.get("regime", "unknown")
+                except Exception as _re:
+                    log.debug("risk_engine.update error: %s", _re)
+
             # Research / scanner mode
             # Reset daily counters at midnight
             _today_str = datetime.now().strftime("%Y-%m-%d")
@@ -984,6 +1038,9 @@ def main():
                 daily_trades_count   = 0
                 session_stopped_tickers.clear()
                 log.info("New trading day — daily counters reset")
+                # Reset risk engine session P&L at midnight
+                if risk_engine:
+                    risk_engine._session_pnl = 0.0
 
             if mode_choice in ["2", "3"]:
                 # Adaptive scan interval:
