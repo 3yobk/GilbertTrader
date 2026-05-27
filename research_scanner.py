@@ -288,90 +288,6 @@ def _get_vix() -> Optional[float]:
     return None
 
 
-# ── IV Rank filter ─────────────────────────────────────────────────────────────
-_iv_rank_cache: dict = {}   # ticker -> (iv_rank, timestamp)
-
-def get_iv_rank(ticker: str) -> float:
-    """
-    IV Rank = where current IV sits in its 30-day range (0–100).
-    IV Rank 0  = cheapest options in 30 days → good time to buy.
-    IV Rank 100 = most expensive options in 30 days → buying expensive premium.
-    Skip entry when IV Rank > 60.
-
-    Primary source: Tradier options chain (real implied volatility).
-    Fallback:       yfinance 30-day realized vol as a proxy.
-    Cached 10 min per ticker.
-    """
-    now = time.time()
-    cached = _iv_rank_cache.get(ticker)
-    if cached and now - cached[1] < 600:
-        return cached[0]
-
-    # ── Primary: Tradier real IV ─────────────────────────────────────────────
-    if _HAS_TRADIER:
-        try:
-            exp_r = requests.get(
-                "https://api.tradier.com/v1/markets/options/expirations",
-                headers=_tradier_headers(),
-                params={"symbol": ticker, "includeAllRoots": "true"},
-                timeout=5,
-            )
-            if exp_r.ok:
-                exps = exp_r.json().get("expirations", {}).get("date", [])
-                if isinstance(exps, str):
-                    exps = [exps]
-                if exps:
-                    expiry = sorted(exps)[0]
-                    chain_r = requests.get(
-                        "https://api.tradier.com/v1/markets/options/chains",
-                        headers=_tradier_headers(),
-                        params={"symbol": ticker, "expiration": expiry, "greeks": "true"},
-                        timeout=5,
-                    )
-                    if chain_r.ok:
-                        chain = chain_r.ok and chain_r.json().get("options", {}).get("option", [])
-                        if isinstance(chain, dict):
-                            chain = [chain]
-                        ivs = [float(o["greeks"]["smv_vol"]) * 100
-                               for o in (chain or [])
-                               if o.get("greeks") and o["greeks"].get("smv_vol")]
-                        if ivs:
-                            current_iv = sum(ivs) / len(ivs)
-                            # Build 30-day IV history via yfinance realized vol as range anchor
-                            import yfinance as yf
-                            hist = yf.Ticker(ticker).history(period="30d", interval="1d")
-                            if not hist.empty and len(hist) >= 10:
-                                rets  = hist["Close"].pct_change().dropna()
-                                vols  = rets.rolling(5).std().dropna() * (252 ** 0.5) * 100
-                                low   = float(vols.min())
-                                high  = float(vols.max()) * 1.5  # scale to option IV range
-                                if high > low:
-                                    iv_rank = round(max(0, min(100, (current_iv - low) / (high - low) * 100)), 1)
-                                    _iv_rank_cache[ticker] = (iv_rank, now)
-                                    return iv_rank
-        except Exception as e:
-            log.debug("get_iv_rank Tradier error for %s: %s", ticker, e)
-
-    # ── Fallback: yfinance realized vol ──────────────────────────────────────
-    try:
-        import yfinance as yf
-        hist = yf.Ticker(ticker).history(period="30d", interval="1d")
-        if hist.empty or len(hist) < 10:
-            return 50.0
-        rets     = hist["Close"].pct_change().dropna()
-        vols     = rets.rolling(5).std().dropna() * (252 ** 0.5) * 100
-        min_vol  = float(vols.min())
-        max_vol  = float(vols.max())
-        if max_vol == min_vol:
-            return 50.0
-        iv_rank = round((float(vols.iloc[-1]) - min_vol) / (max_vol - min_vol) * 100, 1)
-        _iv_rank_cache[ticker] = (iv_rank, now)
-        return iv_rank
-    except Exception as e:
-        log.debug("get_iv_rank fallback error for %s: %s", ticker, e)
-        return 50.0
-
-
 # ── GEX (Gamma Exposure) ──────────────────────────────────────────────────────
 
 def get_gex(ticker: str, current_price: float) -> dict:
@@ -865,78 +781,86 @@ def _build_signal(ticker: str, current_price: float,
                   option_type: str = "C",
                   execution_mode: dict = None) -> tuple:
     """
-    Price-aware strike selector with auto expiry routing.
-
-    CALLS (bull market): OTM strike just above spot — max gamma leverage
-    PUTS  (bear market): strike at/slightly above spot — captures downside move
-
-    Tiers:
-      <= $30:  $0.50 intervals
-      <= $100: $1.00 intervals
-      > $100:  $5.00 intervals
-
-    Expiry:
-      Mon/Tue/Wed → this Friday
-      Thursday    → next Friday (skip overnight theta crush)
-      Friday      → next Friday
+    Price-aware strike selector with real expiry from Tradier.
+    Strike: $1 above spot for calls (NOT $5 — too far OTM for 0DTE).
+    Expiry: uses Tradier nearest available, skips today if < 2h left.
     """
     if option_type == "C":
-        # OTM call — slightly above spot
         if current_price <= 30.0:
             strike = round(current_price * 2) / 2 + 0.5
             strike = int(strike) if strike == int(strike) else strike
         elif current_price <= 100.0:
             strike = int(round(current_price)) + 1
         else:
-            strike = int((current_price // 5) * 5) + 5
+            # $1 above spot — NOT $5 intervals (too far OTM for 0DTE)
+            strike = int(round(current_price)) + 1
     else:
-        # PUT — strike AT or slightly above spot to be ATM/slightly ITM
         if current_price <= 30.0:
             strike = round(current_price * 2) / 2
             strike = int(strike) if strike == int(strike) else strike
         elif current_price <= 100.0:
             strike = int(round(current_price))
         else:
-            strike = int((current_price // 5) * 5) + 5
+            strike = int(round(current_price))
 
-    # ── Expiry routing ────────────────────────────────────────────────────────
-    # Day-trading rule: use same-day (0DTE) expiry Mon–Thu before 2 PM ET
-    # for maximum gamma on intraday moves. Fall back to this Friday:
-    #   - After 2 PM ET (too little time for 0DTE, theta kills you)
-    #   - On Friday (0DTE = today, fine to use)
-    #   - On Thursday (skip to next Friday — overnight theta crush)
-    import pytz as _pytz
-    _et      = _pytz.timezone("America/New_York")
-    today    = datetime.now(_et)
-    weekday  = today.weekday()   # 0=Mon … 6=Sun
-    _hour_et = today.hour
-
+    # ── Real expiry from Tradier ───────────────────────────────────────────────
     theta_rolled = False
-    use_0dte     = False
+    expiry_str   = None
 
-    if weekday == 4:                          # Friday — 0DTE is today, always use it
-        exp_dt   = today
-        use_0dte = True
-    elif weekday == 3:                        # Thursday — skip to next Friday
-        exp_dt       = today + timedelta(days=8)
-        theta_rolled = True
-    elif _hour_et < 14:                       # Mon/Tue/Wed before 2 PM → 0DTE today
-        exp_dt   = today
-        use_0dte = True
-    else:                                     # Mon/Tue/Wed after 2 PM → this Friday
-        days_to_fri = (4 - weekday) % 7
-        exp_dt      = today + timedelta(days=days_to_fri)
+    if _HAS_TRADIER:
+        try:
+            r = requests.get(
+                "https://api.tradier.com/v1/markets/options/expirations",
+                headers=_tradier_headers(),
+                params={"symbol": ticker, "includeAllRoots": "true"},
+                timeout=5,
+            )
+            if r.ok:
+                exps = r.json().get("expirations", {}).get("date", [])
+                if isinstance(exps, str):
+                    exps = [exps]
+                if exps:
+                    today_dt  = datetime.now()
+                    today_str = today_dt.strftime("%Y-%m-%d")
+                    # Allow today's expiry only if > 2h before 4 PM close
+                    import pytz as _tz
+                    try:
+                        ET_now = datetime.now(_tz.timezone("America/New_York"))
+                        allow_today = ET_now.hour < 14   # before 2 PM ET
+                    except Exception:
+                        allow_today = today_dt.hour < 14
+                    for exp in sorted(exps):
+                        if exp == today_str and allow_today:
+                            expiry_str = exp
+                            break
+                        elif exp > today_str:
+                            expiry_str = exp
+                            theta_rolled = True
+                            break
+        except Exception as e:
+            log.debug("Tradier expiry error: %s", e)
 
-    expiry = f"{exp_dt.month}/{exp_dt.day}"
-    qty    = f" x{contracts}" if contracts > 1 else ""
+    if not expiry_str:
+        # Fallback: nearest Friday
+        today_dt = datetime.now()
+        days     = (4 - today_dt.weekday()) % 7
+        if days == 0:
+            days = 7
+        exp_dt     = today_dt + timedelta(days=days)
+        expiry_str = exp_dt.strftime("%Y-%m-%d")
 
-    if use_0dte:
-        log.info("0DTE routing: %s %s%s exp %s", ticker, strike, option_type, expiry)
-    if theta_rolled:
-        log.info("Thursday — expiry rolled to next Friday: %s %s%s %s",
-                 ticker, strike, option_type, expiry)
+    # Format as M/D
+    try:
+        exp_date    = datetime.strptime(expiry_str, "%Y-%m-%d")
+        expiry_disp = f"{exp_date.month}/{exp_date.day}"
+    except Exception:
+        expiry_disp = expiry_str
 
-    return f"BTO {ticker} {strike}{option_type} {expiry}{qty}", theta_rolled
+    qty = f" x{contracts}" if contracts > 1 else ""
+    log.info("Signal built: %s %s%s %s%s (theta_rolled=%s)",
+             ticker, strike, option_type, expiry_disp, qty, theta_rolled)
+    return f"BTO {ticker} {strike}{option_type} {expiry_disp}{qty}", theta_rolled
+
 
 
 # ── Session stats (module-level, reset each scan call) ────────────────────────
@@ -989,11 +913,10 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     regime_icon = {"bull": "🟢", "bear": "🔴", "neutral": "🟡"}.get(regime, "⚪")
     print(f"\n  [Regime] SPY {regime_icon} {regime.upper()} | SPY vs SMA20: {spy_vs_sma:+.1f}%")
 
-    # Dual-scan: both directions always evaluated. Regime adjusts conviction, not direction.
-    regime_call_mod = {"bull": +15, "neutral": 0, "bear": -15}[regime]
-    regime_put_mod  = {"bull": -15, "neutral": 0, "bear": +15}[regime]
-    print(f"  [Regime] {regime_icon} {regime.upper()} | DUAL-SCAN active "
-          f"(calls {regime_call_mod:+d}pts / puts {regime_put_mod:+d}pts conviction)")
+    if regime == "bear":
+        print("  [Regime] 🔴 Bear market — AUTO-SWITCHING to PUT mode (RSI > 70 overbought signals)")
+    else:
+        print(f"  [Regime] SPY {regime_icon} {regime.upper()} | SPY vs SMA20: {spy_vs_sma:+.1f}% — CALL mode (RSI < {rsi_threshold} oversold)")
 
     # ── VIX filter ────────────────────────────────────────────────────────────
     vix_level = _get_vix()
@@ -1018,7 +941,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     if _hm < 9 * 60 + 35:
         print("  [Time] First 5 min after open — skipping scan (chop zone)")
         return []
-    if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
+        #if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
         print("  [Time] Lunch chop zone (11:45–1:30 ET) — skipping scan")
         return []
 
@@ -1088,387 +1011,281 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 "kind":   "skip",
             })
 
-            # ── Gate 1: Dual-scan — evaluate CALLS and PUTS independently ────
-            # Both directions are checked for every ticker.
-            # Regime shifts conviction score (±15 pts) rather than hard-blocking.
-            # A ticker can produce a CALL signal, a PUT signal, or both (rare).
-            _directions_to_check = []
+            # ── Gate 1: Auto regime-driven direction ──────────────────────────
+            # Bull market  → scan for oversold RSI < threshold → buy CALLS
+            # Bear market  → scan for overbought RSI > (100-threshold) → buy PUTS
+            # Neutral      → bull logic (calls only)
+            if regime == "bear":
+                short_threshold = 100 - rsi_threshold
+                if current_rsi < short_threshold:
+                    _session_stats["skipped"] += 1
+                    continue
+                target_option_type = "P"
+            else:
+                if current_rsi >= eff_threshold:
+                    _session_stats["skipped"] += 1
+                    continue
+                target_option_type = "C"
 
-            call_threshold = eff_threshold          # RSI < 30 → oversold → CALL
-            put_threshold  = 100 - rsi_threshold    # RSI > 70 → overbought → PUT
+            # ── Gate 1a: RSI upturn confirmation ──────────────────────────────
+            # Requires RSI to have bottomed AND be turning back up AND
+            # price to have made a higher low. Much stricter than just RSI < 30.
+            if target_option_type == "C":
+                if not rsi_is_turning_up(df, current_rsi,
+                                         lookback=3, rsi_threshold=float(rsi_threshold)):
+                    skip_reasons["RSI still falling"] = skip_reasons.get("RSI still falling", 0) + 1
+                    print(f"    [Skip] {ticker}: RSI still falling — waiting for upturn + higher low")
+                    _session_stats["skipped"] += 1
+                    continue
+            # (For puts, we don't require upturn — we want the RSI to keep falling)
 
-            if current_rsi < call_threshold:
-                _directions_to_check.append("C")
-            if current_rsi > put_threshold:
-                _directions_to_check.append("P")
-
-            if not _directions_to_check:
+            # ── Gate 1b: SPY intraday correlation ─────────────────────────────
+            # Don't buy calls if SPY is down more than 0.5% on the day.
+            # A falling market kills call premiums even on oversold stocks.
+            # Only check once per scan cycle (cached via _spy_intraday_cache).
+            _spy_chg = getattr(scan_markets, "_spy_intraday_cache", None)
+            _spy_chg_t = getattr(scan_markets, "_spy_intraday_cache_t", 0)
+            if time.time() - _spy_chg_t > 300 or _spy_chg is None:
+                _spy_chg = get_spy_intraday_change()
+                scan_markets._spy_intraday_cache   = _spy_chg
+                scan_markets._spy_intraday_cache_t = time.time()
+            if target_option_type == "C" and _spy_chg < -0.5:
+                skip_reasons["SPY falling"] = skip_reasons.get("SPY falling", 0) + 1
+                print(f"    [Skip] {ticker}: SPY down {_spy_chg:.2f}% today — avoiding calls")
                 _session_stats["skipped"] += 1
                 continue
 
-            for target_option_type in _directions_to_check:
+            # ── Gate 1c: Earnings calendar check ──────────────────────────────
+            # Skip if earnings within 48 hours — IV spikes make options
+            # expensive and price action unpredictable around reports.
+            if has_earnings_soon(ticker, days=2):
+                skip_reasons["Earnings soon"] = skip_reasons.get("Earnings soon", 0) + 1
+                print(f"    [Skip] {ticker}: Earnings within 48h — skipping")
+                _session_stats["skipped"] += 1
+                continue
 
-                # ── Gate 1a: RSI upturn confirmation (calls only) ────────────────
-                if target_option_type == "C":
-                    if not rsi_is_turning_up(df, current_rsi,
-                                             lookback=3, rsi_threshold=float(rsi_threshold)):
-                        skip_reasons["RSI still falling"] = skip_reasons.get("RSI still falling", 0) + 1
-                        print(f"    [Skip] {ticker}/C: RSI still falling — waiting for upturn + higher low")
-                        _session_stats["skipped"] += 1
-                        continue
-                # (For puts, we want RSI to keep falling — no upturn check)
-
-                # ── Gate 1b: SPY intraday correlation ─────────────────────────────
-                # Don't buy calls if SPY is down more than 0.5% on the day.
-                # A falling market kills call premiums even on oversold stocks.
-                # Only check once per scan cycle (cached via _spy_intraday_cache).
-                _spy_chg = getattr(scan_markets, "_spy_intraday_cache", None)
-                _spy_chg_t = getattr(scan_markets, "_spy_intraday_cache_t", 0)
-                if time.time() - _spy_chg_t > 300 or _spy_chg is None:
-                    _spy_chg = get_spy_intraday_change()
-                    scan_markets._spy_intraday_cache   = _spy_chg
-                    scan_markets._spy_intraday_cache_t = time.time()
-                if target_option_type == "C" and _spy_chg < -0.5:
-                    skip_reasons["SPY falling"] = skip_reasons.get("SPY falling", 0) + 1
-                    print(f"    [Skip] {ticker}: SPY down {_spy_chg:.2f}% today — avoiding calls")
+            # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
+            # Exception: RSI < 20 is so extreme that a bounce is likely
+            # regardless of longer-term trend — bypass SMA-200 block
+            if not is_trend_bullish(ticker):
+                if current_rsi < 20:
+                    print(f"    [Override] {ticker}: Below SMA-200 but RSI={current_rsi:.1f} extreme — allowing")
+                else:
+                    skip_reasons["Below SMA-200"] = skip_reasons.get("Below SMA-200", 0) + 1
+                    print(f"    [Skip] {ticker}: Below SMA-200")
                     _session_stats["skipped"] += 1
                     continue
 
-                # ── Gate 1c: Earnings calendar check ──────────────────────────────
-                # Skip if earnings within 48 hours — IV spikes make options
-                # expensive and price action unpredictable around reports.
-                if has_earnings_soon(ticker, days=2):
-                    skip_reasons["Earnings soon"] = skip_reasons.get("Earnings soon", 0) + 1
-                    print(f"    [Skip] {ticker}: Earnings within 48h — skipping")
+            # ── Gate 3: Volume surge ──────────────────────────────────────────
+            if not volume_surge:
+                skip_reasons["Weak volume"] = skip_reasons.get("Weak volume",0)+1
+                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 1.5x)")
+                _session_stats["skipped"] += 1
+                continue
+
+            # ── Gate 4: 1-hour RSI ────────────────────────────────────────────
+            if not get_hour_rsi_alignment(ticker):
+                skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak",0)+1
+                print(f"    [Skip] {ticker}: 1hr RSI too weak")
+                _session_stats["skipped"] += 1
+                continue
+
+            # ── Gate 4b: 15-minute RSI multi-timeframe ────────────────────────
+            # 5-min AND 15-min both oversold = much higher conviction.
+            # Doesn't block but shown in output. High conviction when both align.
+            rsi_15m       = get_15min_rsi(ticker)
+            mtf_confirmed = rsi_15m < (rsi_threshold + 5)
+            mtf_tag       = f"✅15m={rsi_15m:.1f}" if mtf_confirmed else f"⚠️15m={rsi_15m:.1f}"
+
+            # ── Gate 4c: Sector correlation ───────────────────────────────────
+            # Skip calls if sector ETF is down > 0.8% on the day.
+            if target_option_type == "C":
+                sector_chg = get_sector_change(ticker)
+                if sector_chg < -0.8:
+                    skip_reasons["Sector falling"] = skip_reasons.get("Sector falling", 0) + 1
+                    print(f"    [Skip] {ticker}: Sector down {sector_chg:.2f}% today")
+                    _session_stats["skipped"] += 1
+                    continue
+                elif sector_chg < -0.3:
+                    print(f"    [⚠️ Sector] {ticker}: Sector soft {sector_chg:.2f}%")
+
+            # ── Options flow check ───────────────────────────────────────────
+            flow     = check_options_flow(ticker, target_option_type)
+            flow_tag = f"flow={flow['score']} {'UNUSUAL' if flow['unusual'] else ''}"
+            print(f"    [Flow] {ticker}: {flow_tag} | PCR={flow['pcr']:.2f} "
+                  f"calls={flow['call_vol']} puts={flow['put_vol']}")
+
+            # Bull regime: need high call flow AND PCR < 1.0 (more calls than puts)
+            # Bear regime: need high put flow (pcr >= 0.6 or put_vol > call_vol)
+            flow_passes = (
+                    (target_option_type == "C" and flow["score"] >= 35 and flow["pcr"] < 1.0) or
+                    (target_option_type == "P" and (flow["pcr"] >= 0.6 or flow["put_vol"] > flow["call_vol"]))
+            )
+            if not flow_passes:
+                label = ("Options flow too bearish" if target_option_type == "C"
+                         else "No unusual put flow")
+                skip_reasons[label] = skip_reasons.get(label, 0) + 1
+                print(f"    [Skip] {ticker}: {label} "
+                      f"(score={flow['score']} PCR={flow['pcr']:.2f})")
+                _session_stats["skipped"] += 1
+                continue
+
+            # ── Upgrade 2: Options flow check ────────────────────────────────
+            flow = check_options_flow(ticker, "C")
+            flow_tag = f"flow={flow['score']} {'UNUSUAL' if flow['unusual'] else ''}"
+            print(f"    [Flow] {ticker}: {flow_tag} | PCR={flow['pcr']:.2f} "
+                  f"calls={flow['call_vol']} puts={flow['put_vol']}")
+
+            if flow["score"] < 35:
+                skip_reasons["Options flow too bearish"] = skip_reasons.get("Options flow too bearish",0)+1
+                print(f"    [Skip] {ticker}: Options flow too bearish (score={flow['score']})")
+                _session_stats["skipped"] += 1
+                continue
+
+            # ── Gate 7: GEX (Gamma Exposure) ─────────────────────────────────
+            # Negative GEX = dealers short gamma = stock moves aggressively = good for scalping
+            # Positive GEX = stock gets pinned = bad for 0DTE scalps
+            gex = get_gex(ticker, current_price)
+            if gex["available"]:
+                gex_tag = (f"GEX={gex['gex']}M {gex['gex_signal'].upper()} "
+                           f"pin={gex['pin_level']}")
+                print(f"    [GEX] {ticker}: {gex_tag}")
+                if not gex["gex_ok"]:
+                    skip_reasons["GEX pinned"] = skip_reasons.get("GEX pinned", 0) + 1
+                    print(f"    [Skip] {ticker}: GEX positive — stock likely pinned")
                     _session_stats["skipped"] += 1
                     continue
 
-                # ── Gate 2: SMA-200 trend ─────────────────────────────────────────
-                # Calls: must be above SMA-200. Puts: below SMA-200 is ideal.
-                _is_bullish = is_trend_bullish(ticker)
-                if target_option_type == "C":
-                    if not _is_bullish:
-                        if current_rsi < 20:
-                            print(f"    [Override] {ticker}/C: Below SMA-200 but RSI={current_rsi:.1f} extreme — allowing")
-                        else:
-                            skip_reasons["Below SMA-200"] = skip_reasons.get("Below SMA-200", 0) + 1
-                            print(f"    [Skip] {ticker}/C: Below SMA-200 — no calls on weak stocks")
-                            _session_stats["skipped"] += 1
-                            continue
-                else:  # PUT
-                    if not _is_bullish:
-                        print(f"    [✅ SMA-200] {ticker}/P: Below SMA-200 — structurally weak, put confirmed")
-                    elif current_rsi < 80:
-                        skip_reasons["Above SMA-200 not extreme"] = skip_reasons.get("Above SMA-200 not extreme", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Above SMA-200, RSI={current_rsi:.1f} — not extreme enough for puts")
-                        _session_stats["skipped"] += 1
-                        continue
+            # ── Upgrade 3: Kelly position sizing ─────────────────────────────
+            # Estimate OTM option price (scanner buys slightly OTM calls).
+            # OTM options are significantly cheaper than ATM.
+            # Real-world: AAPL $300 → 305C costs ~$1.50-2.00 → $150-200/contract
+            #             NVDA $224 → 230C costs ~$1.50-2.00 → $150-200/contract
+            #             AVGO $419 → 430C costs ~$1.00-1.50 → $100-150/contract
 
-                # ── Gate 3: Volume surge ──────────────────────────────────────────
-                if not volume_surge:
-                    skip_reasons["Weak volume"] = skip_reasons.get("Weak volume",0)+1
-                    print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 1.5x)")
-                    _session_stats["skipped"] += 1
-                    continue
-
-                # ── Gate 5: News filter ────────────────────────────────────────────
-                # Calls: bad news (earnings miss, lawsuit, etc.) → skip
-                # Puts:  bad news is a TAILWIND → skip only if GOOD news dominates
-                # Score 0-100: < 40 = bad news, > 70 = clean, 40-70 = caution
-                if _HAS_NEWS_FILTER:
-                    news_r     = check_news(ticker)
-                    news_score = news_r["score"]
-                    news_verdict = news_r["verdict"]
-                    if target_option_type == "C":
-                        if news_score < 40:
-                            skip_reasons["Bad news"] = skip_reasons.get("Bad news", 0) + 1
-                            print(f"    [Skip] {ticker}/C: Bad news score={news_score} ({news_verdict}) — {news_r['bad_found'][:1]}")
-                            _session_stats["skipped"] += 1
-                            continue
-                        else:
-                            print(f"    [News] {ticker}/C: score={news_score} {news_verdict} ✅")
-                    else:  # PUT — bad news is a tailwind, good news is a headwind
-                        if news_score > 70:
-                            skip_reasons["Good news blocks put"] = skip_reasons.get("Good news blocks put", 0) + 1
-                            print(f"    [Skip] {ticker}/P: Too much good news score={news_score} — headwind for puts")
-                            _session_stats["skipped"] += 1
-                            continue
-                        else:
-                            mood = "tailwind" if news_score < 40 else "neutral"
-                            print(f"    [News] {ticker}/P: score={news_score} {news_verdict} ✅ ({mood})")
-
-                # ── Gate 4: 1-hour RSI — direction-aware, skip before 10 AM ─────────
-                # Calls: hourly RSI > 40 — not in hourly freefall
-                # Puts:  hourly RSI < 60 — actually weakening on hourly, not a blip
-                # Before 10 AM: skip (not enough hourly bars since open)
-                _skip_gate4 = False
+            # ── Option price estimate & contract sizing ───────────────────────
+            # Try to get real mid-price from Tradier options chain first
+            real_option_price = None
+            if _HAS_TRADIER:
                 try:
-                    import pytz as _pytz_g4
-                    _et_g4 = datetime.now(_pytz_g4.timezone("America/New_York"))
-                    if _et_g4.hour < 10:
-                        _skip_gate4 = True
-                        print(f"    [Gate4] {ticker}: skipping hourly RSI before 10 AM")
+                    from market_feed import MarketFeed as _MF
+                    # Use flow data bid/ask if available
+                    chain_bid = flow.get("best_bid", 0)
+                    chain_ask = flow.get("best_ask", 0)
+                    if chain_bid and chain_ask:
+                        real_option_price = round((chain_bid + chain_ask) / 2, 2)
                 except Exception:
                     pass
 
-                if not _skip_gate4:
-                    try:
-                        _df1h = _flatten(yf.download(ticker, period="5d", interval="1h", progress=False))
-                        if not _df1h.empty and len(_df1h) >= 14:
-                            _rsi1h_s = ta.rsi(_df1h["Close"].dropna(), length=14)
-                            if _rsi1h_s is not None and not _rsi1h_s.dropna().empty:
-                                _rsi1h = float(_rsi1h_s.dropna().iloc[-1])
-                                if target_option_type == "C" and _rsi1h <= 40:
-                                    skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak", 0) + 1
-                                    print(f"    [Skip] {ticker}/C: 1hr RSI={_rsi1h:.1f} ≤ 40 — hourly downtrend")
-                                    _session_stats["skipped"] += 1
-                                    continue
-                                elif target_option_type == "P" and _rsi1h >= 60:
-                                    skip_reasons["1hr RSI too strong"] = skip_reasons.get("1hr RSI too strong", 0) + 1
-                                    print(f"    [Skip] {ticker}/P: 1hr RSI={_rsi1h:.1f} ≥ 60 — not weakening on hourly")
-                                    _session_stats["skipped"] += 1
-                                    continue
-                                else:
-                                    print(f"    [Gate4] {ticker}/{target_option_type}: 1hr RSI={_rsi1h:.1f} ✅")
-                    except Exception as _g4e:
-                        log.debug("Gate 4 hourly RSI error: %s", _g4e)
-
-                # ── Gate 4b: 15-minute RSI multi-timeframe ────────────────────────
-                # 5-min AND 15-min both oversold = much higher conviction.
-                # Doesn't block but shown in output. High conviction when both align.
-                rsi_15m       = get_15min_rsi(ticker)
-                mtf_confirmed = rsi_15m < (rsi_threshold + 5)
-                mtf_tag       = f"✅15m={rsi_15m:.1f}" if mtf_confirmed else f"⚠️15m={rsi_15m:.1f}"
-
-                # ── Gate 4c: Sector correlation ───────────────────────────────────
-                # Calls: sector falling > 0.8% is a headwind — skip
-                # Puts:  sector falling > 0.8% is a tailwind — confirm signal
-                #        sector rising  > 0.8% is a headwind for puts — skip
-                sector_chg = get_sector_change(ticker)
-                if target_option_type == "C":
-                    if sector_chg < -0.8:
-                        skip_reasons["Sector falling"] = skip_reasons.get("Sector falling", 0) + 1
-                        print(f"    [Skip] {ticker}/C: Sector down {sector_chg:.2f}% — headwind for calls")
-                        _session_stats["skipped"] += 1
-                        continue
-                    elif sector_chg < -0.3:
-                        print(f"    [⚠️ Sector] {ticker}/C: Sector soft {sector_chg:.2f}%")
-                else:  # PUT
-                    if sector_chg > 0.8:
-                        skip_reasons["Sector rising"] = skip_reasons.get("Sector rising", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Sector up {sector_chg:.2f}% — headwind for puts")
-                        _session_stats["skipped"] += 1
-                        continue
-                    elif sector_chg < -0.8:
-                        print(f"    [✅ Sector] {ticker}/P: Sector down {sector_chg:.2f}% — tailwind for puts")
-
-                # ── Options flow check ───────────────────────────────────────────
-                flow     = check_options_flow(ticker, target_option_type)
-                flow_tag = f"flow={flow['score']} {'UNUSUAL' if flow['unusual'] else ''}"
-                print(f"    [Flow] {ticker}: {flow_tag} | PCR={flow['pcr']:.2f} "
-                      f"calls={flow['call_vol']} puts={flow['put_vol']}")
-
-                # Bull regime: need high call flow AND PCR < 1.0 (more calls than puts)
-                # Bear regime: need high put flow (pcr >= 0.6 or put_vol > call_vol)
-                flow_passes = (
-                        (target_option_type == "C" and flow["score"] >= 35 and flow["pcr"] < 1.0) or
-                        (target_option_type == "P" and (flow["pcr"] >= 0.6 or flow["put_vol"] > flow["call_vol"]))
-                )
-                if not flow_passes:
-                    label = ("Options flow too bearish" if target_option_type == "C"
-                             else "No unusual put flow")
-                    skip_reasons[label] = skip_reasons.get(label, 0) + 1
-                    print(f"    [Skip] {ticker}: {label} "
-                          f"(score={flow['score']} PCR={flow['pcr']:.2f})")
-                    _session_stats["skipped"] += 1
-                    continue
-
-                # ── Gate 6b: IV Rank filter ───────────────────────────────────────
-                # Skip when IV Rank > 60 — options are expensive relative to recent
-                # history and even a correct directional move may not profit.
-                # Calls AND puts both benefit from low IV rank (cheap premium).
-                iv_rank = get_iv_rank(ticker)
-                if iv_rank > 60:
-                    skip_reasons["IV too high"] = skip_reasons.get("IV too high", 0) + 1
-                    print(f"    [Skip] {ticker}: IV Rank={iv_rank:.0f} > 60 — premium too expensive")
-                    _session_stats["skipped"] += 1
-                    continue
+            if real_option_price and real_option_price > 0:
+                est_option_price = real_option_price
+            elif _HAS_TRADIER and target_option_type == "C":
+                if current_price > 200:
+                    est_option_price = round(current_price * 0.012, 2)
                 else:
-                    print(f"    [IV] {ticker}: IV Rank={iv_rank:.0f} ✅ (≤60 — fair premium)")
+                    est_option_price = round(current_price * 0.025, 2)
+            else:
+                if current_price > 400:   est_option_price = round(current_price * 0.012, 2)
+                elif current_price > 200: est_option_price = round(current_price * 0.015, 2)
+                else:                     est_option_price = round(current_price * 0.030, 2)
 
-                # ── Gate 7: GEX (Gamma Exposure) ─────────────────────────────────
-                # Negative GEX = dealers short gamma = stock moves aggressively = good for scalping
-                # Positive GEX = stock gets pinned = bad for 0DTE scalps
-                gex = get_gex(ticker, current_price)
-                if gex["available"]:
-                    gex_tag = (f"GEX={gex['gex']}M {gex['gex_signal'].upper()} "
-                               f"pin={gex['pin_level']}")
-                    print(f"    [GEX] {ticker}: {gex_tag}")
-                    if not gex["gex_ok"]:
-                        skip_reasons["GEX pinned"] = skip_reasons.get("GEX pinned", 0) + 1
-                        print(f"    [Skip] {ticker}: GEX positive — stock likely pinned")
-                        _session_stats["skipped"] += 1
-                        continue
+            est_cost = est_option_price * 100  # 1 contract = 100 shares
 
-                # ── Upgrade 3: Kelly position sizing ─────────────────────────────
-                # Estimate OTM option price (scanner buys slightly OTM calls).
-                # OTM options are significantly cheaper than ATM.
-                # Real-world: AAPL $300 → 305C costs ~$1.50-2.00 → $150-200/contract
-                #             NVDA $224 → 230C costs ~$1.50-2.00 → $150-200/contract
-                #             AVGO $419 → 430C costs ~$1.00-1.50 → $100-150/contract
+            # Hard cap: calculate max contracts budget can afford
+            max_affordable = max(1, int(budget / est_cost))
 
-                # ── Option price estimate & contract sizing ───────────────────────
-                # Try to get real mid-price from Tradier options chain first
-                real_option_price = None
-                if _HAS_TRADIER:
-                    try:
-                        from market_feed import MarketFeed as _MF
-                        # Use flow data bid/ask if available
-                        chain_bid = flow.get("best_bid", 0)
-                        chain_ask = flow.get("best_ask", 0)
-                        if chain_bid and chain_ask:
-                            real_option_price = round((chain_bid + chain_ask) / 2, 2)
-                    except Exception:
-                        pass
+            if est_cost > budget:
+                print(f"    [Skip] {ticker}: Est. option cost ${est_cost:.0f} > budget ${budget:.0f}")
+                _session_stats["skipped"] += 1
+                continue
 
-                if real_option_price and real_option_price > 0:
-                    est_option_price = real_option_price
-                elif _HAS_TRADIER and target_option_type == "C":
-                    if current_price > 200:
-                        est_option_price = round(current_price * 0.012, 2)
-                    else:
-                        est_option_price = round(current_price * 0.025, 2)
-                else:
-                    if current_price > 400:   est_option_price = round(current_price * 0.012, 2)
-                    elif current_price > 200: est_option_price = round(current_price * 0.015, 2)
-                    else:                     est_option_price = round(current_price * 0.030, 2)
+            contracts = kelly_contracts(
+                rsi=current_rsi,
+                flow_score=flow["score"],
+                regime=regime,
+                max_budget=budget,
+                option_price=est_option_price,
+            )
+            # Hard enforce budget cap — never exceed what budget can actually afford
+            contracts = min(contracts, max_affordable)
 
-                est_cost = est_option_price * 100  # 1 contract = 100 shares
+            print(f"  🔥 [HIGH CONVICTION] {ticker} | RSI={current_rsi:.1f} "
+                  f"flow={flow['score']} regime={regime} -> {contracts}x contracts | {mtf_tag}")
 
-                # Hard cap: calculate max contracts budget can afford
-                max_affordable = max(1, int(budget / est_cost))
+            signal_str, theta_rolled = _build_signal(
+                ticker, current_price, contracts,
+                target_option_type, execution_mode)
 
-                if est_cost > budget:
-                    print(f"    [Skip] {ticker}: Est. option cost ${est_cost:.0f} > budget ${budget:.0f}")
+            # ── Spread check ──────────────────────────────────────────────────
+            # Extract strike and expiry from signal for spread lookup
+            try:
+                _sig_parts  = signal_str.split()
+                _sig_cont   = _sig_parts[2] if len(_sig_parts) > 2 else ""
+                _sig_strike = float("".join(c for c in _sig_cont[:-1] if c.isdigit() or c == "."))
+                _sig_expiry = _sig_parts[3] if len(_sig_parts) > 3 else ""
+                spread_pct  = check_spread_pct(ticker, _sig_strike,
+                                               target_option_type, _sig_expiry)
+                if spread_pct > 15.0:
+                    skip_reasons["Spread too wide"] = skip_reasons.get("Spread too wide", 0) + 1
+                    print(f"    [Skip] {ticker}: Bid/ask spread {spread_pct:.1f}% > 15% — "
+                          f"too expensive to enter")
                     _session_stats["skipped"] += 1
                     continue
+                elif spread_pct > 0:
+                    print(f"    [Spread] {ticker}: {spread_pct:.1f}% bid/ask spread ✅")
+            except Exception as e:
+                log.debug("Spread check error: %s", e)
 
-                # Regime modifier is direction-aware: puts get a bull bonus in bear markets
-                _kelly_regime = (
-                    "bull"    if (target_option_type == "C" and regime == "bull") or
-                                 (target_option_type == "P" and regime == "bear") else
-                    "bear"    if (target_option_type == "C" and regime == "bear") or
-                                 (target_option_type == "P" and regime == "bull") else
-                    "neutral"
-                )
-                contracts = kelly_contracts(
-                    rsi=current_rsi,
-                    flow_score=flow["score"],
-                    regime=_kelly_regime,
-                    max_budget=budget,
-                    option_price=est_option_price,
-                )
-                # Hard enforce budget cap — never exceed what budget can actually afford
-                contracts = min(contracts, max_affordable)
+            _session_stats["signals"] += 1
+            _broadcast({
+                "id":     int(time.time() * 1000),
+                "time":   datetime.now().strftime("%H:%M:%S"),
+                "ticker": ticker,
+                "detail": f"RSI {current_rsi:.1f} | flow={flow['score']} | {contracts}x",
+                "kind":   "signal",
+            })
 
-                _dir_icon = "📈CALL" if target_option_type == "C" else "📉PUT"
-                print(f"  🔥 [HIGH CONVICTION] {ticker} {_dir_icon} | RSI={current_rsi:.1f} "
-                      f"flow={flow['score']} regime={regime}({_kelly_regime}) -> {contracts}x contracts | {mtf_tag}")
-
-                signal_str, theta_rolled = _build_signal(
-                    ticker, current_price, contracts,
-                    target_option_type, execution_mode)
-
-                # ── Spread check ──────────────────────────────────────────────────
-                # Extract strike and expiry from signal for spread lookup
-                try:
-                    _sig_parts  = signal_str.split()
-                    _sig_cont   = _sig_parts[2] if len(_sig_parts) > 2 else ""
-                    _sig_strike = float("".join(c for c in _sig_cont[:-1] if c.isdigit() or c == "."))
-                    _sig_expiry = _sig_parts[3] if len(_sig_parts) > 3 else ""
-                    spread_pct  = check_spread_pct(ticker, _sig_strike,
-                                                   target_option_type, _sig_expiry)
-                    if spread_pct > 15.0:
-                        skip_reasons["Spread too wide"] = skip_reasons.get("Spread too wide", 0) + 1
-                        print(f"    [Skip] {ticker}: Bid/ask spread {spread_pct:.1f}% > 15% — "
-                              f"too expensive to enter")
-                        _session_stats["skipped"] += 1
-                        continue
-                    elif spread_pct > 0:
-                        print(f"    [Spread] {ticker}: {spread_pct:.1f}% bid/ask spread ✅")
-                except Exception as e:
-                    log.debug("Spread check error: %s", e)
-
-                # ── VWAP entry gate ───────────────────────────────────────────
-                # Calls: price should be bouncing off or above VWAP — institutions
-                #        stepping in at fair value. "WAIT" = don't enter yet.
-                # Puts:  price should be below or rejecting off VWAP downward.
-                # Informational only when VWAP data unavailable.
+            if listener:
+                parts  = signal_str.split()
+                strike = parts[2] if len(parts) > 2 else "ATM"
+                expiry = parts[3] if len(parts) > 3 else "N/A"
+                unusual_tag = " 🚨 UNUSUAL FLOW" if flow["unusual"] else ""
+                # Build extra context for Discord
+                news_line = ""
+                vwap_line = ""
+                if _HAS_NEWS_FILTER:
+                    news_r = check_news(ticker)
+                    news_line = f"**News**: score={news_r['score']} {news_r['verdict']}\n"
                 if _HAS_VWAP:
                     vwap_r = check_vwap_entry(ticker, require_bounce=False)
-                    vwap_dist = vwap_r.get("distance_pct", 0)
-                    above_vwap = vwap_r.get("above_vwap", True)
-                    if target_option_type == "C" and not above_vwap and abs(vwap_dist) > 0.5:
-                        skip_reasons["Below VWAP"] = skip_reasons.get("Below VWAP", 0) + 1
-                        print(f"    [Skip] {ticker}/C: Price {vwap_dist:+.2f}% below VWAP — wait for bounce")
-                        _session_stats["skipped"] += 1
-                        continue
-                    elif target_option_type == "P" and above_vwap and abs(vwap_dist) > 0.5:
-                        skip_reasons["Above VWAP"] = skip_reasons.get("Above VWAP", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Price {vwap_dist:+.2f}% above VWAP — wait for rejection")
-                        _session_stats["skipped"] += 1
-                        continue
-                    else:
-                        print(f"    [VWAP] {ticker}: dist={vwap_dist:+.2f}% {'✅ above' if above_vwap else '✅ below'} VWAP")
+                    vwap_line = (f"**VWAP**: ${vwap_r.get('vwap','?')} | "
+                                 f"dist={vwap_r.get('distance_pct','?')}% | "
+                                 f"entry={'NOW' if vwap_r['entry_confirmed'] else 'WAIT'}\n")
 
-                _session_stats["signals"] += 1
-                _broadcast({
-                    "id":     int(time.time() * 1000),
-                    "time":   datetime.now().strftime("%H:%M:%S"),
-                    "ticker": ticker,
-                    "detail": f"RSI {current_rsi:.1f} | flow={flow['score']} | {contracts}x",
-                    "kind":   "signal",
-                })
+                listener.send_status_update(
+                    f"🚀 **HIGH CONVICTION SIGNAL**{unusual_tag}\n"
+                    f"**Ticker**: ${ticker}\n"
+                    f"**Price**: ${current_price:.2f} → Strike: {strike}  "
+                    f"Expiry: {expiry}"
+                    + (" ⏰ *Next-week rolled — Thu theta protection*"
+                       if theta_rolled else "") + "\n"
+                                                  f"**RSI**: {current_rsi:.1f} (target <{eff_threshold}) | "
+                                                  f"Vol: {vol_ratio:.1f}x avg\n"
+                                                  f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
+                                                  f"**GEX**: {gex['gex']}M {gex['gex_signal'].upper()} pin=${gex['pin_level']}\n" if gex.get("available") else
+                    f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
+                    f"**Regime**: {regime.upper()} ({spy_vs_sma:+.1f}% vs SMA20)\n"
+                    f"{news_line}{vwap_line}"
+                    f"**Size**: {contracts} contract{'s' if contracts > 1 else ''}\n"
+                    f"**Signal**: `{signal_str}`\n"
+                    f"─────────────────────\n"
+                    f"**Entry**:  buy at mid-price\n"
+                    f"**Target**: +{tp_pct:.0f}% → stock ~${current_price * (1 + tp_pct/100):.2f}\n"
+                    f"**Stop**:   -{sl_pct:.0f}% → stock ~${current_price * (1 - sl_pct/100):.2f}\n"
+                    f"**Scale-out**: sell half at +20%, trail remaining"
+                )
 
-                if listener:
-                    parts  = signal_str.split()
-                    strike = parts[2] if len(parts) > 2 else "ATM"
-                    expiry = parts[3] if len(parts) > 3 else "N/A"
-                    unusual_tag = " 🚨 UNUSUAL FLOW" if flow["unusual"] else ""
-                    # Build extra context for Discord
-                    news_line = ""
-                    vwap_line = ""
-                    if _HAS_NEWS_FILTER:
-                        news_r = check_news(ticker)
-                        news_line = f"**News**: score={news_r['score']} {news_r['verdict']}\n"
-                    if _HAS_VWAP and 'vwap_r' in dir():
-                        vwap_line = (f"**VWAP**: ${vwap_r.get('vwap','?')} | "
-                                     f"dist={vwap_r.get('distance_pct','?')}% ✅\n")
-
-                    listener.send_status_update(
-                        f"🚀 **HIGH CONVICTION SIGNAL**{unusual_tag}\n"
-                        f"**Ticker**: ${ticker}\n"
-                        f"**Price**: ${current_price:.2f} → Strike: {strike}  "
-                        f"Expiry: {expiry}"
-                        + (" ⏰ *Next-week rolled — Thu theta protection*"
-                           if theta_rolled else "") + "\n"
-                                                      f"**RSI**: {current_rsi:.1f} (target <{eff_threshold}) | "
-                                                      f"Vol: {vol_ratio:.1f}x avg\n"
-                                                      f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
-                                                      f"**GEX**: {gex['gex']}M {gex['gex_signal'].upper()} pin=${gex['pin_level']}\n" if gex.get("available") else
-                        f"**Options Flow**: score={flow['score']} PCR={flow['pcr']}\n"
-                        f"**Regime**: {regime.upper()} ({spy_vs_sma:+.1f}% vs SMA20)\n"
-                        f"{news_line}{vwap_line}"
-                        f"**Size**: {contracts} contract{'s' if contracts > 1 else ''}\n"
-                        f"**Signal**: `{signal_str}`\n"
-                        f"─────────────────────\n"
-                        f"**Entry**:  buy at mid-price\n"
-                        f"**Target**: +{tp_pct:.0f}% → stock ~${current_price * (1 + tp_pct/100):.2f}\n"
-                        f"**Stop**:   -{sl_pct:.0f}% → stock ~${current_price * (1 - sl_pct/100):.2f}\n"
-                        f"**Scale-out**: sell half at +20%, trail remaining"
-                    )
-
-                signals.append(signal_str)
+            signals.append(signal_str)
 
         except Exception as e:
             print(f"  [Scanner] {ticker.ljust(5)} | Error: {e}")
