@@ -642,8 +642,13 @@ def is_trend_bullish(ticker):
         return True
 
 
-def get_hour_rsi_alignment(ticker):
-    """Gate 4: 1-hour RSI must be > 40 (not in freefall on hourly)."""
+def get_hour_rsi_alignment(ticker: str, option_type: str = "C") -> bool:
+    """
+    Gate 4: Checks hourly RSI alignment.
+    CALLS: hourly RSI must be > 40 — confirms stock NOT in hourly freefall
+    PUTS:  hourly RSI must be < 60 — confirms stock NOT in hourly uptrend
+    Returns True if alignment is correct (allow through), False to skip.
+    """
     try:
         df = _flatten(yf.download(ticker, period="5d", interval="1h", progress=False))
         if df.empty or len(df) < 14:
@@ -651,7 +656,11 @@ def get_hour_rsi_alignment(ticker):
         rsi = ta.rsi(df["Close"].dropna(), length=14)
         if rsi is None or rsi.dropna().empty:
             return True
-        return float(rsi.dropna().iloc[-1]) > 40
+        hourly_rsi = float(rsi.dropna().iloc[-1])
+        if option_type == "C":
+            return hourly_rsi > 40   # calls: hourly must be recovering
+        else:
+            return hourly_rsi < 60   # puts: hourly must not be in uptrend
     except Exception:
         return True
 
@@ -1015,12 +1024,31 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             # Bull market  → scan for oversold RSI < threshold → buy CALLS
             # Bear market  → scan for overbought RSI > (100-threshold) → buy PUTS
             # Neutral      → bull logic (calls only)
+            #
+            # SECTOR PUT OVERRIDE (new):
+            # Even in a bull SPY regime, allow PUTS on individual stocks when:
+            # 1. Their sector is down > 3% on the day (sector rotation selloff)
+            # 2. RSI is overbought (> 65) — stock ran up while sector fell
+            # 3. Put flow is dominant (PCR > 1.0) — institutions already hedging
+            # This catches stocks like SOXL/MU getting crushed in sector moves
+            # while SPY itself stays green.
+            sector_chg_pre = get_sector_change(ticker)
+            sector_put_override = (
+                    regime != "bear" and              # only needed in bull/neutral
+                    sector_chg_pre < -3.0 and         # sector down hard
+                    current_rsi > 65                  # stock overbought (put candidate)
+            )
+
             if regime == "bear":
                 short_threshold = 100 - rsi_threshold
                 if current_rsi < short_threshold:
                     _session_stats["skipped"] += 1
                     continue
                 target_option_type = "P"
+            elif sector_put_override:
+                # Sector selloff + overbought stock → try puts even in bull market
+                target_option_type = "P"
+                print(f"    [Sector-PUT] {ticker}: Sector {sector_chg_pre:.1f}% + RSI {current_rsi:.1f} overbought → testing PUT signal")
             else:
                 if current_rsi >= eff_threshold:
                     _session_stats["skipped"] += 1
@@ -1030,9 +1058,14 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             # ── Gate 1a: RSI upturn confirmation ──────────────────────────────
             # Requires RSI to have bottomed AND be turning back up AND
             # price to have made a higher low. Much stricter than just RSI < 30.
+            # OVERRIDE: if RSI < 20 (extreme capitulation), skip upturn check —
+            # at these levels a bounce is statistically likely regardless of direction.
             if target_option_type == "C":
-                if not rsi_is_turning_up(df, current_rsi,
-                                         lookback=3, rsi_threshold=float(rsi_threshold)):
+                if current_rsi < 20.0:
+                    print(f"    [Gate1a-EXTREME] {ticker}/C: RSI={current_rsi:.1f} — "
+                          f"extreme capitulation, skipping upturn check")
+                elif not rsi_is_turning_up(df, current_rsi,
+                                           lookback=3, rsi_threshold=float(rsi_threshold)):
                     skip_reasons["RSI still falling"] = skip_reasons.get("RSI still falling", 0) + 1
                     print(f"    [Skip] {ticker}: RSI still falling — waiting for upturn + higher low")
                     _session_stats["skipped"] += 1
@@ -1077,18 +1110,39 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     continue
 
             # ── Gate 3: Volume surge ──────────────────────────────────────────
-            if not volume_surge:
+            # RSI-adaptive volume threshold:
+            # Normal (RSI 25-30): need 1.5x average volume
+            # Oversold (RSI 20-25): need 0.8x (some slowdown acceptable)
+            # Extreme (RSI < 20): need 0.3x (sector selloffs have thin volume)
+            if current_rsi < 20:
+                vol_required = 0.2   # extreme — even thin volume acceptable
+            elif current_rsi < 25:
+                vol_required = 0.8   # moderately oversold
+            else:
+                vol_required = 1.5   # normal
+            volume_surge_adaptive = current_vol > avg_vol * vol_required if avg_vol > 0 else True
+
+            if not volume_surge_adaptive:
                 skip_reasons["Weak volume"] = skip_reasons.get("Weak volume",0)+1
-                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 1.5x)")
+                print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed {vol_required:.1f}x for RSI={current_rsi:.1f})")
                 _session_stats["skipped"] += 1
                 continue
 
             # ── Gate 4: 1-hour RSI ────────────────────────────────────────────
-            if not get_hour_rsi_alignment(ticker):
-                skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak",0)+1
-                print(f"    [Skip] {ticker}: 1hr RSI too weak")
-                _session_stats["skipped"] += 1
-                continue
+            # CALLS: hourly RSI > 40 (not in freefall). Bypassed at RSI < 20.
+            # PUTS:  hourly RSI < 60 (not in strong uptrend). Always checked.
+            if target_option_type == "C":
+                if current_rsi >= 20 and not get_hour_rsi_alignment(ticker, "C"):
+                    skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak",0)+1
+                    print(f"    [Skip] {ticker}: 1hr RSI too weak (hourly still falling)")
+                    _session_stats["skipped"] += 1
+                    continue
+            else:
+                if not get_hour_rsi_alignment(ticker, "P"):
+                    skip_reasons["1hr RSI too strong"] = skip_reasons.get("1hr RSI too strong",0)+1
+                    print(f"    [Skip] {ticker}: 1hr RSI too strong for puts (hourly uptrend)")
+                    _session_stats["skipped"] += 1
+                    continue
 
             # ── Gate 4b: 15-minute RSI multi-timeframe ────────────────────────
             # 5-min AND 15-min both oversold = much higher conviction.
@@ -1098,12 +1152,26 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             mtf_tag       = f"✅15m={rsi_15m:.1f}" if mtf_confirmed else f"⚠️15m={rsi_15m:.1f}"
 
             # ── Gate 4c: Sector correlation ───────────────────────────────────
-            # Skip calls if sector ETF is down > 0.8% on the day.
+            # Normal: skip calls if sector ETF is down > threshold on the day.
+            # SMART OVERRIDE: if RSI < 20 AND sector is down hard (>3%), check
+            # whether the stock is MORE oversold than the sector move justifies.
+            # If stock RSI is below 20 while sector is only down 4-5%, the stock
+            # has capitulated BEYOND the sector — that's a bounce setup, not a fade.
             if target_option_type == "C":
                 sector_chg = get_sector_change(ticker)
-                if sector_chg < -0.8:
+
+                # Adaptive threshold by RSI level
+                if current_rsi < 20:
+                    sector_threshold = -5.0   # extreme RSI — very loose
+                elif current_rsi < 25:
+                    sector_threshold = -2.0   # moderately oversold
+                else:
+                    sector_threshold = -0.8   # normal
+
+                if sector_chg < sector_threshold:
                     skip_reasons["Sector falling"] = skip_reasons.get("Sector falling", 0) + 1
-                    print(f"    [Skip] {ticker}: Sector down {sector_chg:.2f}% today")
+                    print(f"    [Skip] {ticker}: Sector down {sector_chg:.2f}% "
+                          f"(threshold {sector_threshold:.1f}% for RSI={current_rsi:.1f})")
                     _session_stats["skipped"] += 1
                     continue
                 elif sector_chg < -0.3:
