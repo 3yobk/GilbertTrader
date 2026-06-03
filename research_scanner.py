@@ -62,6 +62,38 @@ def _get_gex_volume_ratio(gex_dollars_m: float, avg_daily_volume_m: float) -> fl
     return (gex_dollars_m / avg_daily_volume_m) * 100
 
 
+
+# ── Dynamic Slippage Cache ─────────────────────────────────────────────────────
+# Tracks per-ticker execution friction learned from real fills.
+# Format: {"TICKER": {"rolling_slippage_multiplier": 1.0, "sample_count": 0}}
+# EWMA alpha=0.2 — new fills count for 20%, history for 80%
+_slippage_cache: dict = {}
+_SLIPPAGE_ALPHA = 0.2
+
+def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
+    """
+    Called after a confirmed fill. Updates the ticker's learned slippage multiplier.
+    variance = actual_fill / estimated_mid  (>1.0 = paid more than expected)
+    Uses EWMA so recent fills matter more but don't whipsaw the estimate.
+    """
+    if est_mid_price <= 0 or avg_filled_price <= 0:
+        return
+    variance = avg_filled_price / est_mid_price
+    entry = _slippage_cache.setdefault(ticker, {
+        "rolling_slippage_multiplier": 1.0, "sample_count": 0
+    })
+    old_mult = entry["rolling_slippage_multiplier"]
+    new_mult = (1 - _SLIPPAGE_ALPHA) * old_mult + _SLIPPAGE_ALPHA * variance
+    entry["rolling_slippage_multiplier"] = round(new_mult, 4)
+    entry["sample_count"] += 1
+    log.info("[Slippage] %s: fill=%.4f est=%.4f variance=%.4f → multiplier %.4f (n=%d)",
+             ticker, avg_filled_price, est_mid_price, variance,
+             entry["rolling_slippage_multiplier"], entry["sample_count"])
+
+def get_slippage_multiplier(ticker: str) -> float:
+    """Returns the learned slippage multiplier for a ticker (default 1.0)."""
+    return _slippage_cache.get(ticker, {}).get("rolling_slippage_multiplier", 1.0)
+
 # Broadcast scanner entries to UI via api_server
 def _broadcast(entry: dict):
     try:
@@ -941,6 +973,31 @@ def get_macro_events_today() -> list:
     return events
 
 
+def get_webull_available_expiries(ticker: str, webull_engine=None) -> list:
+    """
+    Query Webull directly for available option expiry dates on a ticker.
+    Returns sorted list of date strings like ["2026-06-05", "2026-06-12"].
+    Falls back to empty list if Webull not available.
+    This prevents routing to 0DTE when Webull only has weekly expiries.
+    """
+    if webull_engine is None:
+        return []
+    try:
+        chain = webull_engine._wb.get_options(stock=ticker) if webull_engine._wb else []
+        expiries = set()
+        for group in (chain or []):
+            for side in ("call", "put"):
+                opt = group.get(side)
+                if opt and isinstance(opt, dict):
+                    exp = opt.get("expireDate", "")
+                    if exp:
+                        expiries.add(exp)
+        return sorted(expiries)
+    except Exception as e:
+        log.debug("get_webull_available_expiries error for %s: %s", ticker, e)
+        return []
+
+
 def get_atr_adjustment(df, base_threshold):
     try:
         atr = ta.atr(df["High"], df["Low"], df["Close"], length=14)
@@ -955,10 +1012,90 @@ def get_atr_adjustment(df, base_threshold):
         return base_threshold
 
 
+def find_delta_targeted_strike(ticker: str, current_price: float,
+                               option_type: str, expiry_str: str,
+                               iv_rank: float = 50.0) -> float:
+    """
+    Scan the live options chain to find the strike whose Delta falls
+    within the target range. Replaces static price-bracket logic.
+
+    Normal IV (iv_rank <= 60): target Delta 0.40 – 0.52 (near ATM)
+    High IV   (iv_rank >  60): target Delta 0.35 – 0.42 (slightly OTM,
+                                cheaper premium, insulates budget)
+
+    Falls back to static price-bracket logic if Tradier unavailable
+    or no contract matches the target Delta range.
+    """
+    if not _HAS_TRADIER:
+        return 0.0  # signal caller will use static fallback
+
+    # Choose target Delta range based on IV environment
+    if iv_rank > 60:
+        delta_lo, delta_hi = 0.35, 0.42
+        log.debug("Delta target (high IV=%d): %.2f–%.2f", iv_rank, delta_lo, delta_hi)
+    else:
+        delta_lo, delta_hi = 0.40, 0.52
+        log.debug("Delta target (normal IV=%d): %.2f–%.2f", iv_rank, delta_lo, delta_hi)
+
+    try:
+        from datetime import datetime as _dt
+        parts = expiry_str.split("/")
+        year  = _dt.now().year
+        expiry_full = f"{year}-{int(parts[0]):02d}-{int(parts[1]):02d}"
+
+        r = requests.get(
+            "https://api.tradier.com/v1/markets/options/chains",
+            headers=_tradier_headers(),
+            params={"symbol": ticker, "expiration": expiry_full, "greeks": "true"},
+            timeout=6,
+        )
+        if not r.ok:
+            return 0.0
+
+        chain = r.json().get("options", {}).get("option", [])
+        if isinstance(chain, dict):
+            chain = [chain]
+        if not chain:
+            return 0.0
+
+        otype = "call" if option_type == "C" else "put"
+        best_strike = 0.0
+        best_delta_dist = 999.0
+
+        for opt in chain:
+            if opt.get("option_type") != otype:
+                continue
+            greeks = opt.get("greeks") or {}
+            raw_delta = float(greeks.get("delta", 0) or 0)
+            # Use absolute delta (puts have negative delta)
+            abs_delta = abs(raw_delta)
+            strike    = float(opt.get("strike", 0) or 0)
+
+            if delta_lo <= abs_delta <= delta_hi:
+                # Within target range — prefer closest to midpoint of range
+                mid_target = (delta_lo + delta_hi) / 2
+                dist = abs(abs_delta - mid_target)
+                if dist < best_delta_dist:
+                    best_delta_dist = dist
+                    best_strike = strike
+
+        if best_strike > 0:
+            log.info("[Delta Target] %s %s: Δ range %.2f–%.2f → strike %.1f (dist=%.4f)",
+                     ticker, option_type, delta_lo, delta_hi, best_strike, best_delta_dist)
+            return best_strike
+
+    except Exception as e:
+        log.debug("find_delta_targeted_strike error for %s: %s", ticker, e)
+
+    return 0.0  # fallback to static logic
+
+
+
 def _build_signal(ticker: str, current_price: float,
                   contracts: int = 1,
                   option_type: str = "C",
-                  execution_mode: dict = None) -> tuple:
+                  execution_mode: dict = None,
+                  webull_engine=None) -> tuple:
     if option_type == "C":
         if current_price <= 30.0:
             strike = round(current_price * 2) / 2 + 0.5
@@ -1001,11 +1138,50 @@ def _build_signal(ticker: str, current_price: float,
     expiry = f"{exp_dt.month}/{exp_dt.day}"
     qty    = f" x{contracts}" if contracts > 1 else ""
 
+    # ── Delta-targeted strike override ────────────────────────────────────────
+    # Query live chain for the strike whose Delta is closest to target range.
+    # Falls back to static price-bracket strike if chain unavailable.
+    _iv_rank_for_delta = getattr(_build_signal, "_last_iv_rank", 50.0)
+    _delta_strike = find_delta_targeted_strike(
+        ticker, current_price, option_type, expiry, _iv_rank_for_delta)
+    if _delta_strike > 0:
+        log.info("[Delta Target] %s: static strike %.1f → delta-targeted %.1f",
+                 ticker, strike, _delta_strike)
+        strike = _delta_strike
+
     if use_0dte:
         log.info("0DTE routing: %s %s%s exp %s", ticker, strike, option_type, expiry)
     if theta_rolled:
         log.info("Thursday — expiry rolled to next Friday: %s %s%s %s",
                  ticker, strike, option_type, expiry)
+
+    # ── Check Webull's actual available expiries first ────────────────────────
+    # Webull and Tradier don't always list the same dates.
+    # RIOT/ZM may only have weekly (6/5) not daily (6/3) on Webull.
+    # If Webull expiries are known, reroute to the nearest one >= our target.
+    if webull_engine is not None:
+        try:
+            wb_expiries = get_webull_available_expiries(ticker, webull_engine)
+            if wb_expiries:
+                from datetime import datetime as _dtw
+                target_full = f"{exp_dt.year}-{exp_dt.month:02d}-{exp_dt.day:02d}"
+                # Find nearest Webull expiry on or after our target date
+                future_wb = [e for e in wb_expiries if e >= target_full]
+                if future_wb:
+                    best_wb = future_wb[0]
+                    if best_wb != target_full:
+                        _wb_dt = _dtw.strptime(best_wb, "%Y-%m-%d")
+                        expiry = f"{_wb_dt.month}/{_wb_dt.day}"
+                        log.info("Webull expiry reroute: %s %s%s %s → %s",
+                                 ticker, strike, option_type, target_full, best_wb)
+                else:
+                    # All available expiries are before our target — use latest
+                    latest_wb = wb_expiries[-1]
+                    _wb_dt = _dtw.strptime(latest_wb, "%Y-%m-%d")
+                    expiry = f"{_wb_dt.month}/{_wb_dt.day}"
+                    log.info("Webull expiry fallback (latest): %s → %s", ticker, latest_wb)
+        except Exception as _wbe:
+            log.debug("Webull expiry check error: %s", _wbe)
 
     # ── Verify contract actually exists with real liquidity ───────────────────
     # Some tickers (ZM, SPOT, DASH) don't have 0DTE or near-term contracts.
@@ -1056,11 +1232,14 @@ def print_session_stats():
 def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                  market=None, budget: float = 300.0,
                  tp_pct: float = 30.0, sl_pct: float = 20.0,
-                 execution_mode: dict = None):
+                 execution_mode: dict = None, webull_engine=None):
     """
     Eight-Gate Verified Scanner — Bi-directional with smart overrides.
     """
     _session_stats["scans"] += 1
+    # Store webull engine so _build_signal can query real expiries
+    if webull_engine is not None:
+        scan_markets._webull_engine = webull_engine
 
     if market is not None and not market.is_market_open():
         mins = market.minutes_to_open()
@@ -1476,7 +1655,12 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     elif current_price > 200: est_option_price = round(current_price * 0.015, 2)
                     else:                     est_option_price = round(current_price * 0.030, 2)
 
-                est_cost = est_option_price * 100
+                # Apply learned slippage multiplier for this ticker
+                _slip_mult = get_slippage_multiplier(ticker)
+                est_cost = est_option_price * 100 * _slip_mult
+                if _slip_mult != 1.0:
+                    print(f"    [Slippage] {ticker}: multiplier={_slip_mult:.3f} "
+                          f"→ adjusted cost ${est_cost:.0f} (raw ${est_option_price*100:.0f})")
 
                 # Budget fallback: try 1 contract if cost <= 2x budget
                 max_affordable = max(1, int(budget / est_cost))
@@ -1512,9 +1696,12 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 print(f"  🔥 [HIGH CONVICTION] {ticker} {_dir_icon} | RSI={current_rsi:.1f} "
                       f"flow={flow['score']} regime={regime}({_kelly_regime}) -> {contracts}x contracts | {mtf_tag}")
 
+                # Pass iv_rank so _build_signal can choose correct delta range
+                _build_signal._last_iv_rank = iv_rank
                 signal_str, theta_rolled = _build_signal(
                     ticker, current_price, contracts,
-                    target_option_type, execution_mode)
+                    target_option_type, execution_mode,
+                    webull_engine=getattr(scan_markets, "_webull_engine", None))
 
                 # ── Block if no valid contract found ──────────────────────────
                 if signal_str.startswith("NO_CONTRACT"):

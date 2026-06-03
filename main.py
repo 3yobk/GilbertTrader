@@ -32,32 +32,16 @@ from market_feed     import MarketFeed
 from discord_listener import DiscordListener
 from signal_parser   import parse_signal_safe
 import research_scanner
+try:
+    import ml_sieve as _ml_sieve_mod
+    _ml_sieve_mod.load_model()
+    _ml_sieve_mod.maybe_retrain()
+    _HAS_ML = True
+except ImportError:
+    _ml_sieve_mod = None
+    _HAS_ML = False
 from alerts import (alert_circuit_breaker, alert_big_winner,
                     alert_streak_pause, alert_daily_summary, alert_vix_spike)
-
-# ── Phase 1/3/4 integrations ──────────────────────────────────────────────────
-try:
-    from analytics_engine import get_analytics
-    analytics = get_analytics()
-    log.info("Analytics engine loaded — trade_history.db ready")
-except ImportError:
-    analytics = None
-    log.warning("analytics_engine.py not found — trade recording disabled")
-
-try:
-    from execution_monitor import ExecutionMonitor
-    _HAS_EXEC_MON = True
-except ImportError:
-    _HAS_EXEC_MON = False
-    log.warning("execution_monitor.py not found — execution hardening disabled")
-
-try:
-    from risk_engine import RiskEngine
-    risk_engine = RiskEngine(analytics)
-    log.info("Risk engine loaded — mode: %s", risk_engine.current_mode)
-except ImportError:
-    risk_engine = None
-    log.warning("risk_engine.py not found — advanced risk management disabled")
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 sys.stdout.reconfigure(line_buffering=True)
@@ -131,25 +115,73 @@ def select_execution_mode() -> dict:
             "option_type": "C"}
 
 
-def ask_ai_for_verdict(signal_text, budget, stock_price: float = None):
-    price_context = (
-        f"Current stock price: ${stock_price:.2f}. "
-        if stock_price else ""
-    )
+def ask_ai_for_verdict(signal_text, budget, stock_price: float = None, raw_text: str = None):
+    # ── Pull live adaptive metrics from cache layers ───────────────────────────
+    learned_slippage = 1.0
+    ml_context       = ""
+    try:
+        import research_scanner as _rs
+        ticker = signal_text.split()[1] if len(signal_text.split()) > 1 else "UNK"
+        learned_slippage = _rs.get_slippage_multiplier(ticker)
+    except Exception:
+        pass
+
+    try:
+        if _HAS_ML and _ml_sieve_mod:
+            _p_win = _ml_sieve_mod.predict_win_probability(
+                entry_rsi=25.0, vol_ratio=1.0, flow_score=50.0,
+                put_call_ratio=1.0, gex_significance=5.0, spy_vs_sma20=0.0,
+            )
+            if _p_win is not None:
+                ml_context = f"Internal ML Win-Probability: {_p_win:.1%}. "
+    except Exception:
+        pass
+
+    # ── Compute strike distance for explicit context ───────────────────────────
+    strike_context = ""
+    if stock_price:
+        try:
+            import re as _re
+            _m = _re.search(r"\b(\d+\.?\d*)[CP]\b", signal_text, _re.IGNORECASE)
+            if _m:
+                _strike = float(_m.group(1))
+                _diff_pct = abs(_strike - stock_price) / stock_price * 100
+                strike_context = (f"Strike ${_strike:.0f} vs spot ${stock_price:.2f} "
+                                  f"= {_diff_pct:.1f}% OTM. ")
+        except Exception:
+            pass
+
+    _slip_note = (f"Learned Slippage Factor: {learned_slippage:.2f}x "
+                  f"(effective budget = ${budget / learned_slippage:.0f}). "
+                  if learned_slippage != 1.0 else "")
+
+    _spot = (f"Spot ${stock_price:.2f}. {strike_context}{ml_context}{_slip_note}"
+             if stock_price else f"No spot price. {ml_context}{_slip_note}")
+
     payload = {
         "question": (
-            f"Senior Risk Manager Role. INPUT: '{signal_text}'\n"
-            f"1. REFORMAT: 'BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]' — keep the quantity\n"
-            f"   CRITICAL: Do NOT change the ticker symbol. Input ticker must match output ticker exactly.\n"
-            f"2. BUDGET LIMIT: Max ${budget} for this trade. "
-            f"Each contract = premium * 100. Example: 3 contracts at $2.61 = $783 total — REJECT if over ${budget}. "
-            f"If quantity is too high, reduce it to the max affordable amount instead of rejecting entirely.\n"
-            f"3. {price_context}The STRIKE is an options strike price, NOT the stock price. "
-            f"REJECT only if the strike is more than 20% away from the current stock price. "
-            f"A $415 call on a $411 stock is only 1% OTM — APPROVE. "
-            f"A $220 call on a $218 stock is 0.9% OTM — APPROVE. "
-            f"Only reject if strike differs from stock price by more than 20%.\n"
-            "OUTPUT: ONLY the cleaned BTO string (with corrected quantity) or 'Rejected' + reason."
+            f"[SYSTEM ROLE: Senior Options Risk Manager & Pure Data Sieve]\n"
+            f"You are a software submodule inside an automated execution loop. "
+            f"Your output is parsed by a strict regex. Any markdown, backticks, "
+            f"bolding, prose, or extra lines will corrupt the parser and cost real capital. "
+            f"Behave like a compiled binary utility — one line of raw text only.\n\n"
+            f"INPUT SIGNAL: '{signal_text}'\n"
+            f"BUDGET: Max ${budget} total premium. 1 contract = premium * 100.\n"
+            f"MARKET CONTEXT: {_spot}\n\n"
+            f"MANDATORY RULES:\n"
+            f"1. TICKER IS SACROSANCT — never modify the ticker symbol. "
+            f"Output ticker must match input character-for-character.\n"
+            f"2. BUDGET & SLIPPAGE — if quantity * premium * slippage_factor > ${budget}, "
+            f"reduce x[QTY] until it fits. Never reject purely for size — downsize instead.\n"
+            f"3. STRIKE — options strikes are NOT the stock price. Approve any strike within "
+            f"20% OTM of spot. A $610C on a $606 stock = 0.7% OTM — APPROVE immediately. "
+            f"Only reject if strike is more than 20% from spot.\n"
+            f"4. ML CONTEXT — if win-probability is provided and below 50%, prefer minimum "
+            f"contract size (x1) over full Kelly sizing.\n"
+            f"5. NO FORMATTING — no backticks, no markdown, no explanations, no extra lines.\n\n"
+            f"OUTPUT (pick exactly one):\n"
+            f"Approved → output only: BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]\n"
+            f"Rejected → output only: Rejected: [5-word reason]"
         )
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
@@ -372,7 +404,7 @@ def _maybe_run_premarket_scan(listener=None):
         log.error("Pre-market scan error: %s", e)
 
 
-def _maybe_send_daily_report(listener=None, engine=None, analytics_eng=None):
+def _maybe_send_daily_report(listener=None, engine=None):
     """
     Daily P&L report: posts to Discord at 4:15 PM ET (15 min after close).
     Shows: trades taken, win rate, P&L, best/worst trade, account balance.
@@ -549,6 +581,108 @@ def run_health_check(discord_token, discord_channel_id):
     console.print("[bold green]All systems ready.[/bold green]\n")
 
 
+
+def load_adaptive_bounds(profile: dict) -> dict:
+    """Load adaptive_bounds.json and apply recommended overrides to profile."""
+    import json
+    from pathlib import Path
+    bounds_path = Path("adaptive_bounds.json")
+    if not bounds_path.exists():
+        return profile
+    try:
+        bounds = json.loads(bounds_path.read_text())
+        applied = []
+        if "recommended_tp_pct" in bounds:
+            profile["tp"] = bounds["recommended_tp_pct"]
+            applied.append(f"TP → +{bounds['recommended_tp_pct']}%")
+        if "recommended_rsi_threshold" in bounds:
+            profile["rsi"] = bounds["recommended_rsi_threshold"]
+            applied.append(f"RSI → {bounds['recommended_rsi_threshold']}")
+        if applied:
+            print(f"[Optimizer] Adaptive bounds applied: {', '.join(applied)}")
+    except Exception as e:
+        log.debug("load_adaptive_bounds error: %s", e)
+    return profile
+
+
+def optimize_strategy_thresholds(profile: dict, listener=None):
+    """
+    Post-mortem optimizer — runs Friday 4:30 PM ET.
+    Invokes reinforce_brain.py for gradient parameter mutations,
+    then runs a trailing TP sieve pass before updating adaptive_bounds.json.
+    Single CSV read — no duplicate disk access.
+    """
+    import json
+    from pathlib import Path
+    log.info("[Optimizer] Running post-mortem strategy analysis...")
+    if listener:
+        listener.send_status_update("🔬 **Weekly Optimizer & Reinforcement Engine** running...")
+
+    # ── Step 1: Reinforcement brain policy pass ───────────────────────────────
+    results = {}
+    try:
+        import reinforce_brain
+        results = reinforce_brain.process_session_feedback("trade_log.csv")
+        if results and listener:
+            listener.send_status_update(
+                f"📊 **Reinforcement Complete**\n"
+                f"Rec TP: +{results.get('recommended_tp_pct', 30)}% | "
+                f"Rec SL: -{results.get('recommended_sl_pct', 20)}% | "
+                f"Rec RSI: {results.get('recommended_rsi_threshold', 25)} | "
+                f"Win Rate: {results.get('session_win_rate_pct', '?')}% | "
+                f"P&L: ${results.get('session_total_pnl', 0):+.2f}"
+            )
+    except Exception as e:
+        log.error("[Optimizer] Reinforcement loop error: %s", e)
+
+    # ── Step 2: Trailing TP sieve — single CSV read shared with Step 1 ────────
+    try:
+        import pandas as pd
+        from datetime import datetime, timedelta
+        df = pd.read_csv("trade_log.csv") if Path("trade_log.csv").exists() else pd.DataFrame()
+        if not df.empty and len(df) >= 5:
+            week_ago = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d")
+            week_df  = df[df["date"] >= week_ago] if "date" in df.columns else df
+
+            if not week_df.empty and "profit_pct" in week_df.columns:
+                week_df = week_df.copy()
+                week_df["profit_pct"] = pd.to_numeric(week_df["profit_pct"], errors="coerce").fillna(0)
+                week_df["profit_amt"] = pd.to_numeric(week_df.get("profit_amt", 0), errors="coerce").fillna(0)
+
+                pnl_20 = float(week_df[week_df["profit_pct"] >= 20]["profit_amt"].sum())
+                pnl_30 = float(week_df[week_df["profit_pct"] >= 30]["profit_amt"].sum())
+
+                # Tighter TP wins if it captures 20%+ more aggregate dollars
+                if pnl_20 > pnl_30 * 1.2:
+                    results["recommended_tp_pct"] = 20
+                    log.info("[Optimizer] TP sieve: +20%% ($%.2f) beats +30%% ($%.2f)", pnl_20, pnl_30)
+                else:
+                    results["recommended_tp_pct"] = 30
+
+                # Re-verify RSI distribution from this week's data
+                if "entry_rsi" in week_df.columns:
+                    week_df["entry_rsi"] = pd.to_numeric(week_df["entry_rsi"], errors="coerce").fillna(25)
+                    winning_rsi = week_df[week_df["profit_amt"] > 0]["entry_rsi"]
+                    if not winning_rsi.empty:
+                        avg_rsi = float(winning_rsi.mean())
+                        results["recommended_rsi_threshold"] = 22 if avg_rsi < 22 else int(profile.get("rsi", 25))
+    except Exception as e:
+        log.error("[Optimizer] TP sieve verification error: %s", e)
+
+    # ── Step 3: Persist unified merged results ────────────────────────────────
+    if results:
+        try:
+            from datetime import datetime
+            bp     = Path("adaptive_bounds.json")
+            bounds = json.loads(bp.read_text()) if bp.exists() else {}
+            bounds.update(results)
+            bounds["last_updated"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            bp.write_text(json.dumps(bounds, indent=2))
+            log.info("[Optimizer] Unified bounds written to adaptive_bounds.json: %s", results)
+        except Exception as e:
+            log.error("[Optimizer] Bounds file write error: %s", e)
+
+
 def main():
     profile = get_risk_profile()
 
@@ -557,6 +691,7 @@ def main():
     signal_channel_id  = int(os.getenv("DISCORD_SIGNAL_CHANNEL_ID", "0")) or None
     tradier_token      = os.getenv("TRADIER_TOKEN", "")
 
+    profile = load_adaptive_bounds(profile)
     run_health_check(discord_token, discord_channel_id)
 
     console.print(Panel(
@@ -618,7 +753,8 @@ def main():
             found = research_scanner.scan_markets(
                 rsi_threshold=profile["rsi"], listener=listener,
                 market=market, budget=float(profile["budget"]),
-                tp_pct=profile["tp"], sl_pct=profile["sl"])
+                tp_pct=profile["tp"], sl_pct=profile["sl"],
+                webull_engine=webull)
             if not found:
                 listener.send_status_update("Scan complete — no signals found.")
 
@@ -784,10 +920,8 @@ def main():
         on_command=handle_discord_command,
         signal_channel_id=signal_channel_id,
     )
-    listener.start_in_thread()
     webull._listener = listener
 
-    # ── Construct trade engine ────────────────────────────────────────────────
     engine = TradeEngine(
         webull=webull, market=market, paper=paper_mode,
         profit_target_pct=profile['tp'],
@@ -817,6 +951,13 @@ def main():
         log.info("Startup history sync complete")
     except Exception as e:
         log.debug("Startup history sync error: %s", e)
+
+    # ── Thread-Safe Startup: start Discord listener ONLY after all state ──────
+    # syncs, position loads, and order history reads are complete.
+    # Prevents RuntimeError: "dictionary changed size during iteration" if a
+    # Discord signal arrives while engine._positions is being populated.
+    listener.start_in_thread()
+    log.info("Discord listener started (post-sync — thread-safe)")
 
     # ── Accurate streak tracking via on_trade_closed callback ────────────────
     consecutive_losses = 0
@@ -920,19 +1061,6 @@ def main():
                             f"Budget reduced to ${_current_budget:.0f}"
                         )
 
-    # Wire Phase 1/3/4 engines into trade_engine
-    engine.analytics   = analytics
-    engine.risk_engine = risk_engine
-
-    # Wire execution monitor
-    if _HAS_EXEC_MON:
-        exec_monitor = ExecutionMonitor(webull, engine, listener)
-        exec_monitor.start()
-        engine.exec_monitor = exec_monitor
-        log.info("Execution monitor started")
-    else:
-        exec_monitor = None
-
     engine.on_trade_closed = _update_streak_budget
 
     last_research_time   = 0
@@ -1014,22 +1142,6 @@ def main():
 
             raw_text = None
 
-            # Update risk engine state every scan cycle
-            if risk_engine:
-                try:
-                    from analytics_engine import AnalyticsEngine
-                    _vix = AnalyticsEngine.get_current_vix()
-                    risk_engine.update(
-                        vix=_vix,
-                        streak_losses=streak_losses,
-                        streak_wins=streak_wins,
-                        session_pnl=engine.get_session_pnl(),
-                        account_value=profile.get("budget", 500) * 2,
-                    )
-                    engine._current_regime = regime_state.get("regime", "unknown")
-                except Exception as _re:
-                    log.debug("risk_engine.update error: %s", _re)
-
             # Research / scanner mode
             # Reset daily counters at midnight
             _today_str = datetime.now().strftime("%Y-%m-%d")
@@ -1038,9 +1150,6 @@ def main():
                 daily_trades_count   = 0
                 session_stopped_tickers.clear()
                 log.info("New trading day — daily counters reset")
-                # Reset risk engine session P&L at midnight
-                if risk_engine:
-                    risk_engine._session_pnl = 0.0
 
             if mode_choice in ["2", "3"]:
                 # Adaptive scan interval:
@@ -1081,7 +1190,8 @@ def main():
                         found_signals = research_scanner.scan_markets(
                             rsi_threshold=profile['rsi'], listener=listener,
                             market=market, budget=float(_current_budget),
-                            tp_pct=profile['tp'], sl_pct=profile['sl'])
+                            tp_pct=profile['tp'], sl_pct=profile['sl'],
+                            webull_engine=webull)
 
                     # Iterate through every signal found in the scan one by one
                     for raw_text in found_signals:
@@ -1102,6 +1212,32 @@ def main():
 
                         console.print(f"\n[bold cyan]▶ Sending to AI Risk Manager:[/bold cyan] {ticker} ({raw_text[:40]})")
                         console.print("[dim]Waiting for AI response before proceeding...[/dim]")
+
+                        # ── ML Win-Probability Gate ───────────────────────────
+                        if _HAS_ML and _ml_sieve_mod:
+                            try:
+                                _parsed = engine.parse_signal(raw_text)
+                                _ml_block, _ml_pwin, _ml_reason = _ml_sieve_mod.should_block_trade(
+                                    ticker=ticker,
+                                    entry_rsi=float(getattr(_parsed, "rsi", 25) or 25),
+                                    vol_ratio=1.0, flow_score=50.0,
+                                    put_call_ratio=1.0, gex_significance=5.0,
+                                    spy_vs_sma20=0.0,
+                                )
+                                if _ml_block:
+                                    console.print(
+                                        f"[bold red][ML BLOCK] {ticker} matching negative historical "
+                                        f"distribution patterns — Trade Aborted[/bold red]\n"
+                                        f"  {_ml_reason}"
+                                    )
+                                    listener.send_status_update(
+                                        f"🤖 **ML BLOCK**: {ticker}\n{_ml_reason}")
+                                    time.sleep(2)
+                                    continue
+                                else:
+                                    console.print(f"[dim][ML] {ticker}: {_ml_reason}[/dim]")
+                            except Exception as _mle:
+                                log.debug("ML gate error: %s", _mle)
 
                         # Get current stock price to help AI validate the strike
                         stock_price = None
@@ -1131,6 +1267,16 @@ def main():
                             if webull.last_order_confirmed:
                                 webull_refresh_fails  = 0
                                 daily_trades_count   += 1
+                                # Update slippage model + retrain ML
+                                try:
+                                    _fp = getattr(webull, "_last_fill_price", None)
+                                    _em = getattr(webull, "_last_est_mid", None)
+                                    if _fp and _em:
+                                        research_scanner.update_slippage(ticker, _fp, _em)
+                                    if _HAS_ML and _ml_sieve_mod:
+                                        _ml_sieve_mod.maybe_retrain()
+                                except Exception as _se:
+                                    log.debug("Post-fill update error: %s", _se)
                                 # Send rich signal card to Discord
                                 try:
                                     parts   = verdict.split()
@@ -1223,6 +1369,16 @@ def main():
                             if webull.last_order_confirmed:
                                 webull_refresh_fails  = 0
                                 daily_trades_count   += 1
+                                # Update slippage model + retrain ML
+                                try:
+                                    _fp = getattr(webull, "_last_fill_price", None)
+                                    _em = getattr(webull, "_last_est_mid", None)
+                                    if _fp and _em:
+                                        research_scanner.update_slippage(ticker, _fp, _em)
+                                    if _HAS_ML and _ml_sieve_mod:
+                                        _ml_sieve_mod.maybe_retrain()
+                                except Exception as _se:
+                                    log.debug("Post-fill update error: %s", _se)
                                 # Send rich signal card to Discord
                                 try:
                                     parts   = verdict.split()
@@ -1313,6 +1469,7 @@ def main():
             except ImportError:
                 pass
 
+            # Pacing tick: prevents 100% CPU spin when scanner is idle between intervals
             time.sleep(1)
             if int(time.time()) % 30 == 0:
                 engine.print_status()
@@ -1335,6 +1492,18 @@ def main():
             _maybe_run_premarket_scan(listener=listener)
             # ── Daily report at 4:15 PM ET ────────────────────────────────────
             _maybe_send_daily_report(listener=listener, engine=engine)
+            try:
+                import pytz as _potz
+                from datetime import time as _dtime
+                _et_opt = datetime.now(_potz.timezone("America/New_York"))
+                if (_et_opt.weekday() == 4 and
+                        _dtime(16, 30) <= _et_opt.time() <= _dtime(16, 40)):
+                    _opt_flag = f".optimizer_{_et_opt.strftime('%Y-%m-%d')}"
+                    if not os.path.exists(_opt_flag):
+                        open(_opt_flag, "w").close()
+                        optimize_strategy_thresholds(profile, listener)
+            except Exception as _oe:
+                log.debug("Optimizer trigger error: %s", _oe)
 
             # ── Webull session auto-refresh on repeated failures ─────────────
             if webull_refresh_fails >= 3:
