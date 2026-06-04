@@ -18427,3 +18427,169 @@ Loop thread traceback (most recent call last):
 2026-06-03 14:27:07,779 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 7ee51f2bba75a1f0a0e9ffa86adc1560.
 2026-06-03 14:34:41,333 [INFO] news_filter — News check HIMS: score=90 verdict=clean bad=0 good=4
 2026-06-03 15:57:05,059 [INFO] news_filter — News check UBER: score=60 verdict=caution bad=1 good=1
+2026-06-03 17:05:36,459 [INFO] webull — Attempting to extract tokens from browser session...
+2026-06-03 17:05:36,476 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e8dcd75e1-d...
+2026-06-03 17:05:36,477 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-06-03 17:05:37,388 [INFO] webull — Webull API ready via cookie token
+2026-06-03 17:05:39,116 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-06-03 17:05:39,443 [INFO] market_feed — Tradier stream session: f966d852-e70...
+2026-06-03 17:05:39,633 [INFO] websocket — Websocket connected
+2026-06-03 17:05:39,634 [INFO] market_feed — Tradier WebSocket connected
+2026-06-03 17:05:39,874 [INFO] main — Webull order sync complete
+2026-06-03 17:05:40,032 [INFO] main — Startup history sync complete
+2026-06-03 17:05:40,510 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-06-03 17:05:40,511 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-06-03 17:05:40,511 [INFO] discord.client — logging in using static token
+2026-06-03 17:05:42,032 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-06-03 17:05:42,033 [INFO] main — Discord listener started (post-sync — thread-safe)
+2026-06-03 17:05:42,168 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 094220e0c604469b54158ff483db670e).
+2026-06-03 17:05:44,178 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-06-03 17:23:19,783 [INFO] webull — Attempting to extract tokens from browser session...
+2026-06-03 17:23:19,789 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e8dcd75e1-d...
+2026-06-03 17:23:19,789 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-06-03 17:23:21,181 [INFO] webull — Webull API ready via cookie token
+2026-06-03 17:23:22,743 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-06-03 17:23:22,887 [INFO] main — Webull order sync complete
+2026-06-03 17:23:23,114 [INFO] main — Startup history sync complete
+2026-06-03 17:23:23,205 [INFO] market_feed — Tradier stream session: f882e004-269...
+2026-06-03 17:23:23,277 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-06-03 17:23:23,277 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-06-03 17:23:23,277 [INFO] discord.client — logging in using static token
+2026-06-03 17:23:23,481 [INFO] websocket — Websocket connected
+2026-06-03 17:23:23,482 [INFO] market_feed — Tradier WebSocket connected
+2026-06-03 17:23:24,386 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 9ee854774c03e9394642c9d5cf171591).
+2026-06-03 17:23:25,115 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-06-03 17:23:25,116 [INFO] main — Discord listener started (post-sync — thread-safe)
+2026-06-03 17:23:26,411 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-06-03 18:49:44,735 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-03 20:49:34,851 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-03 22:47:33,500 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-03 23:24:31,409 [ERROR] market_feed — Tradier WS error: Connection to remote host was lost.
+2026-06-03 23:24:31,410 [ERROR] websocket — Connection to remote host was lost. - goodbye
+2026-06-03 23:24:31,410 [WARNING] market_feed — Tradier WS closed — reconnecting...
+2026-06-03 23:24:36,954 [INFO] market_feed — Tradier stream session: e547795f-d53...
+2026-06-03 23:24:37,225 [ERROR] market_feed — Tradier WS error: Handshake status 502 Bad Gateway -+-+- {'server': 'awselb/2.0', 'date': 'Thu, 04 Jun 2026 03:24:37 GMT', 'content-type': 'text/html', 'content-length': '122', 'connection': 'keep-alive'} -+-+- b'<html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n</body>\r\n</html>\r\n'
+2026-06-03 23:24:37,225 [ERROR] websocket — Handshake status 502 Bad Gateway -+-+- {'server': 'awselb/2.0', 'date': 'Thu, 04 Jun 2026 03:24:37 GMT', 'content-type': 'text/html', 'content-length': '122', 'connection': 'keep-alive'} -+-+- b'<html>\r\n<head><title>502 Bad Gateway</title></head>\r\n<body>\r\n<center><h1>502 Bad Gateway</h1></center>\r\n</body>\r\n</html>\r\n' - goodbye
+2026-06-03 23:24:37,225 [WARNING] market_feed — Tradier WS closed — reconnecting...
+2026-06-03 23:24:42,742 [INFO] market_feed — Tradier stream session: a1a5c6d1-1f3...
+2026-06-03 23:24:42,901 [INFO] websocket — Websocket connected
+2026-06-03 23:24:42,902 [INFO] market_feed — Tradier WebSocket connected
+2026-06-03 23:57:02,970 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 00:00:02,534 [INFO] main — New trading day — daily counters reset
+2026-06-04 00:48:10,489 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 03:30:01,878 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 04:58:56,949 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 05:58:13,299 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 06:15:00,750 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 06:49:56,925 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 08:23:28,197 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 9ee854774c03e9394642c9d5cf171591.
+2026-06-04 09:58:31,509 [INFO] webull — Attempting to extract tokens from browser session...
+2026-06-04 09:58:31,524 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e8dcd75e1-d...
+2026-06-04 09:58:31,525 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-06-04 09:58:32,484 [INFO] webull — Webull API ready via cookie token
+2026-06-04 09:58:34,071 [INFO] main — Webull order sync complete
+2026-06-04 09:58:34,202 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-06-04 09:58:34,303 [INFO] main — Startup history sync complete
+2026-06-04 09:58:34,543 [INFO] market_feed — Tradier stream session: 0c2ed69d-e0e...
+2026-06-04 09:58:34,701 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-06-04 09:58:34,702 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-06-04 09:58:34,702 [INFO] discord.client — logging in using static token
+2026-06-04 09:58:34,718 [INFO] websocket — Websocket connected
+2026-06-04 09:58:34,718 [INFO] market_feed — Tradier WebSocket connected
+2026-06-04 09:58:35,387 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 81625650c5e2caf9b117062aaafc1b6b).
+2026-06-04 09:58:36,304 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-06-04 09:58:36,304 [INFO] main — Discord listener started (post-sync — thread-safe)
+2026-06-04 09:58:37,388 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-06-04 09:58:49,992 [INFO] news_filter — News check NVDA: score=75 verdict=clean bad=0 good=1
+2026-06-04 09:58:56,439 [INFO] news_filter — News check META: score=75 verdict=clean bad=0 good=1
+2026-06-04 09:59:01,353 [INFO] news_filter — News check AVGO: score=65 verdict=caution bad=1 good=2
+2026-06-04 09:59:10,068 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 09:59:11,962 [INFO] news_filter — News check HIMS: score=85 verdict=clean bad=0 good=3
+2026-06-04 09:59:13,479 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 09:59:17,225 [INFO] news_filter — News check TQQQ: score=70 verdict=clean bad=0 good=0
+2026-06-04 09:59:24,416 [INFO] news_filter — News check CRWD: score=80 verdict=clean bad=0 good=2
+2026-06-04 09:59:29,123 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 09:59:32,737 [INFO] news_filter — News check XYZ: score=70 verdict=clean bad=0 good=0
+2026-06-04 09:59:34,454 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:00:07,744 [INFO] webull — Attempting to extract tokens from browser session...
+2026-06-04 10:00:07,749 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e8dcd75e1-d...
+2026-06-04 10:00:07,749 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-06-04 10:00:08,517 [INFO] webull — Webull API ready via cookie token
+2026-06-04 10:00:09,850 [INFO] main — Webull order sync complete
+2026-06-04 10:00:09,952 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-06-04 10:00:10,042 [INFO] main — Startup history sync complete
+2026-06-04 10:00:10,246 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-06-04 10:00:10,246 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-06-04 10:00:10,246 [INFO] discord.client — logging in using static token
+2026-06-04 10:00:10,548 [INFO] market_feed — Tradier stream session: 6634829d-e58...
+2026-06-04 10:00:10,770 [INFO] websocket — Websocket connected
+2026-06-04 10:00:10,770 [INFO] market_feed — Tradier WebSocket connected
+2026-06-04 10:00:12,039 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: d86c181dca41bd8bebf9d9ff4c5a3e59).
+2026-06-04 10:00:12,043 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-06-04 10:00:12,043 [INFO] main — Discord listener started (post-sync — thread-safe)
+2026-06-04 10:00:14,051 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-06-04 10:00:22,689 [INFO] news_filter — News check META: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:00:27,810 [INFO] news_filter — News check AVGO: score=65 verdict=caution bad=1 good=2
+2026-06-04 10:00:36,468 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:00:38,373 [INFO] news_filter — News check HIMS: score=85 verdict=clean bad=0 good=3
+2026-06-04 10:00:47,726 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:00:50,020 [INFO] news_filter — News check XYZ: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:00:52,303 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:00:54,771 [INFO] news_filter — News check SPOT: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:01:12,945 [WARNING] market_feed — Tradier WS closed — reconnecting...
+2026-06-04 10:01:35,020 [INFO] webull — Attempting to extract tokens from browser session...
+2026-06-04 10:01:35,025 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e8dcd75e1-d...
+2026-06-04 10:01:35,025 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-06-04 10:01:36,419 [INFO] webull — Webull API ready via cookie token
+2026-06-04 10:01:37,755 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-06-04 10:01:38,100 [INFO] market_feed — Tradier stream session: 80890adb-a5e...
+2026-06-04 10:01:38,271 [INFO] websocket — Websocket connected
+2026-06-04 10:01:38,272 [INFO] market_feed — Tradier WebSocket connected
+2026-06-04 10:01:38,322 [INFO] main — Webull order sync complete
+2026-06-04 10:01:38,488 [INFO] main — Startup history sync complete
+2026-06-04 10:01:38,663 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-06-04 10:01:38,663 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-06-04 10:01:38,663 [INFO] discord.client — logging in using static token
+2026-06-04 10:01:39,498 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 6770bb0d7e4364f17a3fb9f7f687fef3).
+2026-06-04 10:01:40,489 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-06-04 10:01:40,489 [INFO] main — Discord listener started (post-sync — thread-safe)
+2026-06-04 10:01:41,507 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-06-04 10:01:48,749 [INFO] news_filter — News check META: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:01:53,842 [INFO] news_filter — News check AVGO: score=65 verdict=caution bad=1 good=2
+2026-06-04 10:02:02,433 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:02:04,579 [INFO] news_filter — News check HIMS: score=85 verdict=clean bad=0 good=3
+2026-06-04 10:02:06,375 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:02:16,289 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:02:20,100 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:02:23,124 [INFO] news_filter — News check SPOT: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:04:36,038 [INFO] news_filter — News check PLTR: score=80 verdict=clean bad=0 good=2
+2026-06-04 10:04:44,135 [INFO] news_filter — News check AFRM: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:04:59,644 [INFO] news_filter — News check XYZ: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:07:17,641 [INFO] news_filter — News check MU: score=40 verdict=caution bad=2 good=0
+2026-06-04 10:07:29,463 [INFO] news_filter — News check SOXL: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:12:29,809 [INFO] news_filter — News check AVGO: score=75 verdict=clean bad=1 good=4
+2026-06-04 10:12:38,761 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:12:40,442 [INFO] news_filter — News check HIMS: score=85 verdict=clean bad=0 good=3
+2026-06-04 10:12:42,088 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:12:51,946 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:12:57,600 [INFO] news_filter — News check SPOT: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:22:49,590 [INFO] news_filter — News check AVGO: score=75 verdict=clean bad=1 good=4
+2026-06-04 10:22:59,475 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:25:46,334 [INFO] news_filter — News check DASH: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:43:45,213 [INFO] news_filter — News check MSFT: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:43:51,086 [INFO] news_filter — News check PLTR: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:43:54,112 [INFO] news_filter — News check SMCI: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:43:57,192 [INFO] news_filter — News check SOFI: score=55 verdict=caution bad=1 good=0
+2026-06-04 10:43:59,118 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:44:01,064 [INFO] news_filter — News check AFRM: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:44:02,558 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:44:04,326 [INFO] news_filter — News check HIMS: score=80 verdict=clean bad=0 good=2
+2026-06-04 10:44:05,871 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:44:07,459 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:44:10,460 [INFO] news_filter — News check IWM: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:44:14,147 [INFO] news_filter — News check SNOW: score=85 verdict=clean bad=0 good=3
+2026-06-04 10:44:15,581 [INFO] news_filter — News check NET: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:44:17,713 [INFO] news_filter — News check DASH: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:44:19,236 [INFO] news_filter — News check XYZ: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:44:21,106 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:44:22,875 [INFO] news_filter — News check ZM: score=70 verdict=clean bad=0 good=0

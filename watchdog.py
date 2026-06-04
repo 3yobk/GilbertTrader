@@ -1,22 +1,10 @@
 """
 watchdog.py — Auto-restart GilbertTrader if it crashes
 ========================================================
-Run this INSTEAD of main.py:
-    python watchdog.py
-
-It starts main.py as a subprocess and restarts it automatically
-within 30 seconds if it crashes. Logs crash times to watchdog.log.
-
-Features:
-- Restarts up to 10 times per day (prevents infinite crash loops)
-- 30-second cooldown between restarts (lets Webull session settle)
-- Sends Discord alert on crash + restart
-- Stops restarting if market is closed (no point)
-- Logs all crashes to watchdog.log
-
-Usage:
-    python watchdog.py
-    # or run via Task Scheduler / startup script
+Optimizations Applied:
+  - Fixed standard output blocking by injecting the unbuffered python binary flag (-u).
+  - Extended market hour logic to 5:00 PM ET to fully wrap and protect the Friday reinforcement run.
+  - Added strict execution directory anchors to prevent cross-relative path issues.
 """
 
 import subprocess
@@ -24,14 +12,13 @@ import sys
 import os
 import time
 import logging
-import json
 import requests
 from datetime import datetime, date
 
 # ── Config ────────────────────────────────────────────────────────────────────
-MAIN_SCRIPT     = os.path.join(os.path.dirname(__file__), "main.py")
-LOG_FILE        = os.path.join(os.path.dirname(__file__), "watchdog.log")
-RESTART_COOLDOWN = 30     # seconds between restarts
+MAIN_SCRIPT      = os.path.join(os.path.dirname(os.path.abspath(__file__)), "main.py")
+LOG_FILE         = os.path.join(os.path.dirname(os.path.abspath(__file__)), "watchdog.log")
+RESTART_COOLDOWN = 30      # seconds between restarts
 MAX_RESTARTS_PER_DAY = 10  # safety limit
 
 logging.basicConfig(
@@ -52,7 +39,7 @@ DISCORD_CHANNEL = os.getenv("DISCORD_CHANNEL_ID", "")
 
 
 def send_discord_alert(message: str):
-    """Send a message to Discord channel."""
+    """Send a message to Discord channel on crash."""
     if not DISCORD_TOKEN or not DISCORD_CHANNEL:
         return
     try:
@@ -68,7 +55,11 @@ def send_discord_alert(message: str):
 
 
 def is_market_hours() -> bool:
-    """Returns True during pre-market + market hours (8 AM - 4:30 PM ET Mon-Fri)."""
+    """
+    Returns True during pre-market, market hours, and post-close reinforcement.
+    Extended to 5:00 PM ET so the Friday 4:30 PM reinforce_brain run
+    is never interrupted by the watchdog sleeping early.
+    """
     try:
         import pytz
         ET  = pytz.timezone("America/New_York")
@@ -76,21 +67,22 @@ def is_market_hours() -> bool:
         if now.weekday() >= 5:   # Saturday/Sunday
             return False
         hour = now.hour + now.minute / 60
-        return 8.0 <= hour <= 16.5
+        return 8.0 <= hour <= 17.0
     except Exception:
         return True   # assume open on error
 
 
 def run():
-    restarts_today = 0
+    restarts_today    = 0
     last_restart_date = date.today()
-    crash_count = 0
+    crash_count       = 0
 
     log.info("Watchdog started — monitoring main.py")
     print("🐕 GilbertTrader Watchdog started")
-    print(f"   Script: {MAIN_SCRIPT}")
+    print(f"   Script:  {MAIN_SCRIPT}")
     print(f"   Max restarts/day: {MAX_RESTARTS_PER_DAY}")
-    print(f"   Cooldown: {RESTART_COOLDOWN}s between restarts\n")
+    print(f"   Cooldown: {RESTART_COOLDOWN}s between restarts")
+    print(f"   Active window: 8:00 AM – 5:00 PM ET (Mon–Fri)\n")
 
     while True:
         # Reset daily counter at midnight
@@ -98,18 +90,17 @@ def run():
             restarts_today    = 0
             last_restart_date = date.today()
 
-        # Don't restart if market is closed
+        # Don't restart if market window is closed
         if not is_market_hours():
-            print("⏰ Market closed — watchdog sleeping until 8 AM ET")
-            log.info("Market closed — sleeping")
-            # Sleep until 8 AM ET next business day
-            time.sleep(3600)   # check again in 1 hour
+            print("⏰ Outside market window — watchdog sleeping (30 min)")
+            log.info("Outside market window — sleeping")
+            time.sleep(1800)
             continue
 
-        # Don't restart if too many crashes
+        # Safety limit — too many crashes today
         if restarts_today >= MAX_RESTARTS_PER_DAY:
             msg = (f"⛔ **WATCHDOG STOPPED**: {restarts_today} crashes today — "
-                   f"too many restarts. Check logs.")
+                   f"too many restarts. Check watchdog.log.")
             print(msg)
             log.error(msg)
             send_discord_alert(msg)
@@ -123,44 +114,42 @@ def run():
         log.info("Starting main.py (restart #%d)", restarts_today)
 
         try:
+            # -u: unbuffered stdout — prevents stream deadlock with Chromium
+            # cwd: explicit working directory anchor — prevents relative path errors
             proc = subprocess.Popen(
-                [sys.executable, MAIN_SCRIPT],
-                cwd=os.path.dirname(__file__),
+                [sys.executable, "-u", MAIN_SCRIPT],
+                cwd=os.path.dirname(os.path.abspath(__file__)),
             )
-            # Poll every 5s so watchdog stays alive and responsive
+            # Poll every 5s — keeps watchdog responsive without busy-waiting
             while proc.poll() is None:
                 time.sleep(5)
-                if not is_market_hours():
-                    # Market closed mid-run — let it finish naturally
-                    pass
             exit_code = proc.returncode
+
         except Exception as e:
             exit_code = -1
             log.error("Failed to start main.py: %s", e)
 
-        runtime = time.time() - start_time
+        runtime     = time.time() - start_time
+        runtime_str = f"{runtime:.0f}s"
 
         if exit_code == 0:
-            # Clean exit — user pressed Ctrl+C or bot shut down gracefully
             print("✅ GilbertTrader exited cleanly (code 0) — not restarting")
-            log.info("Clean exit — stopping watchdog")
+            log.info("Clean exit after %s — stopping watchdog", runtime_str)
             break
 
         # Crash detected
         crash_count    += 1
         restarts_today += 1
-        runtime_str = f"{runtime:.0f}s"
 
         msg = (
             f"⚠️ **CRASH DETECTED** — GilbertTrader crashed after {runtime_str} "
             f"(exit code {exit_code}). Restart #{restarts_today} in "
-            f"{RESTART_COOLDOWN}s. Check watchdog.log for details."
+            f"{RESTART_COOLDOWN}s. Check watchdog.log."
         )
         print(f"\n{msg}\n")
         log.error("Crash #%d: exit_code=%d runtime=%s", crash_count, exit_code, runtime_str)
         send_discord_alert(msg)
 
-        # Cooldown before restart
         print(f"⏳ Waiting {RESTART_COOLDOWN}s before restart...")
         time.sleep(RESTART_COOLDOWN)
 
