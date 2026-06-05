@@ -36,3 +36,17 @@ playwright/.cache/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Database & Trade Logs
+*.db
+trade_log.csv
+paper_shadow.csv
+
+# State/Lock Files (from your new scanner logic)
+.alpha_sieve_*
+.premarket_*
+.daily_report_*
+.optimizer_*
+
+# Local Development logs
+watchdog.log

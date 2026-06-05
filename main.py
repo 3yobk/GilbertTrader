@@ -33,6 +33,23 @@ from discord_listener import DiscordListener
 from signal_parser   import parse_signal_safe
 import research_scanner
 try:
+    from db import DB as _DB
+    _HAS_DB = True
+    log.info("SQLite telemetry DB ready")
+except ImportError:
+    _DB = None
+    _HAS_DB = False
+try:
+    import tradier_execution as _tradier_exec
+    _HAS_TRADIER_EXEC = _tradier_exec.FAILOVER_ENABLED
+    if _HAS_TRADIER_EXEC:
+        log.info("Tradier execution failover: ENABLED")
+    else:
+        log.info("Tradier execution failover: disabled (set TRADIER_ACCOUNT_ID to enable)")
+except ImportError:
+    _tradier_exec = None
+    _HAS_TRADIER_EXEC = False
+try:
     import ml_sieve as _ml_sieve_mod
     _ml_sieve_mod.load_model()
     _ml_sieve_mod.maybe_retrain()
@@ -683,6 +700,56 @@ def optimize_strategy_thresholds(profile: dict, listener=None):
             log.error("[Optimizer] Bounds file write error: %s", e)
 
 
+# ── New ticker position cap ───────────────────────────────────────────────────
+# Tickers added for budget-friendly trading have no fill history.
+# Cap at 1 contract until they build a track record in trade_log.csv.
+_NEW_TICKERS = {'SOUN', 'ACHR', 'RUM', 'LUNR', 'CLOV', 'KULR', 'IONQ', 'BBAI', 'JOBY'}
+
+def _cap_contracts_new_ticker(ticker: str, signal_str: str) -> str:
+    """If ticker is in new-ticker set, force quantity to x1."""
+    if ticker.upper() not in _NEW_TICKERS:
+        return signal_str
+    import re as _re
+    if _re.search(r" x[2-9]\d*$", signal_str):
+        capped = _re.sub(r" x[2-9]\d*$", " x1", signal_str)
+        log.info("[NewTicker] %s capped to x1 (no fill history)", ticker)
+        return capped
+    return signal_str
+
+
+def get_regime_budget_cap(base_budget: float, regime: str,
+                          vix: float, listener=None) -> tuple:
+    """
+    Apply macro regime scaling to the trade budget.
+    Returns (capped_budget, force_tester, reason_str)
+
+    Bull + VIX < 20:  100% — full deployment
+    VIX 20-25:         60% — chop/elevated vol, trim size
+    Bear or VIX > 25:  35% — tester-only, tail risk protection
+    """
+    if vix is None:
+        vix = 15.0  # assume normal if unavailable
+
+    if vix > 25 or regime == "bear":
+        cap_pct     = 0.35
+        force_tester = True
+        tier        = "🔴 HIGH-VOL/BEAR"
+        reason      = f"VIX={vix:.1f} or bear regime → 35% budget, tester-only"
+    elif vix > 20:
+        cap_pct     = 0.60
+        force_tester = False
+        tier        = "🟡 NEUTRAL/CHOP"
+        reason      = f"VIX={vix:.1f} elevated → 60% budget"
+    else:
+        cap_pct     = 1.00
+        force_tester = False
+        tier        = "🟢 BULL/CALM"
+        reason      = f"VIX={vix:.1f} normal, {regime} regime → 100% budget"
+
+    capped = round(base_budget * cap_pct, 0)
+    return capped, force_tester, f"[Regime Budget] {tier}: {reason}"
+
+
 def main():
     profile = get_risk_profile()
 
@@ -1091,7 +1158,20 @@ def main():
 
     try:
         while True:
+            # Include open position unrealized P&L in circuit breaker check
             daily_pnl = engine.get_session_pnl()
+            try:
+                with engine._lock:
+                    open_positions = dict(engine._positions)
+                for _key, _pos in open_positions.items():
+                    try:
+                        _curr = market.get_price(_pos.signal.ticker) or _pos.entry_price
+                        _unreal = (_curr - _pos.entry_price) / _pos.entry_price * 100
+                        daily_pnl += (_unreal / 100) * _pos.entry_price * _pos.signal.quantity * 100
+                    except Exception:
+                        pass
+            except Exception:
+                pass
             if daily_pnl <= MAX_DAILY_LOSS:
                 msg = (f"🚨 CIRCUIT BREAKER: Daily loss ${daily_pnl:.2f} hit "
                        f"-{MAX_DAILY_LOSS_PCT:.0f}% limit "
@@ -1167,6 +1247,16 @@ def main():
                         _scan_interval = 240   # 4 min — mid-session
                 except Exception:
                     _scan_interval = 300
+                _time_to_scan = _scan_interval - (time.time() - last_research_time)
+                # Pre-heat data ~60s before the scan fires
+                if 55 <= _time_to_scan <= 65:
+                    try:
+                        research_scanner.preheat_data(
+                            research_scanner.MY_SMALL_STOCKS)
+                        log.debug("Preheat triggered with %ds to scan", _time_to_scan)
+                    except Exception as _phe:
+                        log.debug("Preheat error: %s", _phe)
+
                 if time.time() - last_research_time > _scan_interval:
                     if daily_trades_count >= MAX_DAILY_TRADES:
                         now_ts = time.time()
@@ -1186,15 +1276,43 @@ def main():
                             "Overbought Rallies (RSI > 70)" if regime_data.get("regime") == "bear"
                             else f"Oversold Dips (RSI < {profile['rsi']})"
                         ) if 'regime_data' in dir() else f"Oversold Dips (RSI < {profile['rsi']})"
+
+                        # ── Macro regime budget cap ───────────────────────────
+                        _force_tester     = False   # safe default if regime check fails
+                        _effective_budget = _current_budget
+                        try:
+                            from research_scanner import _get_vix, get_market_regime as _gmr
+                            _vix_now    = _get_vix() or 15.0
+                            _regime_now = (_gmr().get("regime", "neutral")
+                                           if 'regime_data' not in dir()
+                                           else regime_data.get("regime", "neutral"))
+                            _reg_budget, _force_tester, _reg_reason = get_regime_budget_cap(
+                                _current_budget, _regime_now, _vix_now)
+                            if _reg_budget < _current_budget:
+                                console.print(f"[dim]{_reg_reason}[/dim]")
+                            _effective_budget = _reg_budget
+                        except Exception as _rbe:
+                            log.debug("Regime budget error: %s", _rbe)
+
                         console.print(f"[dim]Scanning for {direction_label} [{daily_trades_count}/{MAX_DAILY_TRADES} trades today]...[/dim]")
                         found_signals = research_scanner.scan_markets(
                             rsi_threshold=profile['rsi'], listener=listener,
-                            market=market, budget=float(_current_budget),
+                            market=market, budget=float(_effective_budget),
                             tp_pct=profile['tp'], sl_pct=profile['sl'],
                             webull_engine=webull)
 
                     # Iterate through every signal found in the scan one by one
                     for raw_text in found_signals:
+                        # ── Strip [TESTER] tag FIRST before any parsing ───────
+                        # parse_signal uses a strict tokenizer — [TESTER] at the
+                        # end causes it to return None, making ticker = "UNK" and
+                        # dropping the trade before it reaches the AI or Webull.
+                        _is_tester = "[TESTER]" in raw_text or _force_tester
+                        if "[TESTER]" in raw_text:
+                            raw_text = raw_text.replace(" [TESTER]", "").replace("[TESTER]", "").strip()
+                        if _force_tester and not _is_tester:
+                            log.debug("Regime forcing tester on %s", raw_text)
+
                         parsed_te = engine.parse_signal(raw_text)
                         ticker = parsed_te.ticker if parsed_te else "UNK"
 
@@ -1210,6 +1328,9 @@ def main():
                         if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
                             continue
 
+                        if _is_tester:
+                            console.print(f"\n[bold yellow]📋 [TESTER PROBE] {ticker}: "
+                                          f"partial-confluence entry — 1 contract probe[/bold yellow]")
                         console.print(f"\n[bold cyan]▶ Sending to AI Risk Manager:[/bold cyan] {ticker} ({raw_text[:40]})")
                         console.print("[dim]Waiting for AI response before proceeding...[/dim]")
 
@@ -1246,6 +1367,8 @@ def main():
                         except Exception:
                             pass
 
+                        # Cap new tickers to 1 contract — no fill history to calibrate
+                        raw_text = _cap_contracts_new_ticker(ticker, raw_text)
                         verdict = ask_ai_for_verdict(raw_text, profile['budget'], stock_price)
 
                         if "BTO" in verdict:
@@ -1256,12 +1379,73 @@ def main():
                                 console.print(
                                     f"[bold red]⚠️  AI changed ticker {ticker} → {verdict_ticker} "
                                     f"— REJECTING and using original signal[/bold red]")
-                                # Rebuild verdict with original signal ticker preserved
-                                verdict = raw_text   # fall back to bot's original signal
+                                verdict = raw_text
 
-                            listener.send_status_update(f"✅ AI APPROVED: `{verdict}` — executing now")
+                            # Enforce x1 on tester entries — AI may have upsized
+                            if _is_tester:
+                                import re as _re_v
+                                verdict = _re_v.sub(r" x[0-9]+", " x1", verdict)
+                                if " x1" not in verdict:
+                                    verdict += " x1"
+
+                            tester_label = " (TESTER)" if _is_tester else ""
+                            listener.send_status_update(f"✅ AI APPROVED{tester_label}: `{verdict}` — executing now")
                             console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                             trade_cooldowns[ticker] = time.time()
+                            # Store real bid/ask mid from Tradier for accurate slippage calc
+                            # Falls back to spot * 0.04 proxy if Tradier unavailable
+                            try:
+                                _parsed_pre = engine.parse_signal(verdict)
+                                webull._last_fill_price = None  # reset before order
+                                webull._last_est_mid    = None
+                                if _parsed_pre:
+                                    # Try Tradier /quotes endpoint first (faster than full chain scan)
+                                    try:
+                                        from tradier_execution import _get_option_symbol as _get_occ, _headers as _th
+                                        _occ = _get_occ(
+                                            ticker,
+                                            float(_parsed_pre.strike),
+                                            _parsed_pre.option_type,
+                                            _parsed_pre.expiry,
+                                        )
+                                        if _occ:
+                                            _qr = requests.get(
+                                                "https://api.tradier.com/v1/markets/quotes",
+                                                headers=_th(),
+                                                params={"symbols": _occ},
+                                                timeout=4,
+                                            )
+                                            if _qr.ok:
+                                                _qd = _qr.json().get("quotes", {}).get("quote", {})
+                                                _bid = float(_qd.get("bid") or 0)
+                                                _ask = float(_qd.get("ask") or 0)
+                                                if _bid > 0 and _ask > 0:
+                                                    webull._last_est_mid = round((_bid + _ask) / 2, 4)
+                                                    log.info("Quotes mid for %s (%s): $%.4f",
+                                                             ticker, _occ, webull._last_est_mid)
+                                    except Exception:
+                                        pass
+                                    # Fallback: full chain scan
+                                    if not webull._last_est_mid:
+                                        try:
+                                            from tradier_execution import _get_mid_price as _tmp
+                                            _real_mid = _tmp(
+                                                ticker,
+                                                float(_parsed_pre.strike),
+                                                _parsed_pre.option_type,
+                                                _parsed_pre.expiry,
+                                            )
+                                            if _real_mid and _real_mid > 0:
+                                                webull._last_est_mid = _real_mid
+                                                log.debug("Chain mid for %s: $%.4f", ticker, _real_mid)
+                                        except Exception:
+                                            pass
+                                    # Fallback: spot * 0.04 delta proxy
+                                    if not webull._last_est_mid and market:
+                                        _spot = market.get_price(ticker) or 0
+                                        webull._last_est_mid = round(_spot * 0.04, 4) if _spot else None
+                            except Exception:
+                                pass
                             engine.on_raw_signal(verdict)
 
                             if webull.last_order_confirmed:
@@ -1273,6 +1457,11 @@ def main():
                                     _em = getattr(webull, "_last_est_mid", None)
                                     if _fp and _em:
                                         research_scanner.update_slippage(ticker, _fp, _em)
+                                        # Log to SQLite
+                                        if _HAS_DB and _DB:
+                                            _slip = (_fp - _em) / _em * 100 if _em else 0
+                                            _mult = research_scanner.get_slippage_multiplier(ticker)
+                                            _DB.log_slippage(ticker, _em, _fp, _slip, _mult)
                                     if _HAS_ML and _ml_sieve_mod:
                                         _ml_sieve_mod.maybe_retrain()
                                 except Exception as _se:
@@ -1309,20 +1498,61 @@ def main():
                                 except Exception as e:
                                     log.debug("Signal card error: %s", e)
 
+                                # ── Write fill to SQLite DB ───────────────────
+                                if _HAS_DB and _DB:
+                                    try:
+                                        _fill_px  = getattr(webull, "_last_fill_price", None)
+                                        _adx_val  = getattr(research_scanner.scan_markets,
+                                                            "_last_adx_value", None)
+                                        _DB.log_trade(
+                                            ticker=ticker,
+                                            option_type=target_option_type if "target_option_type" in dir() else None,
+                                            entry_price=_fill_px,
+                                            mode="paper" if paper_mode else "live",
+                                            is_tester=_is_tester,
+                                            adx_at_entry=_adx_val,
+                                            vix_at_entry=getattr(research_scanner, "_last_vix", None),
+                                        )
+                                    except Exception as _dbe:
+                                        log.debug("DB log_trade error: %s", _dbe)
+
                                 break  # Trade confirmed — stop processing other signals
                             else:
-                                # Paper shadow — log what would have happened in paper
-                                _maybe_run_paper_shadow(
-                                    engine=engine, signal_str=verdict,
-                                    profile=profile, market=market, webull=webull
-                                )
-                                # Order was rejected by Webull (no bid/ask, expiry issue etc)
-                                console.print(
-                                    f"[yellow]⚠️  Order rejected for {ticker} — "
-                                    f"trying next signal if available[/yellow]")
-                                webull_refresh_fails += 1
-                                time.sleep(2)
-                                continue  # ← KEY FIX: move to next signal instead of freezing
+                                # ── Tradier failover ──────────────────────────
+                                # Webull rejected — try Tradier backup execution
+                                _tradier_filled = False
+                                if _HAS_TRADIER_EXEC and _tradier_exec:
+                                    console.print(f"[yellow]⚠️  Webull rejected {ticker} — attempting Tradier failover...[/yellow]")
+                                    listener.send_status_update(
+                                        f"⚠️ Webull rejected {ticker} — routing to Tradier backup")
+                                    try:
+                                        _t_fill = _tradier_exec.place_order(
+                                            verdict, paper=paper_mode)
+                                        if _t_fill:
+                                            daily_trades_count += 1
+                                            webull_refresh_fails = 0
+                                            console.print(
+                                                f"[bold green]✅ Tradier FAILOVER filled: "
+                                                f"{ticker} @ ${_t_fill:.2f}[/bold green]")
+                                            listener.send_status_update(
+                                                f"✅ **Tradier Failover**: {verdict} filled @ ${_t_fill:.2f}")
+                                            _tradier_filled = True
+                                            break
+                                    except Exception as _te:
+                                        log.error("Tradier failover error: %s", _te)
+
+                                if not _tradier_filled:
+                                    # Paper shadow — log what would have happened
+                                    _maybe_run_paper_shadow(
+                                        engine=engine, signal_str=verdict,
+                                        profile=profile, market=market, webull=webull
+                                    )
+                                    console.print(
+                                        f"[yellow]⚠️  Order rejected for {ticker} — "
+                                        f"trying next signal if available[/yellow]")
+                                    webull_refresh_fails += 1
+                                    time.sleep(2)
+                                    continue  # ← move to next signal
                         else:
                             listener.send_status_update(f"AI REJECTED ${ticker}: {verdict}")
                             console.print(f"[bold red]REJECTED ${ticker}: {verdict}[/bold red]")
@@ -1375,6 +1605,11 @@ def main():
                                     _em = getattr(webull, "_last_est_mid", None)
                                     if _fp and _em:
                                         research_scanner.update_slippage(ticker, _fp, _em)
+                                        # Log to SQLite
+                                        if _HAS_DB and _DB:
+                                            _slip = (_fp - _em) / _em * 100 if _em else 0
+                                            _mult = research_scanner.get_slippage_multiplier(ticker)
+                                            _DB.log_slippage(ticker, _em, _fp, _slip, _mult)
                                     if _HAS_ML and _ml_sieve_mod:
                                         _ml_sieve_mod.maybe_retrain()
                                 except Exception as _se:

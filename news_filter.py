@@ -126,7 +126,29 @@ def _fetch_headlines(ticker: str) -> list:
     except Exception as e:
         log.debug("Yahoo news error for %s: %s", ticker, e)
 
-    # Source 2: Finnhub (if key set)
+    # Source 2: Tradier news (higher quality financial headlines)
+    TRADIER_TOKEN = os.getenv("TRADIER_TOKEN", "")
+    if TRADIER_TOKEN and len(headlines) < 8:
+        try:
+            r = requests.get(
+                f"https://api.tradier.com/v1/markets/news",
+                headers={"Authorization": f"Bearer {TRADIER_TOKEN}",
+                         "Accept": "application/json"},
+                params={"symbols": ticker, "count": 10},
+                timeout=6,
+            )
+            if r.ok:
+                items = r.json().get("news", {}).get("item", [])
+                if isinstance(items, dict):
+                    items = [items]
+                for item in items[:10]:
+                    title = item.get("title", "")
+                    if title:
+                        headlines.append(title.lower())
+        except Exception as e:
+            log.debug("Tradier news error for %s: %s", ticker, e)
+
+    # Source 3: Finnhub (if key set)
     if FINNHUB_KEY and len(headlines) < 5:
         try:
             from datetime import datetime, timedelta
@@ -149,43 +171,75 @@ def _fetch_headlines(ticker: str) -> list:
 
 
 def _analyze_headlines(ticker: str, headlines: list) -> dict:
-    """Score headlines for call-trade safety."""
+    """
+    Score headlines for call-trade safety.
+
+    Scoring:
+      Start at 50 (true neutral — no news = 50, not 70).
+      Each BAD signal:  -15 (hard bad news like lawsuit, bankruptcy, miss)
+      Each STRONG bad:  -25 (SEC, fraud, delisting, bankruptcy)
+      Each GOOD signal: +10 (beats, upgrade, approval)
+      Each STRONG good: +15 (acquisition, major contract, buyback)
+      Cap: 0–100
+
+    This way:
+      - No news → 50 (neutral, trade allowed)
+      - 1 bad headline → 35 (caution/blocked)
+      - 1 good headline → 60 (clean)
+      - 2 good headlines → 70 (clearly clean)
+      - 1 bad + 1 good → 45 (caution, allowed with warning)
+    """
     if not headlines:
-        # No news = neutral (can't penalize for silence)
         return {
-            "score":     70,
+            "score":     50,
             "verdict":   "neutral",
             "headlines": [],
             "bad_found": [],
             "good_found": [],
-            "note":      "No recent news found",
+            "note":      "No recent news — neutral",
         }
+
+    # Strong signals carry more weight
+    STRONG_BAD  = {"sec investigation", "sec charges", "fraud", "bankruptcy",
+                   "chapter 11", "delisting", "accounting irregularities",
+                   "restatement", "going concern", "hindenburg", "citron",
+                   "class action", "fda rejects", "clinical trial fails"}
+    STRONG_GOOD = {"acquisition", "merger", "buyback", "fda approves",
+                   "fda approval", "beats expectations", "raised guidance"}
 
     bad_found  = []
     good_found = []
 
     for headline in headlines:
+        h = headline.lower()
         for kw in BAD_NEWS_KEYWORDS:
-            if kw in headline:
-                bad_found.append(f"{kw} → {headline[:80]}")
+            if kw in h:
+                weight = "strong" if kw in STRONG_BAD else "normal"
+                bad_found.append((kw, weight, headline[:80]))
                 break
         for kw in GOOD_NEWS_KEYWORDS:
-            if kw in headline:
-                good_found.append(f"{kw} → {headline[:80]}")
+            if kw in h:
+                weight = "strong" if kw in STRONG_GOOD else "normal"
+                good_found.append((kw, weight, headline[:80]))
                 break
 
-    # Score: start at 70, -15 per bad signal, +5 per good signal, min 0 max 100
-    score = 70
-    score -= len(bad_found)  * 15
-    score += len(good_found) * 5
-    score  = max(0, min(100, score))
+    score = 50
+    for _, weight, _ in bad_found:
+        score -= 25 if weight == "strong" else 15
+    for _, weight, _ in good_found:
+        score += 15 if weight == "strong" else 10
 
-    if score >= 70:
+    score = max(0, min(100, score))
+
+    if score >= 60:
         verdict = "clean"
-    elif score >= 40:
+    elif score >= 35:
         verdict = "caution"
     else:
         verdict = "blocked"
+
+    bad_strs  = [f"{kw}({w}) → {h}" for kw, w, h in bad_found[:3]]
+    good_strs = [f"{kw}({w}) → {h}" for kw, w, h in good_found[:3]]
 
     log.info("News check %s: score=%d verdict=%s bad=%d good=%d",
              ticker, score, verdict, len(bad_found), len(good_found))
@@ -194,8 +248,8 @@ def _analyze_headlines(ticker: str, headlines: list) -> dict:
         "score":     score,
         "verdict":   verdict,
         "headlines": headlines[:5],
-        "bad_found": bad_found[:3],
-        "good_found": good_found[:3],
+        "bad_found": bad_strs,
+        "good_found": good_strs,
         "note":      f"{len(bad_found)} bad signals, {len(good_found)} good signals",
     }
 

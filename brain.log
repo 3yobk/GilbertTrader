@@ -18593,3 +18593,81 @@ Loop thread traceback (most recent call last):
 2026-06-04 10:44:19,236 [INFO] news_filter — News check XYZ: score=70 verdict=clean bad=0 good=0
 2026-06-04 10:44:21,106 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
 2026-06-04 10:44:22,875 [INFO] news_filter — News check ZM: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:53:27,969 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:57:36,856 [INFO] news_filter — News check MSFT: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:57:44,612 [INFO] news_filter — News check SMCI: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:57:47,249 [INFO] news_filter — News check SOFI: score=55 verdict=caution bad=1 good=0
+2026-06-04 10:57:49,060 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:57:51,076 [INFO] news_filter — News check AFRM: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:57:53,593 [INFO] news_filter — News check HIMS: score=80 verdict=clean bad=0 good=2
+2026-06-04 10:57:55,108 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:57:56,567 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:57:59,662 [INFO] news_filter — News check IWM: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:58:03,237 [INFO] news_filter — News check SNOW: score=85 verdict=clean bad=0 good=3
+2026-06-04 10:58:04,717 [INFO] news_filter — News check NET: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:58:07,664 [INFO] news_filter — News check DASH: score=75 verdict=clean bad=0 good=1
+2026-06-04 10:58:10,224 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
+2026-06-04 10:58:11,839 [INFO] news_filter — News check ZM: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:02:30,970 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:07:18,498 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:11:36,355 [INFO] news_filter — News check SOFI: score=55 verdict=caution bad=1 good=0
+2026-06-04 11:11:39,063 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:11:41,037 [INFO] news_filter — News check AFRM: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:11:43,685 [INFO] news_filter — News check HIMS: score=80 verdict=clean bad=0 good=2
+2026-06-04 11:11:45,242 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:11:46,638 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:11:50,219 [INFO] news_filter — News check IWM: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:11:55,157 [INFO] news_filter — News check NET: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:11:57,830 [INFO] news_filter — News check DASH: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:12:01,156 [INFO] news_filter — News check ZM: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:16:07,144 [INFO] news_filter — News check MSFT: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:16:17,682 [INFO] news_filter — News check COIN: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:16:21,048 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:16:36,536 [INFO] news_filter — News check PYPL: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:21:08,998 [INFO] news_filter — News check UBER: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:25:26,330 [INFO] news_filter — News check SOFI: score=55 verdict=caution bad=1 good=0
+2026-06-04 11:25:28,246 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:25:30,128 [INFO] news_filter — News check AFRM: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:25:32,826 [INFO] news_filter — News check HIMS: score=80 verdict=clean bad=0 good=2
+2026-06-04 11:25:34,188 [INFO] news_filter — News check SHOP: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:25:35,602 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:25:39,149 [INFO] news_filter — News check IWM: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:25:46,412 [INFO] news_filter — News check DASH: score=80 verdict=clean bad=0 good=2
+2026-06-04 11:25:49,380 [INFO] news_filter — News check ZM: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:30:11,215 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:39:11,423 [INFO] news_filter — News check SOFI: score=55 verdict=caution bad=1 good=0
+2026-06-04 11:39:13,318 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:39:15,317 [INFO] news_filter — News check AFRM: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:39:19,107 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 11:39:28,179 [INFO] news_filter — News check DASH: score=80 verdict=clean bad=0 good=2
+2026-06-04 11:39:31,497 [INFO] news_filter — News check ZM: score=70 verdict=clean bad=0 good=0
+2026-06-04 11:43:48,642 [INFO] news_filter — News check UPST: score=70 verdict=clean bad=0 good=0
+2026-06-04 12:19:25,434 [INFO] webull — Attempting to extract tokens from browser session...
+2026-06-04 12:19:25,442 [INFO] webull — Token found in cookies (web_lt): dc_us_tech1.19e8dcd75e1-d...
+2026-06-04 12:19:25,442 [INFO] webull — DID: qa52lc0zhm2n8sr666vuodpk2hbdju7y
+2026-06-04 12:19:26,484 [INFO] webull — Webull API ready via cookie token
+2026-06-04 12:19:28,617 [INFO] market_feed — Tradier token valid — account: Eyob Kabeto
+2026-06-04 12:19:28,821 [INFO] main — Webull order sync complete
+2026-06-04 12:19:29,038 [INFO] market_feed — Tradier stream session: 164166cf-2fd...
+2026-06-04 12:19:29,042 [INFO] main — Startup history sync complete
+2026-06-04 12:19:29,199 [INFO] websocket — Websocket connected
+2026-06-04 12:19:29,200 [INFO] market_feed — Tradier WebSocket connected
+2026-06-04 12:19:29,366 [WARNING] discord.client — PyNaCl is not installed, voice will NOT be supported
+2026-06-04 12:19:29,366 [WARNING] discord.client — davey is not installed, voice will NOT be supported
+2026-06-04 12:19:29,367 [INFO] discord.client — logging in using static token
+2026-06-04 12:19:30,059 [INFO] discord.gateway — Shard ID None has connected to Gateway (Session ID: 7932a7224b1286f4d8f7f9965ee4366e).
+2026-06-04 12:19:31,043 [INFO] discord_listener — Discord listener thread started (channel=1393749056672501874)
+2026-06-04 12:19:31,043 [INFO] main — Discord listener started (post-sync — thread-safe)
+2026-06-04 12:19:32,075 [INFO] discord_listener — Discord connected as GilbertTrader#0929
+2026-06-04 12:19:49,008 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 12:24:08,605 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 12:32:58,546 [INFO] news_filter — News check CVNA: score=75 verdict=clean bad=0 good=1
+2026-06-04 12:38:47,106 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 7932a7224b1286f4d8f7f9965ee4366e.
+2026-06-04 13:29:46,068 [INFO] news_filter — News check HOOD: score=75 verdict=clean bad=0 good=1
+2026-06-04 15:21:36,478 [INFO] news_filter — News check PANW: score=65 verdict=caution bad=1 good=2
+2026-06-04 15:33:26,750 [INFO] news_filter — News check PANW: score=65 verdict=caution bad=1 good=2
+2026-06-04 15:48:51,025 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 7932a7224b1286f4d8f7f9965ee4366e.
+2026-06-04 16:23:00,934 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 7932a7224b1286f4d8f7f9965ee4366e.
+2026-06-04 17:45:09,660 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 7932a7224b1286f4d8f7f9965ee4366e.
+2026-06-04 18:34:40,501 [INFO] discord.gateway — Shard ID None has successfully RESUMED session 7932a7224b1286f4d8f7f9965ee4366e.
+2026-06-04 18:37:14,529 [WARNING] market_feed — Tradier WS closed — reconnecting...

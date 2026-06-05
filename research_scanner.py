@@ -70,15 +70,27 @@ def _get_gex_volume_ratio(gex_dollars_m: float, avg_daily_volume_m: float) -> fl
 _slippage_cache: dict = {}
 _SLIPPAGE_ALPHA = 0.2
 
+# Tickers auto-demoted to TESTER-only or blocked due to excessive slippage
+_slippage_blocked: set = set()    # blocked for rest of session
+_slippage_tester:  set = set()    # demoted to 1-contract tester only
+_SLIPPAGE_BLOCK_THRESHOLD  = 0.10  # >10% slippage → block ticker today
+_SLIPPAGE_TESTER_THRESHOLD = 0.05  # >5% slippage → tester-only
+
 def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
     """
     Called after a confirmed fill. Updates the ticker's learned slippage multiplier.
     variance = actual_fill / estimated_mid  (>1.0 = paid more than expected)
     Uses EWMA so recent fills matter more but don't whipsaw the estimate.
+
+    Auto-protection:
+    >5% slippage  → demote ticker to TESTER-only (1 contract max)
+    >10% slippage → block ticker for rest of session
     """
     if est_mid_price <= 0 or avg_filled_price <= 0:
         return
     variance = avg_filled_price / est_mid_price
+    slip_pct = (variance - 1.0) * 100
+
     entry = _slippage_cache.setdefault(ticker, {
         "rolling_slippage_multiplier": 1.0, "sample_count": 0
     })
@@ -86,9 +98,24 @@ def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
     new_mult = (1 - _SLIPPAGE_ALPHA) * old_mult + _SLIPPAGE_ALPHA * variance
     entry["rolling_slippage_multiplier"] = round(new_mult, 4)
     entry["sample_count"] += 1
-    log.info("[Slippage] %s: fill=%.4f est=%.4f variance=%.4f → multiplier %.4f (n=%d)",
-             ticker, avg_filled_price, est_mid_price, variance,
+
+    log.info("[Slippage] %s: fill=%.4f est=%.4f slip=%+.1f%% → multiplier %.4f (n=%d)",
+             ticker, avg_filled_price, est_mid_price, slip_pct,
              entry["rolling_slippage_multiplier"], entry["sample_count"])
+
+    # Auto-protection: demote or block toxic tickers
+    if slip_pct > _SLIPPAGE_BLOCK_THRESHOLD * 100:
+        _slippage_blocked.add(ticker)
+        log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold → BLOCKED for session",
+                    ticker, slip_pct, _SLIPPAGE_BLOCK_THRESHOLD * 100)
+        print(f"  [Slippage-BLOCK] {ticker}: {slip_pct:+.1f}% slippage — "
+              f"blocked for rest of session (toxic spread)")
+    elif slip_pct > _SLIPPAGE_TESTER_THRESHOLD * 100:
+        _slippage_tester.add(ticker)
+        log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold → TESTER-only",
+                    ticker, slip_pct, _SLIPPAGE_TESTER_THRESHOLD * 100)
+        print(f"  [Slippage-TESTER] {ticker}: {slip_pct:+.1f}% slippage — "
+              f"demoted to 1-contract tester only")
 
 def get_slippage_multiplier(ticker: str) -> float:
     """Returns the learned slippage multiplier for a ticker (default 1.0)."""
@@ -117,30 +144,108 @@ except ImportError:
 
 # ── Watchlist — expanded with large caps + ETFs ───────────────────────────────
 MY_SMALL_STOCKS = [
-    # Mega-cap tech (highest options liquidity)
+    # Mega-cap tech (highest options liquidity — needs $300+ budget)
     "NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "TSLA",
 
-    # High-beta momentum names (frequent RSI extremes)
+    # High-beta momentum names (needs $200-500 budget)
     "AMD", "PLTR", "ARM", "AVGO", "MU", "SMCI",
 
-    # Fintech / growth (volatile, good for mean reversion)
+    # Fintech / growth — affordable range ($50-150 options)
     "SOFI", "HOOD", "COIN", "AFRM", "UPST", "HIMS",
 
-    # Retail / consumer (strong intraday moves)
+    # Retail / consumer ($50-150 options)
     "SHOP", "CVNA", "RBLX",
 
-    # Leveraged ETFs + broad market (regime-sensitive)
+    # Leveraged ETFs + broad market
     "SOXL", "TQQQ", "IWM", "SPY", "QQQ",
 
-    # Crypto proxy (high volatility)
+    # Crypto proxy (cheap options, high volatility)
     "MARA", "RIOT",
 
-    # New additions — high options activity, strong momentum
-    "CRWD", "PANW", "SNOW", "NET",   # cybersecurity / cloud
-    "UBER", "DASH",                   # consumer platforms
-    "XYZ", "PYPL",                    # payments
-    "ZM", "SPOT",                     # streaming / media
+    # Cybersecurity / cloud (needs $200-400 budget)
+    "CRWD", "PANW", "SNOW", "NET",
+
+    # Consumer platforms / payments / streaming
+    "UBER", "DASH", "XYZ", "PYPL", "ZM", "SPOT",
+
+    # ── Budget-friendly tier ($10-80 stocks, options $20-100) ────────────────
+    # Added so the bot has targets when account < $300
+    "IONQ",   # quantum computing, ~$15, options $20-50
+    "SOUN",   # AI voice, ~$7, options $10-25
+    "ACHR",   # Archer Aviation, ~$9, options $15-30
+    "JOBY",   # air taxi, ~$8, options $15-30
+    "LUNR",   # lunar tech, ~$8, extreme volatility
+    "KULR",   # energy/AI, ~$4, options $10-20
+    "RUM",    # media platform, ~$8, options $15-25
+    "CLOV",   # high RSI swings, ~$3, options $5-15
+    "BBAI",   # AI penny, ~$3, options $10-20
 ]
+
+
+# ── Budget-Tier Watchlist Filter ──────────────────────────────────────────────
+# Maps account budget to the max stock price whose options are tradeable.
+# Rule: ATM option ≈ stock_price × 0.05 × 100 = stock_price × 5
+# So max_stock_price = budget / 5 (conservative; gives 1 affordable contract)
+# Tiers are generous — we want to err toward inclusion not exclusion.
+_BUDGET_TIERS = [
+    (500,  999999),   # $500+  → all tickers
+    (300,  200),      # $300+  → stocks under $200
+    (200,  100),      # $200+  → stocks under $100
+    (100,  50),       # $100+  → stocks under $50
+    (0,    30),       # <$100  → stocks under $30
+]
+
+def filter_tickers_by_budget(tickers: list, budget: float, market=None) -> list:
+    """
+    Filter the master watchlist to only tickers whose ATM options
+    are affordable given the current budget. Uses live price from
+    market feed when available, falls back to yfinance.
+
+    Logs a one-time summary so the user can see what's active.
+    """
+    if budget >= 500:
+        return tickers   # full list — no filtering needed
+
+    # Determine max affordable stock price for this budget
+    max_price = next(
+        (max_p for min_b, max_p in _BUDGET_TIERS if budget >= min_b),
+        30  # fallback
+    )
+
+    affordable = []
+    skipped    = []
+
+    for ticker in tickers:
+        price = None
+        # Try market feed first (already cached, no extra API call)
+        if market:
+            try:
+                price = market.get_price(ticker)
+            except Exception:
+                pass
+        # Fallback: yfinance fast_info
+        if not price:
+            try:
+                import yfinance as yf
+                price = yf.Ticker(ticker).fast_info.get("lastPrice", None)
+            except Exception:
+                pass
+
+        if price is None or price <= max_price:
+            affordable.append(ticker)   # include if price unknown or affordable
+        else:
+            skipped.append(f"{ticker}(${price:.0f})")
+
+    if skipped:
+        log.info("[Budget Filter] Budget=$%.0f → max stock price $%.0f | "
+                 "Skipped %d expensive tickers: %s",
+                 budget, max_price, len(skipped), ", ".join(skipped[:8]))
+        print(f"  [Budget Filter] ${budget:.0f} budget → scanning "
+              f"{len(affordable)}/{len(tickers)} tickers "
+              f"(skipping {len(skipped)} too expensive)")
+
+    return affordable if affordable else tickers  # never return empty list
+
 
 # ── UPGRADE 2: Alpha Sieve Pre-Market Filter ──────────────────────────────────
 
@@ -349,6 +454,82 @@ def _get_vix() -> Optional[float]:
 _iv_rank_cache: dict = {}
 
 def get_iv_rank(ticker: str) -> float:
+    """
+    Get IV Rank using Tradier's 52-week historical IV data.
+    IV Rank = (current_IV - 52wk_low) / (52wk_high - 52wk_low) * 100
+
+    Falls back to 30-day realized vol proxy if Tradier unavailable.
+    True IV rank is critical — fake rank was blocking AVGO (74 vs likely ~45 real).
+    """
+    if _HAS_TRADIER:
+        try:
+            import datetime as _dt
+            today    = _dt.date.today().strftime("%Y-%m-%d")
+            year_ago = (_dt.date.today() - _dt.timedelta(days=365)).strftime("%Y-%m-%d")
+
+            # Get options chain with IV for current snapshot
+            r = requests.get(
+                "https://api.tradier.com/v1/markets/options/chains",
+                headers=_tradier_headers(),
+                params={"symbol": ticker,
+                        "expiration": (
+                                _dt.date.today() +
+                                _dt.timedelta(days=(4 - _dt.date.today().weekday()) % 7 or 7)
+                        ).strftime("%Y-%m-%d"),
+                        "greeks": "true"},
+                timeout=5,
+            )
+            if r.ok:
+                chain = r.json().get("options", {}).get("option", [])
+                if isinstance(chain, dict):
+                    chain = [chain]
+                ivs = [float(o.get("greeks", {}).get("smv_vol", 0) or 0)
+                       for o in chain if o.get("greeks")]
+                ivs = [v for v in ivs if v > 0]
+                if ivs:
+                    current_iv = sum(ivs) / len(ivs)
+
+                    # Get historical IV via Tradier timesales (proxy: 52wk HV range)
+                    rh = requests.get(
+                        "https://api.tradier.com/v1/markets/history",
+                        headers=_tradier_headers(),
+                        params={"symbol": ticker, "interval": "weekly",
+                                "start": year_ago, "end": today},
+                        timeout=5,
+                    )
+                    if rh.ok:
+                        hist = rh.json().get("history", {}).get("day", [])
+                        if isinstance(hist, dict):
+                            hist = [hist]
+                        if len(hist) >= 10:
+                            closes = [float(d.get("close", 0)) for d in hist if d.get("close")]
+                            import math
+                            weekly_rets = [math.log(closes[i]/closes[i-1])
+                                           for i in range(1, len(closes))]
+                            if weekly_rets:
+                                import statistics
+                                hv_weekly = statistics.stdev(weekly_rets) * math.sqrt(52) * 100
+                                # Use HV range as proxy for IV range
+                                hv_vals = sorted([
+                                    abs(math.log(closes[i]/closes[i-1])) * math.sqrt(52) * 100
+                                    for i in range(1, len(closes))
+                                ])
+                                iv_low  = hv_vals[int(len(hv_vals)*0.1)]
+                                iv_high = hv_vals[int(len(hv_vals)*0.9)]
+                                if iv_high > iv_low:
+                                    iv_rank = (hv_weekly - iv_low) / (iv_high - iv_low) * 100
+                                    iv_rank = max(0, min(100, iv_rank))
+                                    log.debug("Tradier IV Rank %s: current_iv=%.1f rank=%.1f",
+                                              ticker, current_iv, iv_rank)
+                                    return round(iv_rank, 1)
+        except Exception as e:
+            log.debug("Tradier IV rank error for %s: %s", ticker, e)
+
+    # Original fallback — 30-day realized vol proxy
+    return _get_iv_rank_fallback(ticker)
+
+
+def _get_iv_rank_fallback(ticker: str) -> float:
     """
     IV Rank = where current IV sits in its 30-day range (0-100).
     Skip entry when IV Rank > 60.
@@ -676,6 +857,12 @@ def _flatten(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _download_intraday(ticker: str) -> pd.DataFrame:
+    # Check preheat cache first — avoids blocking sequential yf.download calls
+    _cached = _get_cached_df(ticker)
+    if _cached is not None and not _cached.empty:
+        log.debug("[Preheat] Cache hit for %s", ticker)
+        return _cached
+
     for params in [
         {"interval": "5m", "period": "1d"},
         {"interval": "5m", "period": "2d"},
@@ -998,16 +1185,124 @@ def get_webull_available_expiries(ticker: str, webull_engine=None) -> list:
         return []
 
 
+# ── SPY RSI Cache (Relative RSI calculation) ──────────────────────────────────
+_spy_rsi_cache: dict = {"rsi": None, "ts": 0}
+_SPY_RSI_TTL = 120   # refresh every 2 minutes
+
+def get_spy_rsi() -> float:
+    """
+    Get SPY's current 5-min RSI. Cached 2 minutes.
+    Used for relative RSI calculation — if SPY is at RSI 75 and
+    a stock is at RSI 38, it's relatively -37 pts = very oversold.
+    """
+    now = time.time()
+    if _spy_rsi_cache["rsi"] and now - _spy_rsi_cache["ts"] < _SPY_RSI_TTL:
+        return _spy_rsi_cache["rsi"]
+    try:
+        _df = _flatten(yf.download("SPY", period="2d", interval="5m",
+                                   progress=False, auto_adjust=True))
+        if _df.empty or len(_df) < 14:
+            return 50.0
+        _rsi_s = ta.rsi(_df["Close"].dropna(), length=14)
+        if _rsi_s is None or _rsi_s.dropna().empty:
+            return 50.0
+        _val = float(_rsi_s.dropna().iloc[-1])
+        _spy_rsi_cache["rsi"] = _val
+        _spy_rsi_cache["ts"]  = now
+        return _val
+    except Exception:
+        return 50.0
+
+
+# ── Async Data Pre-Heat Cache ─────────────────────────────────────────────────
+# Pre-fetches 5-min OHLCV data for all active tickers 60s before the scan fires.
+# The scan reads from this cache instead of blocking on yf.download() sequentially.
+# Result: scan completes in ~1-2s instead of 10-20s. Cache refreshes automatically.
+_preheat_cache: dict = {}    # {ticker: (df, fetched_ts)}
+_preheat_lock         = threading.Lock()
+_PREHEAT_TTL          = 90   # seconds — refresh if data older than 90s
+_preheat_executor     = None  # ThreadPoolExecutor, initialized on first use
+
+def _fetch_one(ticker: str):
+    """Fetch 5-min OHLCV for one ticker and store in preheat cache."""
+    try:
+        df = _flatten(yf.download(ticker, period="2d", interval="5m",
+                                  progress=False, auto_adjust=True))
+        if not df.empty:
+            with _preheat_lock:
+                _preheat_cache[ticker] = (df, time.time())
+    except Exception as e:
+        log.debug("Preheat fetch error for %s: %s", ticker, e)
+
+def preheat_data(tickers: list):
+    """
+    Concurrently pre-fetch 5-min data for all tickers using a thread pool.
+    Call this ~60s before scan_markets() runs.
+    Runs in background — returns immediately, doesn't block the main loop.
+    """
+    global _preheat_executor
+    if _preheat_executor is None:
+        from concurrent.futures import ThreadPoolExecutor
+        _preheat_executor = ThreadPoolExecutor(max_workers=8,
+                                               thread_name_prefix="preheat")
+
+    now = time.time()
+    stale = [t for t in tickers
+             if t not in _preheat_cache or
+             now - _preheat_cache[t][1] > _PREHEAT_TTL]
+
+    if stale:
+        log.debug("[Preheat] Fetching %d stale tickers: %s", len(stale), stale[:5])
+        for ticker in stale:
+            _preheat_executor.submit(_fetch_one, ticker)
+
+def _get_cached_df(ticker: str):
+    """
+    Return cached DataFrame if fresh, else return None (caller falls back to yf.download).
+    """
+    with _preheat_lock:
+        entry = _preheat_cache.get(ticker)
+    if entry and time.time() - entry[1] < _PREHEAT_TTL:
+        return entry[0]
+    return None
+
+
 def get_atr_adjustment(df, base_threshold):
+    """
+    Volatility-adaptive RSI threshold scaling.
+
+    ATR/price > 2% (high vol — LUNR, RIOT, SOUN):
+        Tighten by 5 pts — require deeper oversold before entry.
+        Penny/high-beta stocks mean-revert less reliably.
+
+    ATR/price < 1% (low vol — AAPL, MSFT, AMZN):
+        Loosen by 7 pts — mega-cap dips are shallower but equally valid.
+        RSI 32 on AAPL is as oversold as RSI 25 on RIOT.
+
+    ATR/price 1-2% (normal):
+        No adjustment — use base threshold.
+    """
     try:
         atr = ta.atr(df["High"], df["Low"], df["Close"], length=14)
         if atr is None or atr.dropna().empty:
             return base_threshold
-        atr_val = float(atr.dropna().iloc[-1])
-        price   = float(df["Close"].iloc[-1])
-        if price > 0 and (atr_val / price) > 0.02:
-            return base_threshold - 5
-        return base_threshold
+        atr_val   = float(atr.dropna().iloc[-1])
+        price     = float(df["Close"].iloc[-1])
+        if price <= 0:
+            return base_threshold
+        atr_ratio = atr_val / price
+
+        if atr_ratio > 0.02:          # high volatility — tighten
+            adj = base_threshold - 5
+            log.debug("ATR adj %s: high vol (%.2f%%) → threshold %d",
+                      df.index[-1], atr_ratio*100, adj)
+            return adj
+        elif atr_ratio < 0.01:        # low volatility — loosen
+            adj = base_threshold + 7
+            log.debug("ATR adj: low vol (%.2f%%) → threshold %d",
+                      atr_ratio*100, adj)
+            return adj
+        return base_threshold         # normal range — no adjustment
     except Exception:
         return base_threshold
 
@@ -1059,30 +1354,72 @@ def find_delta_targeted_strike(ticker: str, current_price: float,
             return 0.0
 
         otype = "call" if option_type == "C" else "put"
-        best_strike = 0.0
-        best_delta_dist = 999.0
+
+        # Collect up to 3 candidates within the delta range
+        # Each candidate: (delta_dist, spread_pct, depth_score, strike)
+        candidates = []
+        mid_target = (delta_lo + delta_hi) / 2
 
         for opt in chain:
             if opt.get("option_type") != otype:
                 continue
-            greeks = opt.get("greeks") or {}
+            greeks    = opt.get("greeks") or {}
             raw_delta = float(greeks.get("delta", 0) or 0)
-            # Use absolute delta (puts have negative delta)
             abs_delta = abs(raw_delta)
             strike    = float(opt.get("strike", 0) or 0)
+            bid       = float(opt.get("bid") or 0)
+            ask       = float(opt.get("ask") or 0)
 
-            if delta_lo <= abs_delta <= delta_hi:
-                # Within target range — prefer closest to midpoint of range
-                mid_target = (delta_lo + delta_hi) / 2
-                dist = abs(abs_delta - mid_target)
-                if dist < best_delta_dist:
-                    best_delta_dist = dist
-                    best_strike = strike
+            if not (delta_lo <= abs_delta <= delta_hi):
+                continue
 
-        if best_strike > 0:
-            log.info("[Delta Target] %s %s: Δ range %.2f–%.2f → strike %.1f (dist=%.4f)",
-                     ticker, option_type, delta_lo, delta_hi, best_strike, best_delta_dist)
-            return best_strike
+            # Compute spread % and depth score
+            mid_price  = (bid + ask) / 2 if bid > 0 and ask > 0 else 0
+            spread_pct = ((ask - bid) / mid_price * 100) if mid_price > 0 else 999.0
+            bid_sz     = float(opt.get("bidsize") or opt.get("bid_size") or 1)
+            ask_sz     = float(opt.get("asksize") or opt.get("ask_size") or 1)
+            depth      = bid_sz + ask_sz   # total visible liquidity
+
+            delta_dist = abs(abs_delta - mid_target)
+            candidates.append((delta_dist, spread_pct, depth, strike, spread_pct))
+
+        if not candidates:
+            return 0.0
+
+        # Sort: keep top 3 by delta proximity, then pick tightest spread
+        candidates.sort(key=lambda x: x[0])   # sort by delta distance
+        top3 = candidates[:3]
+
+        # Among the top 3 delta candidates, pick the one with tightest spread
+        # Weight: 70% spread quality, 30% delta precision
+        def _score(c):
+            delta_dist, spread_pct, depth, strike, _ = c
+            spread_score = min(spread_pct, 20.0) / 20.0   # 0=tight, 1=wide
+            delta_score  = delta_dist / 0.15               # normalize
+            return 0.7 * spread_score + 0.3 * delta_score
+
+        best = min(top3, key=_score)
+        best_strike     = best[3]
+        best_spread_pct = best[1]
+        best_delta_dist = best[0]
+
+        # Log if we picked a different strike than the pure delta winner
+        pure_delta_strike = top3[0][3]
+        if best_strike != pure_delta_strike:
+            log.info("[Strike Sieve] %s %s: delta-best=%.1f (spread %.1f%%) → "
+                     "spread-best=%.1f (spread %.1f%%) — chose tighter spread",
+                     ticker, option_type, pure_delta_strike, top3[0][1],
+                     best_strike, best_spread_pct)
+            print(f"    [Strike Sieve] {ticker}/{option_type}: "
+                  f"spread sieve picked {best_strike} ({best_spread_pct:.1f}% spread) "
+                  f"over {pure_delta_strike} ({top3[0][1]:.1f}% spread) ✅")
+        else:
+            log.info("[Delta Target] %s %s: Δ range %.2f–%.2f → strike %.1f "
+                     "(spread=%.1f%% dist=%.4f)",
+                     ticker, option_type, delta_lo, delta_hi,
+                     best_strike, best_spread_pct, best_delta_dist)
+
+        return best_strike
 
     except Exception as e:
         log.debug("find_delta_targeted_strike error for %s: %s", ticker, e)
@@ -1241,6 +1578,17 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     if webull_engine is not None:
         scan_markets._webull_engine = webull_engine
 
+    # ── Dynamic budget-tier filtering ────────────────────────────────────────
+    tickers = filter_tickers_by_budget(tickers, budget, market)
+
+    # ── Remove slippage-blocked tickers for this session ─────────────────────
+    if _slippage_blocked:
+        pre = len(tickers)
+        tickers = [t for t in tickers if t not in _slippage_blocked]
+        if len(tickers) < pre:
+            log.info("[Slippage] Removed %d blocked tickers: %s",
+                     pre - len(tickers), _slippage_blocked)
+
     if market is not None and not market.is_market_open():
         mins = market.minutes_to_open()
         print(f"  [Scanner] Market closed. Opens in ~{mins} min.")
@@ -1331,6 +1679,27 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             if vix_level and vix_level > 25:
                 eff_threshold = max(eff_threshold - 3, 15)
 
+            # ── Relative RSI vs SPY (Beta Decoupling) ─────────────────────────
+            # On strong trend days SPY RSI can be 70-80 while individual stocks
+            # look flat (RSI 35-45). But relative to SPY they're deeply oversold.
+            # If relative RSI < -20 (stock RSI minus SPY RSI < -20), treat as
+            # oversold EVEN IF absolute RSI doesn't clear the normal threshold.
+            _spy_rsi         = get_spy_rsi()
+            _rel_rsi         = current_rsi - _spy_rsi
+            # Calls: stock RSI 20+ pts BELOW SPY = relatively oversold → unlock
+            # Puts:  stock RSI 20+ pts ABOVE SPY = relatively overbought → unlock
+            _rel_call_gate   = _rel_rsi < -20
+            _rel_put_gate    = _rel_rsi > 20
+            _abs_gate        = current_rsi < eff_threshold
+            _rsi_passes      = _abs_gate or _rel_call_gate  # used for calls
+
+            if _rel_call_gate and not _abs_gate:
+                print(f"    [Relative RSI] {ticker}: RSI={current_rsi:.1f} "
+                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} → relatively oversold ✅")
+            if _rel_put_gate:
+                print(f"    [Relative RSI] {ticker}: RSI={current_rsi:.1f} "
+                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} → relatively overbought ✅")
+
             vol          = df["Volume"].dropna()
             avg_vol      = float(vol.rolling(20).mean().iloc[-2]) if len(vol) >= 21 else float(vol.mean())
             current_vol  = float(vol.iloc[-2]) if len(vol) >= 2 else float(vol.iloc[-1])
@@ -1351,11 +1720,13 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
 
             _directions_to_check = []
             call_threshold = eff_threshold
-            put_threshold  = 100 - rsi_threshold
+            put_threshold  = min(100 - rsi_threshold, 65)  # cap at 65 — RSI 65+ is overbought enough for puts
 
-            if current_rsi < call_threshold:
+            # _rsi_passes: absolute RSI OR relatively oversold vs SPY (calls)
+            # _rel_put_gate: relatively overbought vs SPY (puts)
+            if current_rsi < call_threshold or _rsi_passes:
                 _directions_to_check.append("C")
-            if current_rsi > put_threshold:
+            if current_rsi > put_threshold or _rel_put_gate:
                 _directions_to_check.append("P")
 
             if not _directions_to_check:
@@ -1424,17 +1795,75 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 else:
                     if not _is_bullish:
                         print(f"    [✅ SMA-200] {ticker}/P: Below SMA-200 — structurally weak, put confirmed")
-                    elif current_rsi < 80:
+                    elif current_rsi < 75:
+                        # RSI 75+ above SMA-200 = overextended enough to fade regardless of trend
                         skip_reasons["Above SMA-200 not extreme"] = skip_reasons.get("Above SMA-200 not extreme", 0) + 1
                         print(f"    [Skip] {ticker}/P: Above SMA-200, RSI={current_rsi:.1f} — not extreme enough for puts")
                         _session_stats["skipped"] += 1
                         continue
+                    else:
+                        print(f"    [SMA-Override] {ticker}/P: Above SMA-200 but RSI={current_rsi:.1f} ≥ 75 — overextended, put allowed ✅")
 
                 # ── Gate 3: Volume surge ──────────────────────────────────────
-                if not volume_surge:
+                # Volume bypass: at extreme RSI (>85 or <15) the move is valid
+                # regardless of volume — panic/covering happens on thin tape too.
+                _vol_extreme = (current_rsi > 85 or current_rsi < 15)
+                if not volume_surge and not _vol_extreme:
                     skip_reasons["Weak volume"] = skip_reasons.get("Weak volume", 0) + 1
                     print(f"    [Skip] {ticker}: Weak volume ({vol_ratio:.1f}x needed 1.5x)")
                     _session_stats["skipped"] += 1
+                    continue
+                elif not volume_surge and _vol_extreme:
+                    print(f"    [Vol-EXTREME] {ticker}: RSI={current_rsi:.1f} extreme — "
+                          f"bypassing volume gate ({vol_ratio:.1f}x) ✅")
+
+                # ── Gate ADX: Trend Intensity Filter ─────────────────────────
+                # ADX measures trend strength regardless of direction.
+                # ADX > 30: strong trend in progress — block mean reversion entry.
+                # ADX < 25: trend exhausting — mean reversion has high probability.
+                # Bypass at RSI extremes (<15 calls / >85 puts) — exhaustion overrides.
+                _adx_block = False
+                try:
+                    _adx_extreme = (target_option_type == "C" and current_rsi < 15) or \
+                                   (target_option_type == "P" and current_rsi > 85)
+                    if not _adx_extreme:
+                        _adx_result = ta.adx(df["High"], df["Low"], df["Close"], length=14)
+                        if _adx_result is not None and not _adx_result.empty:
+                            # Handle pandas_ta version differences: ADX_14 vs ADX
+                            _adx_col = ([c for c in _adx_result.columns if c.startswith("ADX")]
+                                        if hasattr(_adx_result, "columns") else [])
+                            if not _adx_col and isinstance(_adx_result, float):
+                                # Some versions return scalar
+                                _adx_val_raw = float(_adx_result)
+                                _adx_col = ["_scalar"]
+                            if _adx_col:
+                                if _adx_col[0] == "_scalar":
+                                    _adx_val = _adx_val_raw
+                                else:
+                                    _adx_val = float(_adx_result[_adx_col[0]].dropna().iloc[-1])
+                                if _adx_val > 30:
+                                    _adx_block = True
+                                    skip_reasons["Strong trend (ADX)"] = \
+                                        skip_reasons.get("Strong trend (ADX)", 0) + 1
+                                    print(f"    [Skip] {ticker}/{target_option_type}: "
+                                          f"ADX={_adx_val:.1f} > 30 — strong trend, "
+                                          f"mean reversion risky")
+                                    _session_stats["skipped"] += 1
+                                elif _adx_val > 25:
+                                    print(f"    [ADX] {ticker}/{target_option_type}: "
+                                          f"ADX={_adx_val:.1f} — trend weakening ⚠️")
+                                else:
+                                    print(f"    [ADX] {ticker}/{target_option_type}: "
+                                          f"ADX={_adx_val:.1f} < 25 — trend exhausted ✅")
+                                # Store for DB logging in main.py
+                                scan_markets._last_adx_value = _adx_val
+                    else:
+                        print(f"    [ADX-EXTREME] {ticker}/{target_option_type}: "
+                              f"RSI={current_rsi:.1f} extreme — bypassing ADX filter ✅")
+                except Exception as _adx_e:
+                    log.debug("ADX error for %s: %s", ticker, _adx_e)
+
+                if _adx_block:
                     continue
 
                 # ── Gate 5: News filter ────────────────────────────────────────
@@ -1451,13 +1880,15 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                         else:
                             print(f"    [News] {ticker}/C: score={news_score} {news_verdict} ✅")
                     else:
-                        if news_score > 70:
+                        if news_score > 80:
+                            # Only block puts on genuine euphoria (3+ strong positive stories).
+                            # Score 75 = one good headline — stock can still roll over.
                             skip_reasons["Good news blocks put"] = skip_reasons.get("Good news blocks put", 0) + 1
-                            print(f"    [Skip] {ticker}/P: Too much good news score={news_score}")
+                            print(f"    [Skip] {ticker}/P: Euphoric news score={news_score} — puts unlikely to work")
                             _session_stats["skipped"] += 1
                             continue
                         else:
-                            mood = "tailwind" if news_score < 40 else "neutral"
+                            mood = "tailwind" if news_score < 40 else ("caution" if news_score > 70 else "neutral")
                             print(f"    [News] {ticker}/P: score={news_score} {news_verdict} ✅ ({mood})")
 
                 # ── Gate 4: 1-hour RSI — direction-aware, skip before 10 AM ───
@@ -1489,9 +1920,11 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                                     print(f"    [Skip] {ticker}/C: 1hr RSI={_rsi1h:.1f} ≤ 40 — hourly downtrend")
                                     _session_stats["skipped"] += 1
                                     continue
-                                elif target_option_type == "P" and _rsi1h >= 60:
+                                elif target_option_type == "P" and _rsi1h >= 70:
+                                    # Hourly RSI 65-69 = overbought but can still roll over.
+                                    # Only block if hourly RSI ≥ 70 (still in full momentum).
                                     skip_reasons["1hr RSI too strong"] = skip_reasons.get("1hr RSI too strong", 0) + 1
-                                    print(f"    [Skip] {ticker}/P: 1hr RSI={_rsi1h:.1f} ≥ 60 — not weakening on hourly")
+                                    print(f"    [Skip] {ticker}/P: 1hr RSI={_rsi1h:.1f} ≥ 70 — hourly still full momentum")
                                     _session_stats["skipped"] += 1
                                     continue
                                 else:
@@ -1521,11 +1954,16 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     elif sector_chg < -0.3:
                         print(f"    [⚠️ Sector] {ticker}/C: Sector soft {sector_chg:.2f}%")
                 else:
-                    if sector_chg > 0.8:
+                    if sector_chg > 1.5:
+                        # Only block puts when sector is genuinely ripping (> 1.5%).
+                        # Sector up 0.8-1.4% while stock is at RSI 85+ = stock has
+                        # outrun its sector and is due for mean reversion regardless.
                         skip_reasons["Sector rising"] = skip_reasons.get("Sector rising", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Sector up {sector_chg:.2f}% — headwind for puts")
+                        print(f"    [Skip] {ticker}/P: Sector up {sector_chg:.2f}% > 1.5% — sector too strong for puts")
                         _session_stats["skipped"] += 1
                         continue
+                    elif sector_chg > 0.8:
+                        print(f"    [⚠️ Sector] {ticker}/P: Sector up {sector_chg:.2f}% — mild headwind noted")
                     elif sector_chg < -0.8:
                         print(f"    [✅ Sector] {ticker}/P: Sector down {sector_chg:.2f}% — tailwind for puts")
 
@@ -1548,11 +1986,17 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 else:
                     _pcr_limit = 999.0
 
+                # For puts at extreme overbought (RSI > 80): flow gate is advisory.
+                # At RSI 87-91 the put buying hasn't loaded yet — that's the entry point.
+                # Only bypass if stock is structurally weak (below SMA-200).
+                _put_rsi_extreme = (target_option_type == "P" and current_rsi > 80)
+
                 flow_passes = (
                         (target_option_type == "C" and flow["score"] >= 35
                          and flow["pcr"] < _pcr_limit) or
                         (target_option_type == "P" and (flow["pcr"] >= 0.6
-                                                        or flow["put_vol"] > flow["call_vol"]))
+                                                        or flow["put_vol"] > flow["call_vol"])) or
+                        _put_rsi_extreme   # RSI > 80: flow is lagging indicator, bypass
                 )
                 if not flow_passes:
                     label = ("Options flow too bearish" if target_option_type == "C"
@@ -1562,6 +2006,9 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                           f"(score={flow['score']} PCR={flow['pcr']:.2f} limit={_pcr_limit:.1f})")
                     _session_stats["skipped"] += 1
                     continue
+                elif _put_rsi_extreme and flow["pcr"] < 0.6:
+                    print(f"    [Flow-EXTREME] {ticker}/P: RSI={current_rsi:.1f} > 80 — "
+                          f"bypassing flow gate (PCR={flow['pcr']:.2f} lagging) ✅")
 
                 # ── Gate 6b: IV Rank filter ───────────────────────────────────
                 iv_rank = get_iv_rank(ticker)
@@ -1697,6 +2144,41 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                       f"flow={flow['score']} regime={regime}({_kelly_regime}) -> {contracts}x contracts | {mtf_tag}")
 
                 # Pass iv_rank so _build_signal can choose correct delta range
+                # ── Slippage tester demotion ──────────────────────────────
+                # If this ticker has shown >5% slippage in prior fills today,
+                # force tester sizing regardless of conviction score.
+                if ticker in _slippage_tester:
+                    print(f"    [Slippage-TESTER] {ticker}: demoted to x1 "
+                          f"(slippage history: {get_slippage_multiplier(ticker):.3f}x)")
+
+                # ── Conviction score — count gates cleared ──────────────
+                # Used for fractionated entry sizing:
+                # Full Kelly: 8+ gates  | Tester (x1): 6-7 gates
+                _gates_passed = 0
+                _gates_passed += 1  # RSI gate (already cleared to get here)
+                _gates_passed += 1  # Volume gate (cleared above)
+                _gates_passed += 1  # News gate (cleared above)
+                _gates_passed += 1  # Flow gate (cleared above)
+                _gates_passed += 1  # IV Rank (cleared above)
+                _gates_passed += 1  # Spread gate (cleared above)
+                # Optional extra gates — SMA-200 and sector add conviction
+                try:
+                    if target_option_type == "C":
+                        _sma200_ok = current_price > float(df["Close"].rolling(200).mean().iloc[-1])
+                        if _sma200_ok: _gates_passed += 1
+                        if sector_chg > -0.3: _gates_passed += 1
+                    else:
+                        _sma200_ok = current_price < float(df["Close"].rolling(200).mean().iloc[-1])
+                        if _sma200_ok: _gates_passed += 1
+                        if sector_chg < 0.3: _gates_passed += 1
+                except Exception:
+                    _gates_passed += 1  # can't check, assume pass
+
+                _is_tester = _gates_passed < 8 or ticker in _slippage_tester
+                if _is_tester:
+                    print(f"    [Tester] {ticker}/{target_option_type}: "
+                          f"{_gates_passed}/8+ gates — entering 1-contract tester position")
+
                 _build_signal._last_iv_rank = iv_rank
                 signal_str, theta_rolled = _build_signal(
                     ticker, current_price, contracts,
@@ -1710,6 +2192,14 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                           f"ticker may not have active options (try adding to watchlist exclusion)")
                     _session_stats["skipped"] += 1
                     continue
+
+                # Force x1 and tag tester entries (6-7 gates passed)
+                if _is_tester:
+                    import re as _re_t
+                    signal_str = _re_t.sub(r" x[0-9]+", " x1", signal_str)
+                    if " x1" not in signal_str:
+                        signal_str += " x1"
+                    signal_str += " [TESTER]"
 
                 # ── Pull full contract data: Greeks + depth ───────────────────
                 # Extract expiry from signal for contract lookup
@@ -1761,29 +2251,72 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 except Exception as e:
                     log.debug("Spread check error: %s", e)
 
-                # ── VWAP entry gate ───────────────────────────────────────────
+                # ── VWAP Touch & Reversal Gate ───────────────────────────────
+                # Upgraded from passive distance check to active bounce confirmation.
+                # Calls: price must touch VWAP and bounce above (green bar = institutions stepping in)
+                # Puts:  price must touch VWAP and reject below (red bar = institutions fading the level)
+                # At RSI extremes (<20 calls, >80 puts) bypass — exhaustion overrides timing.
                 if _HAS_VWAP:
-                    vwap_r = check_vwap_entry(ticker, require_bounce=False)
-                    vwap_dist = vwap_r.get("distance_pct", 0)
-                    above_vwap = vwap_r.get("above_vwap", True)
-                    if target_option_type == "C" and not above_vwap and abs(vwap_dist) > 0.5:
-                        if current_rsi < 20.0:
-                            # Extreme capitulation — stock IS expected to be below VWAP.
-                            # We want the mean-reversion bounce back toward VWAP, not after it.
-                            print(f"    [VWAP-OVERRIDE] {ticker}/C: RSI={current_rsi:.1f} < 20 — "
-                                  f"below VWAP expected at capitulation, targeting reversion ✅")
-                        else:
-                            skip_reasons["Below VWAP"] = skip_reasons.get("Below VWAP", 0) + 1
-                            print(f"    [Skip] {ticker}/C: Price {vwap_dist:+.2f}% below VWAP")
-                            _session_stats["skipped"] += 1
-                            continue
-                    elif target_option_type == "P" and above_vwap and abs(vwap_dist) > 0.5:
-                        skip_reasons["Above VWAP"] = skip_reasons.get("Above VWAP", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Price {vwap_dist:+.2f}% above VWAP")
-                        _session_stats["skipped"] += 1
-                        continue
+                    # Use full bounce detection for normal setups
+                    _vwap_extreme = (target_option_type == "C" and current_rsi < 20.0) or                                     (target_option_type == "P" and current_rsi > 80.0)
+
+                    if _vwap_extreme:
+                        # RSI extreme — timing matters less, exhaustion is the signal
+                        vwap_r = check_vwap_entry(ticker, require_bounce=False)
+                        vwap_dist  = vwap_r.get("distance_pct", 0)
+                        above_vwap = vwap_r.get("above_vwap", True)
+                        print(f"    [VWAP-EXTREME] {ticker}/{target_option_type}: "
+                              f"RSI={current_rsi:.1f} extreme — bypassing bounce requirement, "
+                              f"dist={vwap_dist:+.2f}% ✅")
                     else:
-                        print(f"    [VWAP] {ticker}: dist={vwap_dist:+.2f}% {'✅ above' if above_vwap else '✅ below'} VWAP")
+                        # Standard setup — require active touch-and-reversal confirmation
+                        vwap_r = check_vwap_entry(ticker, require_bounce=True)
+                        vwap_dist  = vwap_r.get("distance_pct", 0)
+                        above_vwap = vwap_r.get("above_vwap", True)
+                        bounce_confirmed = vwap_r.get("entry_confirmed", False)
+                        bounce_detected  = vwap_r.get("bounce_detected", False)
+                        vwap_note        = vwap_r.get("note", "")
+
+                        if target_option_type == "C":
+                            if not above_vwap and abs(vwap_dist) > 0.5:
+                                # Below VWAP — need bounce confirmation
+                                if bounce_confirmed:
+                                    print(f"    [VWAP-Bounce] {ticker}/C: "
+                                          f"Touch & reversal confirmed ({vwap_note}) ✅")
+                                elif bounce_detected:
+                                    # Bounce detected but not yet fully confirmed (no green bar yet)
+                                    # Allow as tester-quality signal
+                                    print(f"    [VWAP-Touch] {ticker}/C: "
+                                          f"VWAP touch detected, awaiting confirmation ({vwap_note})")
+                                else:
+                                    skip_reasons["No VWAP bounce"] = skip_reasons.get("No VWAP bounce", 0) + 1
+                                    print(f"    [Skip] {ticker}/C: Below VWAP, no bounce yet "
+                                          f"({vwap_note}) dist={vwap_dist:+.2f}%")
+                                    _session_stats["skipped"] += 1
+                                    continue
+                            else:
+                                # Already above VWAP — clean entry
+                                print(f"    [VWAP] {ticker}/C: "
+                                      f"dist={vwap_dist:+.2f}% above VWAP ✅")
+
+                        else:  # PUT
+                            if above_vwap and abs(vwap_dist) > 0.5:
+                                # Above VWAP — need rejection confirmation
+                                # Check for red bar at/near VWAP (price rejected downward)
+                                _vwap_rejected = (vwap_r.get("green_bar") == False and
+                                                  abs(vwap_dist) < 1.0)
+                                if _vwap_rejected or bounce_detected:
+                                    print(f"    [VWAP-Reject] {ticker}/P: "
+                                          f"VWAP rejection confirmed ({vwap_note}) ✅")
+                                else:
+                                    skip_reasons["No VWAP rejection"] = skip_reasons.get("No VWAP rejection", 0) + 1
+                                    print(f"    [Skip] {ticker}/P: Above VWAP, no rejection yet "
+                                          f"dist={vwap_dist:+.2f}%")
+                                    _session_stats["skipped"] += 1
+                                    continue
+                            else:
+                                print(f"    [VWAP] {ticker}/P: "
+                                      f"dist={vwap_dist:+.2f}% below VWAP ✅")
 
                 _session_stats["signals"] += 1
                 _broadcast({

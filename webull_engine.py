@@ -74,6 +74,8 @@ class WebullEngine:
         self._pending_option_type = None
         self._pending_option_id   = None
         self.last_order_confirmed = False   # set True only when API returns 200
+        self._last_fill_price    = None    # actual avgFilledPrice from last fill
+        self._last_est_mid       = None    # estimated mid-price before order (set by caller)
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -479,60 +481,16 @@ class WebullEngine:
                          expiry, best_delta, best_id)
                 return best_id
 
-            # No exact expiry found — try nearest available expiry automatically
+            # No exact expiry found — log available and refuse
             avail_sorted = sorted(available_expiries)
-            self._last_available_expiries = avail_sorted
             log.warning(
                 "No option found for exact expiry: %s %s%s %s. "
                 "Available expiries: %s",
                 ticker, strike, option_type, expiry,
                 ", ".join(avail_sorted) if avail_sorted else "none"
             )
-
-            if not avail_sorted:
-                return None
-
-            # Find nearest future expiry (prefer soonest available)
-            from datetime import datetime as _dt
-            try:
-                target_dt = _dt.strptime(expiry, "%Y-%m-%d").date()
-                future = [e for e in avail_sorted
-                          if _dt.strptime(e, "%Y-%m-%d").date() >= target_dt]
-                fallback_exp = future[0] if future else avail_sorted[0]
-            except Exception:
-                fallback_exp = avail_sorted[0]
-
-            log.info("Auto-fallback to nearest Webull expiry: %s %s%s %s → %s",
-                     ticker, strike, option_type, expiry, fallback_exp)
-
-            # Re-scan chain for nearest available expiry
-            best_id    = None
-            best_delta = 999
-            for group in (chain or []):
-                opt = group.get(side)
-                if not opt or not isinstance(opt, dict):
-                    continue
-                exp       = opt.get("expireDate", "")
-                s         = float(opt.get("strikePrice", 0))
-                ticker_id = str(opt.get("tickerId", ""))
-                delta     = abs(s - strike)
-
-                if exp != fallback_exp:
-                    continue
-
-                if delta < 0.01:
-                    log.info("Fallback exact match: %s %s%s %s tickerId=%s",
-                             ticker, s, side[0].upper(), fallback_exp, ticker_id)
-                    return ticker_id
-
-                if delta < best_delta:
-                    best_delta = delta
-                    best_id    = ticker_id
-
-            if best_id:
-                log.info("Fallback best match %s → %s (delta=%.2f): %s",
-                         expiry, fallback_exp, best_delta, best_id)
-            return best_id
+            self._last_available_expiries = avail_sorted
+            return None
 
         except Exception as e:
             log.warning("get_option_id_api error: %s", e)
@@ -682,7 +640,10 @@ class WebullEngine:
                 if r.status_code == 200:
                     self.last_order_confirmed = True
                     data = r.json()
-                    return float(data.get("avgFilledPrice") or lmt or 0) or lmt
+                    _fill = float(data.get("avgFilledPrice") or lmt or 0) or lmt
+                    self._last_fill_price = _fill
+                    log.info("Fill price captured: $%.4f", _fill)
+                    return _fill
                 elif r.status_code == 417:
                     resp = r.json() if r.text else {}
                     log.error(
@@ -716,7 +677,10 @@ class WebullEngine:
                 if isinstance(result, dict):
                     self.last_order_confirmed = True
                     fill = result.get("avgFilledPrice") or result.get("filledValue")
-                    return float(fill) if fill else lmt
+                    _fill_val = float(fill) if fill else lmt
+                    self._last_fill_price = _fill_val
+                    log.info("Live fill price captured: $%.4f", _fill_val)
+                    return _fill_val
             except Exception as e:
                 log.error("Live order exception: %s", e)
 
