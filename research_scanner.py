@@ -1,4 +1,5 @@
 import time
+import threading
 """
 research_scanner.py — Upgraded Scanner with All 5 Improvements
 ==============================================================
@@ -73,8 +74,8 @@ _SLIPPAGE_ALPHA = 0.2
 # Tickers auto-demoted to TESTER-only or blocked due to excessive slippage
 _slippage_blocked: set = set()    # blocked for rest of session
 _slippage_tester:  set = set()    # demoted to 1-contract tester only
-_SLIPPAGE_BLOCK_THRESHOLD  = 0.10  # >10% slippage → block ticker today
-_SLIPPAGE_TESTER_THRESHOLD = 0.05  # >5% slippage → tester-only
+_SLIPPAGE_BLOCK_THRESHOLD  = 0.10  # >10% slippage -> block ticker today
+_SLIPPAGE_TESTER_THRESHOLD = 0.05  # >5% slippage -> tester-only
 
 def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
     """
@@ -83,8 +84,8 @@ def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
     Uses EWMA so recent fills matter more but don't whipsaw the estimate.
 
     Auto-protection:
-    >5% slippage  → demote ticker to TESTER-only (1 contract max)
-    >10% slippage → block ticker for rest of session
+    >5% slippage  -> demote ticker to TESTER-only (1 contract max)
+    >10% slippage -> block ticker for rest of session
     """
     if est_mid_price <= 0 or avg_filled_price <= 0:
         return
@@ -99,20 +100,20 @@ def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
     entry["rolling_slippage_multiplier"] = round(new_mult, 4)
     entry["sample_count"] += 1
 
-    log.info("[Slippage] %s: fill=%.4f est=%.4f slip=%+.1f%% → multiplier %.4f (n=%d)",
+    log.info("[Slippage] %s: fill=%.4f est=%.4f slip=%+.1f%% -> multiplier %.4f (n=%d)",
              ticker, avg_filled_price, est_mid_price, slip_pct,
              entry["rolling_slippage_multiplier"], entry["sample_count"])
 
     # Auto-protection: demote or block toxic tickers
     if slip_pct > _SLIPPAGE_BLOCK_THRESHOLD * 100:
         _slippage_blocked.add(ticker)
-        log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold → BLOCKED for session",
+        log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold -> BLOCKED for session",
                     ticker, slip_pct, _SLIPPAGE_BLOCK_THRESHOLD * 100)
         print(f"  [Slippage-BLOCK] {ticker}: {slip_pct:+.1f}% slippage — "
               f"blocked for rest of session (toxic spread)")
     elif slip_pct > _SLIPPAGE_TESTER_THRESHOLD * 100:
         _slippage_tester.add(ticker)
-        log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold → TESTER-only",
+        log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold -> TESTER-only",
                     ticker, slip_pct, _SLIPPAGE_TESTER_THRESHOLD * 100)
         print(f"  [Slippage-TESTER] {ticker}: {slip_pct:+.1f}% slippage — "
               f"demoted to 1-contract tester only")
@@ -188,11 +189,11 @@ MY_SMALL_STOCKS = [
 # So max_stock_price = budget / 5 (conservative; gives 1 affordable contract)
 # Tiers are generous — we want to err toward inclusion not exclusion.
 _BUDGET_TIERS = [
-    (500,  999999),   # $500+  → all tickers
-    (300,  200),      # $300+  → stocks under $200
-    (200,  100),      # $200+  → stocks under $100
-    (100,  50),       # $100+  → stocks under $50
-    (0,    30),       # <$100  → stocks under $30
+    (500,  999999),   # $500+  -> all tickers
+    (300,  200),      # $300+  -> stocks under $200
+    (200,  100),      # $200+  -> stocks under $100
+    (100,  50),       # $100+  -> stocks under $50
+    (0,    30),       # <$100  -> stocks under $30
 ]
 
 def filter_tickers_by_budget(tickers: list, budget: float, market=None) -> list:
@@ -237,10 +238,10 @@ def filter_tickers_by_budget(tickers: list, budget: float, market=None) -> list:
             skipped.append(f"{ticker}(${price:.0f})")
 
     if skipped:
-        log.info("[Budget Filter] Budget=$%.0f → max stock price $%.0f | "
+        log.info("[Budget Filter] Budget=$%.0f -> max stock price $%.0f | "
                  "Skipped %d expensive tickers: %s",
                  budget, max_price, len(skipped), ", ".join(skipped[:8]))
-        print(f"  [Budget Filter] ${budget:.0f} budget → scanning "
+        print(f"  [Budget Filter] ${budget:.0f} budget -> scanning "
               f"{len(affordable)}/{len(tickers)} tickers "
               f"(skipping {len(skipped)} too expensive)")
 
@@ -1031,7 +1032,7 @@ def check_contract_exists(ticker: str, strike: float,
         from datetime import datetime as _dt
         parts = expiry_str.split("/")
         year  = _dt.now().year
-        # Handle cases like "6/3" → "2026-06-03"
+        # Handle cases like "6/3" -> "2026-06-03"
         expiry_full = f"{year}-{int(parts[0]):02d}-{int(parts[1]):02d}"
 
         r = requests.get(
@@ -1294,12 +1295,12 @@ def get_atr_adjustment(df, base_threshold):
 
         if atr_ratio > 0.02:          # high volatility — tighten
             adj = base_threshold - 5
-            log.debug("ATR adj %s: high vol (%.2f%%) → threshold %d",
+            log.debug("ATR adj %s: high vol (%.2f%%) -> threshold %d",
                       df.index[-1], atr_ratio*100, adj)
             return adj
         elif atr_ratio < 0.01:        # low volatility — loosen
             adj = base_threshold + 7
-            log.debug("ATR adj: low vol (%.2f%%) → threshold %d",
+            log.debug("ATR adj: low vol (%.2f%%) -> threshold %d",
                       atr_ratio*100, adj)
             return adj
         return base_threshold         # normal range — no adjustment
@@ -1406,7 +1407,7 @@ def find_delta_targeted_strike(ticker: str, current_price: float,
         # Log if we picked a different strike than the pure delta winner
         pure_delta_strike = top3[0][3]
         if best_strike != pure_delta_strike:
-            log.info("[Strike Sieve] %s %s: delta-best=%.1f (spread %.1f%%) → "
+            log.info("[Strike Sieve] %s %s: delta-best=%.1f (spread %.1f%%) -> "
                      "spread-best=%.1f (spread %.1f%%) — chose tighter spread",
                      ticker, option_type, pure_delta_strike, top3[0][1],
                      best_strike, best_spread_pct)
@@ -1414,7 +1415,7 @@ def find_delta_targeted_strike(ticker: str, current_price: float,
                   f"spread sieve picked {best_strike} ({best_spread_pct:.1f}% spread) "
                   f"over {pure_delta_strike} ({top3[0][1]:.1f}% spread) ✅")
         else:
-            log.info("[Delta Target] %s %s: Δ range %.2f–%.2f → strike %.1f "
+            log.info("[Delta Target] %s %s: Δ range %.2f–%.2f -> strike %.1f "
                      "(spread=%.1f%% dist=%.4f)",
                      ticker, option_type, delta_lo, delta_hi,
                      best_strike, best_spread_pct, best_delta_dist)
@@ -1482,7 +1483,7 @@ def _build_signal(ticker: str, current_price: float,
     _delta_strike = find_delta_targeted_strike(
         ticker, current_price, option_type, expiry, _iv_rank_for_delta)
     if _delta_strike > 0:
-        log.info("[Delta Target] %s: static strike %.1f → delta-targeted %.1f",
+        log.info("[Delta Target] %s: static strike %.1f -> delta-targeted %.1f",
                  ticker, strike, _delta_strike)
         strike = _delta_strike
 
@@ -1509,14 +1510,14 @@ def _build_signal(ticker: str, current_price: float,
                     if best_wb != target_full:
                         _wb_dt = _dtw.strptime(best_wb, "%Y-%m-%d")
                         expiry = f"{_wb_dt.month}/{_wb_dt.day}"
-                        log.info("Webull expiry reroute: %s %s%s %s → %s",
+                        log.info("Webull expiry reroute: %s %s%s %s -> %s",
                                  ticker, strike, option_type, target_full, best_wb)
                 else:
                     # All available expiries are before our target — use latest
                     latest_wb = wb_expiries[-1]
                     _wb_dt = _dtw.strptime(latest_wb, "%Y-%m-%d")
                     expiry = f"{_wb_dt.month}/{_wb_dt.day}"
-                    log.info("Webull expiry fallback (latest): %s → %s", ticker, latest_wb)
+                    log.info("Webull expiry fallback (latest): %s -> %s", ticker, latest_wb)
         except Exception as _wbe:
             log.debug("Webull expiry check error: %s", _wbe)
 
@@ -1536,7 +1537,7 @@ def _build_signal(ticker: str, current_price: float,
 
             fallback_data = check_contract_exists(ticker, strike, option_type, fallback_expiry)
             if fallback_data["exists"]:
-                log.info("Contract fallback: %s %s%s %s → %s",
+                log.info("Contract fallback: %s %s%s %s -> %s",
                          ticker, strike, option_type, expiry, fallback_expiry)
                 expiry = fallback_expiry
                 qty    = f" x{contracts}" if contracts > 1 else ""
@@ -1546,7 +1547,7 @@ def _build_signal(ticker: str, current_price: float,
                 nn_expiry = f"{next_next_fri.month}/{next_next_fri.day}"
                 nn_data = check_contract_exists(ticker, strike, option_type, nn_expiry)
                 if nn_data["exists"]:
-                    log.info("Contract fallback 2: %s %s%s %s → %s",
+                    log.info("Contract fallback 2: %s %s%s %s -> %s",
                              ticker, strike, option_type, expiry, nn_expiry)
                     expiry = nn_expiry
                 else:
@@ -1686,8 +1687,8 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             # oversold EVEN IF absolute RSI doesn't clear the normal threshold.
             _spy_rsi         = get_spy_rsi()
             _rel_rsi         = current_rsi - _spy_rsi
-            # Calls: stock RSI 20+ pts BELOW SPY = relatively oversold → unlock
-            # Puts:  stock RSI 20+ pts ABOVE SPY = relatively overbought → unlock
+            # Calls: stock RSI 20+ pts BELOW SPY = relatively oversold -> unlock
+            # Puts:  stock RSI 20+ pts ABOVE SPY = relatively overbought -> unlock
             _rel_call_gate   = _rel_rsi < -20
             _rel_put_gate    = _rel_rsi > 20
             _abs_gate        = current_rsi < eff_threshold
@@ -1695,10 +1696,10 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
 
             if _rel_call_gate and not _abs_gate:
                 print(f"    [Relative RSI] {ticker}: RSI={current_rsi:.1f} "
-                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} → relatively oversold ✅")
+                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} -> relatively oversold ✅")
             if _rel_put_gate:
                 print(f"    [Relative RSI] {ticker}: RSI={current_rsi:.1f} "
-                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} → relatively overbought ✅")
+                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} -> relatively overbought ✅")
 
             vol          = df["Volume"].dropna()
             avg_vol      = float(vol.rolling(20).mean().iloc[-2]) if len(vol) >= 21 else float(vol.mean())
@@ -1818,45 +1819,58 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                           f"bypassing volume gate ({vol_ratio:.1f}x) ✅")
 
                 # ── Gate ADX: Trend Intensity Filter ─────────────────────────
-                # ADX measures trend strength regardless of direction.
-                # ADX > 30: strong trend in progress — block mean reversion entry.
-                # ADX < 25: trend exhausting — mean reversion has high probability.
-                # Bypass at RSI extremes (<15 calls / >85 puts) — exhaustion overrides.
+                # ADX measures trend STRENGTH (not direction).
+                # CALLS: ADX>30 = don't mean-revert into a strong trend
+                # PUTS:  ADX>30 on a RISING stock = trend confirms exhaustion setup
+                #        ADX>30 on a FALLING stock = don't fade the downtrend either
+                # Bypass at RSI extremes (<15 calls / >85 puts).
                 _adx_block = False
+                _adx_val   = 0.0
                 try:
                     _adx_extreme = (target_option_type == "C" and current_rsi < 15) or \
                                    (target_option_type == "P" and current_rsi > 85)
                     if not _adx_extreme:
                         _adx_result = ta.adx(df["High"], df["Low"], df["Close"], length=14)
                         if _adx_result is not None and not _adx_result.empty:
-                            # Handle pandas_ta version differences: ADX_14 vs ADX
                             _adx_col = ([c for c in _adx_result.columns if c.startswith("ADX")]
                                         if hasattr(_adx_result, "columns") else [])
                             if not _adx_col and isinstance(_adx_result, float):
-                                # Some versions return scalar
                                 _adx_val_raw = float(_adx_result)
                                 _adx_col = ["_scalar"]
                             if _adx_col:
-                                if _adx_col[0] == "_scalar":
-                                    _adx_val = _adx_val_raw
-                                else:
-                                    _adx_val = float(_adx_result[_adx_col[0]].dropna().iloc[-1])
-                                if _adx_val > 30:
+                                _adx_val = float(_adx_val_raw if _adx_col[0] == "_scalar"
+                                                 else _adx_result[_adx_col[0]].dropna().iloc[-1])
+                                scan_markets._last_adx_value = _adx_val
+
+                                # For puts: only block if stock is falling (below SMA-200 + RSI<50)
+                                # If stock is rising (RSI>65), high ADX confirms the put setup
+                                _put_trend_down = (target_option_type == "P" and
+                                                   current_rsi < 50)
+
+                                if target_option_type == "C" and _adx_val > 30:
                                     _adx_block = True
                                     skip_reasons["Strong trend (ADX)"] = \
                                         skip_reasons.get("Strong trend (ADX)", 0) + 1
-                                    print(f"    [Skip] {ticker}/{target_option_type}: "
-                                          f"ADX={_adx_val:.1f} > 30 — strong trend, "
-                                          f"mean reversion risky")
+                                    print(f"    [Skip] {ticker}/C: ADX={_adx_val:.1f} > 30 — "
+                                          f"strong trend, mean reversion risky")
                                     _session_stats["skipped"] += 1
+                                elif target_option_type == "P" and _adx_val > 30 and _put_trend_down:
+                                    _adx_block = True
+                                    skip_reasons["Strong trend (ADX)"] = \
+                                        skip_reasons.get("Strong trend (ADX)", 0) + 1
+                                    print(f"    [Skip] {ticker}/P: ADX={_adx_val:.1f} > 30 "
+                                          f"in downtrend (RSI={current_rsi:.0f}) — "
+                                          f"fading momentum risky")
+                                    _session_stats["skipped"] += 1
+                                elif target_option_type == "P" and _adx_val > 30:
+                                    print(f"    [ADX-Confirm] {ticker}/P: ADX={_adx_val:.1f} "
+                                          f"— strong uptrend confirms put exhaustion setup ✅")
                                 elif _adx_val > 25:
                                     print(f"    [ADX] {ticker}/{target_option_type}: "
                                           f"ADX={_adx_val:.1f} — trend weakening ⚠️")
                                 else:
                                     print(f"    [ADX] {ticker}/{target_option_type}: "
                                           f"ADX={_adx_val:.1f} < 25 — trend exhausted ✅")
-                                # Store for DB logging in main.py
-                                scan_markets._last_adx_value = _adx_val
                     else:
                         print(f"    [ADX-EXTREME] {ticker}/{target_option_type}: "
                               f"RSI={current_rsi:.1f} extreme — bypassing ADX filter ✅")
@@ -2011,14 +2025,19 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                           f"bypassing flow gate (PCR={flow['pcr']:.2f} lagging) ✅")
 
                 # ── Gate 6b: IV Rank filter ───────────────────────────────────
-                iv_rank = get_iv_rank(ticker)
-                if iv_rank > 60:
+                iv_rank  = get_iv_rank(ticker)
+                # Puts: allow up to IV rank 80 — bear days have elevated vol by definition.
+                # Calls: strict 60 cap — buying calls in high IV is doubly punitive.
+                _iv_limit = 80 if target_option_type == "P" else 60
+                if iv_rank > _iv_limit:
                     skip_reasons["IV too high"] = skip_reasons.get("IV too high", 0) + 1
-                    print(f"    [Skip] {ticker}: IV Rank={iv_rank:.0f} > 60 — premium too expensive")
+                    print(f"    [Skip] {ticker}: IV Rank={iv_rank:.0f} > {_iv_limit} — "
+                          f"premium too expensive for {target_option_type}")
                     _session_stats["skipped"] += 1
                     continue
                 else:
-                    print(f"    [IV] {ticker}: IV Rank={iv_rank:.0f} ✅ (≤60 — fair premium)")
+                    _iv_note = "elevated but ok for puts" if (target_option_type == "P" and iv_rank > 60) else "fair premium"
+                    print(f"    [IV] {ticker}: IV Rank={iv_rank:.0f} ✅ (<={_iv_limit} — {_iv_note})")
 
                 # ── Gate 7: GEX (Gamma Exposure) ─────────────────────────────
                 # Smart overrides — bypass pin if ANY of these are true:
@@ -2107,7 +2126,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 est_cost = est_option_price * 100 * _slip_mult
                 if _slip_mult != 1.0:
                     print(f"    [Slippage] {ticker}: multiplier={_slip_mult:.3f} "
-                          f"→ adjusted cost ${est_cost:.0f} (raw ${est_option_price*100:.0f})")
+                          f"-> adjusted cost ${est_cost:.0f} (raw ${est_option_price*100:.0f})")
 
                 # Budget fallback: try 1 contract if cost <= 2x budget
                 max_affordable = max(1, int(budget / est_cost))
@@ -2344,7 +2363,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     listener.send_status_update(
                         f"🚀 **HIGH CONVICTION SIGNAL**{unusual_tag}\n"
                         f"**Ticker**: ${ticker}\n"
-                        f"**Price**: ${current_price:.2f} → Strike: {strike}  "
+                        f"**Price**: ${current_price:.2f} -> Strike: {strike}  "
                         f"Expiry: {expiry}"
                         + (" ⏰ *Next-week rolled — Thu theta protection*"
                            if theta_rolled else "") + "\n"
@@ -2358,8 +2377,8 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                                                       f"**Signal**: `{signal_str}`\n"
                                                       f"─────────────────────\n"
                                                       f"**Entry**:  buy at mid-price\n"
-                                                      f"**Target**: +{tp_pct:.0f}% → stock ~${current_price * (1 + tp_pct/100):.2f}\n"
-                                                      f"**Stop**:   -{sl_pct:.0f}% → stock ~${current_price * (1 - sl_pct/100):.2f}\n"
+                                                      f"**Target**: +{tp_pct:.0f}% -> stock ~${current_price * (1 + tp_pct/100):.2f}\n"
+                                                      f"**Stop**:   -{sl_pct:.0f}% -> stock ~${current_price * (1 - sl_pct/100):.2f}\n"
                                                       f"**Scale-out**: sell half at +20%, trail remaining"
                     )
 
@@ -2410,7 +2429,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             closest_str = ", ".join(
                 f"{t} (RSI {r:.1f})" for t, r in sorted(closest, key=lambda x: x[1])[:3])
             lines.append(f"  • Closest to triggering: {closest_str}")
-            lines.append(f"    → Watch these — if RSI drops below {rsi_threshold} next scan they fire")
+            lines.append(f"    -> Watch these — if RSI drops below {rsi_threshold} next scan they fire")
 
         lines.append(f"\n  💡 Tip: This is normal on strong bull days. "
                      f"Wait for a dip or use !scan to check again in 5 min.")

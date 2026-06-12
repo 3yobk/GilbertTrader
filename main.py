@@ -197,8 +197,8 @@ def ask_ai_for_verdict(signal_text, budget, stock_price: float = None, raw_text:
             f"contract size (x1) over full Kelly sizing.\n"
             f"5. NO FORMATTING — no backticks, no markdown, no explanations, no extra lines.\n\n"
             f"OUTPUT (pick exactly one):\n"
-            f"Approved → output only: BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]\n"
-            f"Rejected → output only: Rejected: [5-word reason]"
+            f"Approved -> output only: BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]\n"
+            f"Rejected -> output only: Rejected: [5-word reason]"
         )
     }
     headers = {"Authorization": f"Bearer {AI_PC_KEY}"}
@@ -404,11 +404,11 @@ def _maybe_run_premarket_scan(listener=None):
         if gaps_up:
             msg_lines.append("📈 **Gap Ups** (potential call setups if RSI oversold on open):")
             for t, g, p in gaps_up[:5]:
-                msg_lines.append(f"  • {t} +{g:.1f}% → ${p:.2f}")
+                msg_lines.append(f"  • {t} +{g:.1f}% -> ${p:.2f}")
         if gaps_down:
             msg_lines.append("\n📉 **Gap Downs** (potential put setups if RSI overbought):")
             for t, g, p in gaps_down[:5]:
-                msg_lines.append(f"  • {t} {g:.1f}% → ${p:.2f}")
+                msg_lines.append(f"  • {t} {g:.1f}% -> ${p:.2f}")
         if not gaps_up and not gaps_down:
             msg_lines.append("No significant gaps today (all within ±2%).")
 
@@ -497,7 +497,7 @@ def _maybe_send_daily_report(listener=None, engine=None):
             ticker = t.get("ticker", "?")
             e      = "✅" if pnl > 0 else "❌"
             report += f"{e} {ticker} {t.get('strike','')}{t.get('option_type','')} "
-            report += f"→ ${pnl:+.2f}\n"
+            report += f"-> ${pnl:+.2f}\n"
 
         console.print(report)
         if listener:
@@ -611,10 +611,10 @@ def load_adaptive_bounds(profile: dict) -> dict:
         applied = []
         if "recommended_tp_pct" in bounds:
             profile["tp"] = bounds["recommended_tp_pct"]
-            applied.append(f"TP → +{bounds['recommended_tp_pct']}%")
+            applied.append(f"TP -> +{bounds['recommended_tp_pct']}%")
         if "recommended_rsi_threshold" in bounds:
             profile["rsi"] = bounds["recommended_rsi_threshold"]
-            applied.append(f"RSI → {bounds['recommended_rsi_threshold']}")
+            applied.append(f"RSI -> {bounds['recommended_rsi_threshold']}")
         if applied:
             print(f"[Optimizer] Adaptive bounds applied: {', '.join(applied)}")
     except Exception as e:
@@ -730,21 +730,21 @@ def get_regime_budget_cap(base_budget: float, regime: str,
     if vix is None:
         vix = 15.0  # assume normal if unavailable
 
-    if vix > 25 or regime == "bear":
+    if vix > 25 or (regime == "bear" and vix > 20):
         cap_pct     = 0.35
         force_tester = True
         tier        = "🔴 HIGH-VOL/BEAR"
-        reason      = f"VIX={vix:.1f} or bear regime → 35% budget, tester-only"
-    elif vix > 20:
+        reason      = f"VIX={vix:.1f} or bear+elevated-vol -> 35% budget, tester-only"
+    elif vix > 20 or regime == "bear":
         cap_pct     = 0.60
         force_tester = False
         tier        = "🟡 NEUTRAL/CHOP"
-        reason      = f"VIX={vix:.1f} elevated → 60% budget"
+        reason      = f"VIX={vix:.1f} or bear regime -> 60% budget"
     else:
         cap_pct     = 1.00
         force_tester = False
         tier        = "🟢 BULL/CALM"
-        reason      = f"VIX={vix:.1f} normal, {regime} regime → 100% budget"
+        reason      = f"VIX={vix:.1f} normal, {regime} regime -> 100% budget"
 
     capped = round(base_budget * cap_pct, 0)
     return capped, force_tester, f"[Regime Budget] {tier}: {reason}"
@@ -1233,10 +1233,10 @@ def main():
 
             if mode_choice in ["2", "3"]:
                 # Adaptive scan interval:
-                # 9:30–10:30 AM ET (open volatility)  → 2 min
-                # 3:00–4:00 PM ET (power hour)        → 2 min
-                # 11:45–1:30 PM ET (lunch, skipped)   → 5 min (scanner returns [] anyway)
-                # All other times                     → 4 min
+                # 9:30–10:30 AM ET (open volatility)  -> 2 min
+                # 3:00–4:00 PM ET (power hour)        -> 2 min
+                # 11:45–1:30 PM ET (lunch, skipped)   -> 5 min (scanner returns [] anyway)
+                # All other times                     -> 4 min
                 try:
                     import pytz as _pytz_si
                     _et_si = datetime.now(_pytz_si.timezone("America/New_York"))
@@ -1377,7 +1377,7 @@ def main():
                             verdict_ticker = verdict_parts[1].upper() if len(verdict_parts) > 1 else ""
                             if verdict_ticker != ticker.upper():
                                 console.print(
-                                    f"[bold red]⚠️  AI changed ticker {ticker} → {verdict_ticker} "
+                                    f"[bold red]⚠️  AI changed ticker {ticker} -> {verdict_ticker} "
                                     f"— REJECTING and using original signal[/bold red]")
                                 verdict = raw_text
 
@@ -1588,7 +1588,7 @@ def main():
                             v_ticker = v_parts[1].upper() if len(v_parts) > 1 else ""
                             if v_ticker != ticker.upper():
                                 console.print(
-                                    f"[bold red]⚠️  AI changed ticker {ticker} → {v_ticker} "
+                                    f"[bold red]⚠️  AI changed ticker {ticker} -> {v_ticker} "
                                     f"— using original signal[/bold red]")
                                 verdict = raw_text
 
