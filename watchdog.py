@@ -132,6 +132,7 @@ def run():
         runtime     = time.time() - start_time
         runtime_str = f"{runtime:.0f}s"
 
+
         if exit_code == 0:
             print("✅ GilbertTrader exited cleanly (code 0) — not restarting")
             log.info("Clean exit after %s — stopping watchdog", runtime_str)
