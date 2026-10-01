@@ -1,0 +1,2 @@
+date,ticker,strike,option_type,expiry,side,entry_time,exit_time,hold_minutes,entry_premium,exit_premium,slippage_pct,realized_pnl,realized_pnl_pct,peak_pnl_pct,max_drawdown_pct,regime,spy_change_pct,vix_at_entry,rsi_5m,rsi_1h,iv_rank,flow_score,spread_pct,news_score,conviction_score,scale_out_triggered,smart_stop_delayed,exit_reason,quantity,mode
+2026-09-22 08:45,SOFI,17.0,P,2026-09-25,PUT,2026-09-22T13:41:23.047790,2026-09-22T13:45:35.973762,4.2,0.14,0.17,0.0,3.0,21.43,25.0,0.0,unknown,0.096,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0,0,Scale-Out 50%,1,live

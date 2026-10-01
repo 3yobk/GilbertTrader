@@ -577,6 +577,15 @@ class WebullEngine:
         Uses webull API if available (reliable), browser as last resort.
         action: 'BTO' | 'STC'
         """
+        # ── SAFETY: No market orders for options (ever) ───────────────────────
+        # Market orders on illiquid options fill at any price.
+        # PLTR filled at $0.58 vs $1.19 bid because of a market order.
+        # If limit_price is None here, something upstream went wrong.
+        if limit_price is None:
+            raise RuntimeError(
+                f"SAFETY: {action} options order has no limit_price. "
+                f"Market orders for options are prohibited. Fix the caller."
+            )
         use_paper = paper if paper is not None else self.paper
         is_buy    = action.upper() in ("BTO", "BUY")
 
@@ -679,7 +688,10 @@ class WebullEngine:
                     fill = result.get("avgFilledPrice") or result.get("filledValue")
                     _fill_val = float(fill) if fill else lmt
                     self._last_fill_price = _fill_val
-                    log.info("Live fill price captured: $%.4f", _fill_val)
+                    if _fill_val is not None:
+                        log.info("Live fill price captured: $%.4f", _fill_val)
+                    else:
+                        log.info("Live fill placed (market order — fill price pending)")
                     return _fill_val
             except Exception as e:
                 log.error("Live order exception: %s", e)

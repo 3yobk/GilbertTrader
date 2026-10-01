@@ -111,25 +111,29 @@ def get_risk_profile():
 def select_execution_mode() -> dict:
     """
     Prompt user to select trading direction.
-    LONG  — buys calls on oversold dips  (RSI < threshold)
-    SHORT — buys puts on overbought peaks (RSI > 100 - threshold)
+    CALLS — buys calls on oversold dips only
+    PUTS  — buys puts on overbought peaks only
+    AUTO  — scanner decides based on market regime (default)
     """
-    console.print("\n[bold yellow]📈  SELECT EXECUTION DIRECTION[/bold yellow]")
+    console.print("\n[bold yellow]📈  SELECT TRADING DIRECTION[/bold yellow]")
     dir_table = Table(show_header=True, header_style="bold cyan")
-    dir_table.add_column("Option", style="dim")
-    dir_table.add_column("Mode")
-    dir_table.add_column("Trigger")
-    dir_table.add_column("Contract")
-    dir_table.add_column("Strategy")
-    dir_table.add_row("1", "LONG ONLY",  "RSI < 30 (oversold)",   "CALLS (C)", "Buy dips — mean reversion up")
-    dir_table.add_row("2", "SHORT ONLY", "RSI > 70 (overbought)", "PUTS  (P)", "Sell rallies — mean reversion down")
+    dir_table.add_column("Option", style="dim", width=6)
+    dir_table.add_column("Mode",    width=12)
+    dir_table.add_column("Trades",  width=10)
+    dir_table.add_column("When",    width=30)
+    dir_table.add_row("1", "AUTO",       "Calls + Puts",  "Bot picks based on regime (recommended)")
+    dir_table.add_row("2", "CALLS ONLY", "Calls only",    "Only buys oversold dip bounces (RSI < threshold)")
+    dir_table.add_row("3", "PUTS ONLY",  "Puts only",     "Only buys overbought fade plays (RSI > threshold)")
     console.print(dir_table)
-    d = input("\nSelect Direction (1/2): ").strip()
+    d = input("\nSelect Direction (1/2/3) [default=1]: ").strip() or "1"
     if d == "2":
-        return {"mode": "SHORT", "label": "SHORT ONLY — Puts on Overbought Rallies",
-                "option_type": "P"}
-    return {"mode": "LONG",  "label": "LONG ONLY  — Calls on Oversold Dips",
-            "option_type": "C"}
+        return {"mode": "CALLS", "label": "CALLS ONLY — Oversold Dip Bounces",
+                "option_type": "C", "auto": False}
+    if d == "3":
+        return {"mode": "PUTS",  "label": "PUTS ONLY  — Overbought Fade Plays",
+                "option_type": "P", "auto": False}
+    return {"mode": "AUTO",  "label": "AUTO — Bot selects Calls or Puts by regime",
+            "option_type": None, "auto": True}
 
 
 def ask_ai_for_verdict(signal_text, budget, stock_price: float = None, raw_text: str = None):
@@ -1024,6 +1028,14 @@ def main():
     # Prevents RuntimeError: "dictionary changed size during iteration" if a
     # Discord signal arrives while engine._positions is being populated.
     listener.start_in_thread()
+
+    try:
+        import outcome_tracker as _ot
+        _ot.start(base_dir=os.path.dirname(os.path.abspath(__file__)))
+        log.info("Outcome tracker started")
+    except ImportError:
+        log.debug("outcome_tracker.py not found — skipping")
+
     log.info("Discord listener started (post-sync — thread-safe)")
 
     # ── Accurate streak tracking via on_trade_closed callback ────────────────
@@ -1047,6 +1059,19 @@ def main():
 
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
+
+    # ── Direction + manual trade settings ────────────────────────────────────
+    direction_mode = {"mode": "AUTO", "option_type": None, "auto": True}
+    if mode_choice in ["2", "3"]:
+        direction_mode = select_execution_mode()
+
+    console.print("\n[bold yellow]⚙️  SETTINGS[/bold yellow]")
+    _wm = input("Watch and auto-close your MANUAL trades? (y/n) [default=y]: ").strip().lower()
+    watch_manual_trades = (_wm != "n")
+    if watch_manual_trades:
+        console.print("[dim]  Manual trades: MONITORED — bot will apply SL/TP to positions you open yourself[/dim]")
+    else:
+        console.print("[dim]  Manual trades: IGNORED — bot only manages trades it opens itself[/dim]")
 
     MAX_DAILY_LOSS_PCT  = 15.0
     MAX_DAILY_TRADES    = 4      # max entries per day — prevents overtrading on choppy days
@@ -1084,7 +1109,7 @@ def main():
 
     def _update_streak_budget(outcome: str, profit_amt: float = 0.0, ticker: str = ""):
         nonlocal _current_budget, _consecutive_wins, _consecutive_loss
-        nonlocal consecutive_wins, consecutive_losses
+        nonlocal consecutive_wins, consecutive_losses  # dashboard streak counters
         # ── Streak counters (used by dashboard) ──────────────────────────────
         if outcome == "Win":
             consecutive_wins   += 1
@@ -1147,12 +1172,16 @@ def main():
     try:
         open_pos = webull._wb.get_positions() if webull._wb else []
         if open_pos:
-            console.print(f"[yellow]Found {len(open_pos)} existing positions from Webull — "
-                          f"monitoring will resume.[/yellow]")
-            listener.send_status_update(
-                f"⚠️ Startup: Found {len(open_pos)} open positions from previous session. "
-                f"Monitoring resumed."
-            )
+            if watch_manual_trades:
+                console.print(f"[yellow]Found {len(open_pos)} existing positions from Webull — "
+                              f"monitoring will resume.[/yellow]")
+                listener.send_status_update(
+                    f"⚠️ Startup: Found {len(open_pos)} open positions. "
+                    f"Manual trade monitoring ACTIVE — bot will apply SL/TP."
+                )
+            else:
+                console.print(f"[dim]Found {len(open_pos)} existing positions — "
+                              f"manual trade watch is OFF, ignoring.[/dim]")
     except Exception:
         pass
 
@@ -1198,18 +1227,84 @@ def main():
                     f"pausing new entries.[/bold red]"
                 )
 
-            # Portfolio heat check — dollar-based, not just count
-            # Cap total deployed capital at 80% of current budget × max positions
-            # This prevents over-leveraging when positions are large
+            # ── Sync manual trades from Webull ───────────────────────────
+            if watch_manual_trades:
+                try:
+                    _wb_pos = webull.get_open_positions_from_webull() or []
+                    _wb_keys = set()
+                    for _wp in _wb_pos:
+                        _tk  = str(_wp.get("ticker","")).upper()
+                        _str = str(_wp.get("strike",""))
+                        _ot  = str(_wp.get("optionType","C"))[:1].upper()
+                        _exp = str(_wp.get("expiry","") or _wp.get("expireDate",""))
+                        _key = f"{_tk}_{_str}{_ot}_{_exp}"
+                        _wb_keys.add(_key)
+                        with engine._lock:
+                            _already = _key in engine._positions
+                        if not _already and _tk and _str:
+                            # Don't re-add tickers that were stopped out this session
+                            # or that the bot just closed (Webull API lag protection)
+                            if _tk.upper() in session_stopped_tickers:
+                                continue
+                            try:
+                                from trade_engine import TradeSignal, OpenPosition
+                                _cost = float(_wp.get("avgCost") or _wp.get("cost") or 0)
+                                _qty  = int(_wp.get("quantity") or 1)
+                                _sig  = TradeSignal(
+                                    action="BTO", ticker=_tk,
+                                    strike=float(_str or 0),
+                                    option_type=_ot, expiry=_exp,
+                                    quantity=_qty,
+                                )
+                                _mpos = OpenPosition(
+                                    signal=_sig, entry_price=_cost, paper=False
+                                )
+                                with engine._lock:
+                                    engine._positions[_key] = _mpos
+                                engine._start_monitor(_key, _mpos)
+                                console.print(
+                                    f"[cyan]Manual trade detected: {_key} "
+                                    f"@ ${_cost:.2f} -- now monitored[/cyan]"
+                                )
+                                listener.send_status_update(
+                                    f"👁️ Manual trade detected: {_key} "
+                                    f"@ ${_cost:.2f} -- SL/TP active"
+                                )
+                            except Exception as _mte:
+                                log.debug("Manual trade sync error: %s", _mte)
+                    # Remove engine positions that Webull no longer shows
+                    # (closed by monitor thread but Webull sync lagging)
+                    # Only clean up entries that are NOT currently being monitored
+                    with engine._lock:
+                        _eng_keys = set(engine._positions.keys())
+                    for _stale in _eng_keys - _wb_keys:
+                        with engine._lock:
+                            _pos = engine._positions.get(_stale)
+                        # Only remove if the monitor thread already closed it
+                        # (quantity = 0 or highest_pnl set and no more qty)
+                        if _pos and getattr(_pos.signal, "quantity", 1) <= 0:
+                            with engine._lock:
+                                engine._positions.pop(_stale, None)
+                except Exception as _wse:
+                    log.debug("Webull position sync error: %s", _wse)
+
+            # Portfolio heat check
             with engine._lock:
                 _open_pos = dict(engine._positions)
+
             if _open_pos:
                 _deployed = sum(
                     p.entry_price * p.signal.quantity * 100
                     for p in _open_pos.values()
+                    if hasattr(p, "entry_price") and p.entry_price
                 )
-                _max_deploy = _current_budget * 2.0   # allow up to 2 concurrent positions worth
-                if len(_open_pos) >= 2 or _deployed >= _max_deploy:
+                _max_deploy    = _current_budget * 2.0
+                _profitable_ct = sum(
+                    1 for p in _open_pos.values()
+                    if getattr(p, "highest_pnl", 0) >= 10.0
+                )
+                _net_blocking = len(_open_pos) - _profitable_ct
+                if _net_blocking >= 1 or _deployed >= _max_deploy:
                     now_ts = time.time()
                     if now_ts - last_heat_alert_ts >= 120:
                         listener.send_status_update(
@@ -1217,8 +1312,16 @@ def main():
                             f"${_deployed:.0f} deployed. Waiting for close."
                         )
                         last_heat_alert_ts = now_ts
+                    main._prev_blocked = True   # track that we were blocked
                     time.sleep(10)
                     continue
+                # Has positions but all profitable — allow scan through
+            else:
+                # No open positions — if we were blocked, scan immediately
+                if getattr(main, "_prev_blocked", False):
+                    last_research_time = 0
+                    console.print("[dim]All positions closed -- scanning now[/dim]")
+                main._prev_blocked = False
 
             raw_text = None
 
@@ -1232,21 +1335,49 @@ def main():
                 log.info("New trading day — daily counters reset")
 
             if mode_choice in ["2", "3"]:
-                # Adaptive scan interval:
-                # 9:30–10:30 AM ET (open volatility)  -> 2 min
-                # 3:00–4:00 PM ET (power hour)        -> 2 min
-                # 11:45–1:30 PM ET (lunch, skipped)   -> 5 min (scanner returns [] anyway)
-                # All other times                     -> 4 min
+                # ── Market closed: sleep until 9:25 AM next session ──────────
                 try:
                     import pytz as _pytz_si
                     _et_si = datetime.now(_pytz_si.timezone("America/New_York"))
                     _hm_si = _et_si.hour * 60 + _et_si.minute
-                    if _hm_si <= 10 * 60 + 30 or _hm_si >= 15 * 60:
-                        _scan_interval = 120   # 2 min — open volatility / power hour
-                    else:
-                        _scan_interval = 240   # 4 min — mid-session
+                    _market_open  = 9 * 60 + 30   # 9:30 AM
+                    _market_close = 16 * 60         # 4:00 PM
+                    _is_open = _market_open <= _hm_si < _market_close
                 except Exception:
-                    _scan_interval = 300
+                    _is_open = True  # assume open if pytz unavailable
+
+                if not _is_open:
+                    # Calculate sleep until 9:25 AM ET (5 min before open)
+                    try:
+                        _wake_min = 9 * 60 + 25   # 9:25 AM
+                        if _hm_si >= _market_close:
+                            # After close — sleep until tomorrow 9:25 AM
+                            _sleep_sec = (_wake_min - _hm_si + 24 * 60) * 60
+                        else:
+                            # Before open — sleep until today 9:25 AM
+                            _sleep_sec = (_wake_min - _hm_si) * 60
+                        _sleep_sec = max(60, min(_sleep_sec, 3600))  # cap 1hr chunks
+                        _wake_et = _et_si.replace(
+                            hour=_wake_min // 60, minute=_wake_min % 60, second=0
+                        )
+                        console.print(
+                            f"[dim]Market closed -- sleeping until "
+                            f"{_wake_et.strftime('%I:%M %p ET')} "
+                            f"({_sleep_sec // 60:.0f} min)[/dim]"
+                        )
+                        time.sleep(_sleep_sec)
+                    except Exception:
+                        time.sleep(300)
+                    continue
+
+                # Adaptive scan interval (market is open):
+                # 9:30-10:30 AM ET and 3:00-4:00 PM ET -> 2 min
+                # All other times -> 4 min
+                if _hm_si <= 10 * 60 + 30 or _hm_si >= 15 * 60:
+                    _scan_interval = 120
+                else:
+                    _scan_interval = 240
+
                 _time_to_scan = _scan_interval - (time.time() - last_research_time)
                 # Pre-heat data ~60s before the scan fires
                 if 55 <= _time_to_scan <= 65:
@@ -1295,11 +1426,14 @@ def main():
                             log.debug("Regime budget error: %s", _rbe)
 
                         console.print(f"[dim]Scanning for {direction_label} [{daily_trades_count}/{MAX_DAILY_TRADES} trades today]...[/dim]")
+                        # Apply direction filter — None means AUTO (scanner decides)
+                        _dir_filter = direction_mode.get("option_type") if not direction_mode.get("auto", True) else None
                         found_signals = research_scanner.scan_markets(
                             rsi_threshold=profile['rsi'], listener=listener,
                             market=market, budget=float(_effective_budget),
                             tp_pct=profile['tp'], sl_pct=profile['sl'],
-                            webull_engine=webull)
+                            webull_engine=webull,
+                            direction_filter=_dir_filter)
 
                     # Iterate through every signal found in the scan one by one
                     for raw_text in found_signals:
@@ -1482,13 +1616,17 @@ def main():
                                     tp_str  = f"+{tp_pct:.0f}% from entry" if not entry else f"${entry * (1 + tp_pct/100):.2f}"
                                     sl_str  = f"-{sl_pct:.0f}% from entry" if not entry else f"${entry * (1 - sl_pct/100):.2f}"
                                     entry_str = f"${entry:.2f}" if entry else "market mid"
+                                    qty_n     = int(t_qty.replace("x","")) if t_qty.replace("x","").isdigit() else 1
+                                    _cost     = (entry or 0) * 100 * qty_n
+                                    _sl_amt   = _cost * (sl_pct / 100)
+                                    sl_amt_str = f"${_sl_amt:.2f}" if _cost > 0 else f"-{sl_pct:.0f}%"
                                     signal_card = (
                                         f"🚀 **LIVE TRADE ALERT** — GilbertTrader\n"
                                         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                                         f"**{t_tick}** {strike} {side} exp {t_exp}\n"
                                         f"📥 **Entry**: {entry_str}\n"
                                         f"🎯 **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
-                                        f"🛑 **Stop**: {sl_str} (-{sl_pct:.0f}%)\n"
+                                        f"🛑 **Stop**: {sl_str} (-{sl_pct:.0f}%) | Max loss: {sl_amt_str}\n"
                                         f"📦 **Size**: {t_qty.replace('x','')} contract(s)\n"
                                         f"⚖️ **Scale-out**: sell half at +20%, trail remaining\n"
                                         f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"

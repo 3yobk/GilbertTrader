@@ -87,6 +87,9 @@ class OpenPosition:
     scaled_out:        bool = False
     price_level_stop:  float = 0.0   # swing low price stop (0 = use % stop)
     monitor_thread:    Optional[threading.Thread] = field(default=None, repr=False)
+    # Concurrent exit guard — ensures only one exit attempt runs at a time.
+    # Stop monitor and TP/scale-out cannot both call _execute_stc() simultaneously.
+    exit_in_progress:  bool = field(default=False, repr=False)
 
     def __post_init__(self):
         if not self.entry_time:
@@ -346,7 +349,33 @@ class TradeEngine:
         except Exception as e:
             log.debug("sync_webull_orders_to_log error: %s", e)
 
+
+    # ── Emergency Kill Switch ─────────────────────────────────────────────────
+    # When Gilbert detects an impossible state, disable new BTOs while
+    # continuing to manage existing positions.
+    _kill_switch_active: bool = False
+    _kill_switch_reason: str  = ""
+
+    def activate_kill_switch(self, reason: str):
+        """Disable new BTO orders. Existing positions continue to be managed."""
+        self._kill_switch_active = True
+        self._kill_switch_reason = reason
+        log.error("KILL SWITCH ACTIVATED: %s", reason)
+        if self.listener:
+            self.listener.send_status_update(
+                f"KILL SWITCH: New entries disabled. {reason} "
+                f"Existing positions still monitored. Restart to reset."
+            )
+
+    def check_kill_switch(self) -> bool:
+        """Returns True if new entries are blocked."""
+        return self._kill_switch_active
+
     def on_raw_signal(self, raw_text: str):
+        if self._kill_switch_active:
+            log.warning("Kill switch active -- BTO blocked: %s | %s",
+                        raw_text[:60], self._kill_switch_reason)
+            return
         console.print(f"\n[bold cyan]📡 Signal received:[/bold cyan]  {raw_text[:120]}")
         signal = self.parse_signal(raw_text)
         if signal is None:
@@ -438,8 +467,13 @@ class TradeEngine:
         if not ok:
             console.print("  [red]✗ Navigation to option failed[/red]")
             return
+        # ── Re-fetch quote immediately before order submission ───────────────
+        # Quote may be stale from signal generation. Re-fetch to get current
+        # bid/ask — if it moved materially, recompute limit rather than using
+        # the old midpoint.
         quote       = self.webull.get_option_quote(signal.ticker)
         limit_price = None
+        bid = ask = mid = 0.0
         if quote:
             bid = float(quote.get("bid") or 0)
             ask = float(quote.get("ask") or 0)
@@ -454,10 +488,22 @@ class TradeEngine:
                     )
                     return
 
-                limit_price  = round(mid, 2)
-                est_cost     = limit_price * 100 * signal.quantity
-                max_trade    = getattr(self, "max_trade_budget", 300)
+                # Store REAL mid for accurate slippage measurement
+                try:
+                    self.webull._last_est_mid = round(mid, 4)
+                except Exception:
+                    pass
 
+                est_cost  = round(mid, 2) * 100 * signal.quantity
+                max_trade = getattr(self, "max_trade_budget", 300)
+                # Fix 10: Recalculate max contracts using fresh execution quote
+                # Scanner may have seen a different (ATM) price than the actual strike
+                _fresh_max = max(1, min(10, int(max_trade / (mid * 100))))
+                if signal.quantity > _fresh_max:
+                    log.info("BTO qty adjusted %d -> %d (fresh quote $%.2f)",
+                             signal.quantity, _fresh_max, mid)
+                    signal = signal._replace(quantity=_fresh_max)
+                    est_cost = round(mid, 2) * 100 * signal.quantity
                 if est_cost > max_trade:
                     console.print(
                         f"  [red]✗ Est. cost ${est_cost:.0f} > budget ${max_trade:.0f} — skipping[/red]"
@@ -466,17 +512,103 @@ class TradeEngine:
 
                 console.print(
                     f"  [dim]Quote: bid=${bid:.2f} ask=${ask:.2f} "
-                    f"mid=${limit_price:.2f} spread={spread_pct:.1%} "
+                    f"mid=${mid:.2f} spread={spread_pct:.1%} "
                     f"est.cost=${est_cost:.0f}[/dim]"
                 )
+                limit_price = round(mid, 2)
             else:
                 console.print("  [red]✗ No valid bid/ask — refusing order[/red]")
                 return
-        # FIX: track whether order was actually accepted by the API
-        api_fill = self.webull.place_order(
-            action=signal.action, quantity=signal.quantity,
-            limit_price=limit_price, paper=self.paper,
-        )
+
+        # ── Price walker ──────────────────────────────────────────────────────
+        # BTO: start at mid, walk up $0.01/step, max 3 attempts, ceiling = ask
+        #      $0.01 on a $0.20 option = 5%; scale step to 0.5% of mid minimum
+        # STC: start at mid, walk DOWN $0.01/step to bid (execution certainty
+        #      on stops matters more than price)
+        is_bto          = signal.action.upper() == "BTO"
+        # Initial tick: 0.5% of mid, minimum $0.01
+        # (1 cent on $0.20 = 5%; 1 cent on $4.00 = 0.25% — proportional)
+        tick_step       = max(0.01, round(mid * 0.005, 2))
+        # Slippage ceiling: never pay more than initial_mid × 1.03 (3%)
+        initial_mid     = mid
+        max_entry_bto   = round(initial_mid * 1.03, 2)
+        max_attempts    = 3
+        order_confirmed = False
+        api_fill        = None
+        _try_price      = limit_price   # fallback
+
+        for _attempt in range(max_attempts):
+            # ── RE-FETCH QUOTE on every attempt after the first ───────────────
+            # Market may have moved between attempts; never walk relative to a
+            # stale quote. Skip refetch on attempt 0 (just fetched above).
+            if _attempt > 0:
+                import time as _t
+                _t.sleep(2)   # brief pause before refetch
+                _fresh = self.webull.get_option_quote(signal.ticker)
+                if _fresh:
+                    _fb  = float(_fresh.get("bid") or 0)
+                    _fa  = float(_fresh.get("ask") or 0)
+                    if _fb > 0 and _fa > 0:
+                        bid   = _fb
+                        ask   = _fa
+                        mid   = (_fb + _fa) / 2
+                        limit_price = round(mid, 2)
+                        console.print(
+                            f"  [dim]Re-quote: bid=${bid:.2f} ask=${ask:.2f} "
+                            f"mid=${mid:.2f}[/dim]"
+                        )
+
+            # Calculate this attempt's price relative to CURRENT mid
+            if is_bto:
+                _try_price = round(mid + _attempt * tick_step, 2)
+                # Hard ceilings: ask AND initial slippage limit
+                _try_price = min(_try_price, ask, max_entry_bto)
+            else:
+                _try_price = round(mid - _attempt * tick_step, 2)
+                _try_price = max(_try_price, bid)   # floor = current bid
+
+            if _attempt > 0:
+                console.print(
+                    f"  [dim yellow]Price walk attempt {_attempt+1}: "
+                    f"${_try_price:.2f} ({'up' if is_bto else 'down'} "
+                    f"{tick_step:.2f} vs fresh mid ${mid:.2f})[/dim yellow]"
+                )
+
+            _order_label = "REAL ORDER" if not self.paper else "PAPER ORDER"
+            console.print(
+                f"\n{_order_label}  "
+                f"{signal.action} {signal.quantity}x "
+                f"{signal.ticker} {signal.strike}{signal.option_type} "
+                f"@ {_try_price:.2f}"
+            )
+
+            api_fill = self.webull.place_order(
+                action=signal.action, quantity=signal.quantity,
+                limit_price=_try_price, paper=self.paper,
+            )
+            order_confirmed = self.webull.last_order_confirmed
+
+            if order_confirmed:
+                if _attempt > 0:
+                    console.print(
+                        f"  [green]✓ Filled on attempt {_attempt+1} "
+                        f"@ ${_try_price:.2f}[/green]"
+                    )
+                break
+
+            # Ceiling/floor check — stop walking if already at limit
+            if is_bto and _try_price >= min(ask, max_entry_bto):
+                console.print(
+                    f"  [yellow]Walker ceiling hit "
+                    f"(ask=${ask:.2f} / slippage_max=${max_entry_bto:.2f}) — cancelling[/yellow]"
+                )
+                break
+            if not is_bto and _try_price <= bid:
+                console.print("  [yellow]Walker floor hit (bid) — cancelling[/yellow]")
+                break
+
+        # Set limit_price to last attempted price (for downstream logging)
+        limit_price = _try_price
 
         # api_fill is None when:
         #   - paper endpoint returned 417 (market closed / untradable)
@@ -502,6 +634,46 @@ class TradeEngine:
         fill_price = api_fill if api_fill else limit_price
         if fill_price is None:
             console.print("  [yellow]Order confirmed but no fill price — using $0 entry[/yellow]")
+            fill_price = 0.0
+
+        # ── Wait for actual fill, not just order placement ───────────────
+        # Webull confirms order resting in book immediately.
+        # Poll for fill status up to 15 seconds before starting monitor.
+        fill_price = api_fill if api_fill else limit_price
+        _fill_confirmed = bool(api_fill and api_fill > 0)
+
+        if not _fill_confirmed and not self.paper:
+            console.print("  [yellow]Order placed — waiting for fill confirmation...[/yellow]")
+            import time as _t
+            for _wait in range(15):
+                _t.sleep(1)
+                try:
+                    _wb_pos = self.webull.get_open_positions_from_webull() or []
+                    _match = next(
+                        (p for p in _wb_pos
+                         if signal.ticker in str(p.get("ticker", ""))
+                         and str(signal.strike) in str(p.get("strike", ""))),
+                        None
+                    )
+                    if _match:
+                        _avg = float(_match.get("avgCost") or _match.get("cost") or 0)
+                        if _avg > 0:
+                            fill_price = _avg
+                            _fill_confirmed = True
+                            console.print(
+                                f"  [green]✓ Fill confirmed @ ${fill_price:.4f} "
+                                f"(after {_wait+1}s)[/green]"
+                            )
+                            break
+                except Exception:
+                    pass
+            if not _fill_confirmed:
+                console.print(
+                    "  [dim]Fill not confirmed within 15s — "
+                    "using limit price as estimate[/dim]"
+                )
+
+        if fill_price is None:
             fill_price = 0.0
 
         pos = OpenPosition(signal=signal, entry_price=fill_price, paper=self.paper)
@@ -549,60 +721,117 @@ class TradeEngine:
         self._start_monitor(position_key, pos)
 
     def _close_position(self, signal: TradeSignal, position_key: str):
-        console.print(f"  [bold yellow]→ Closing {position_key}[/bold yellow]")
+        console.print(f"  [bold yellow]-> Closing {position_key}[/bold yellow]")
+        with self._lock:
+            pos = self._positions.get(position_key)
+        if pos is None:
+            log.warning("_close_position: %s not in positions", position_key)
+            return
+        # Single STC implementation -- routes through _execute_stc like _auto_close
         ok = self.webull.navigate_to_option(
             signal.ticker, signal.expiry, signal.strike, signal.option_type
         )
         if ok:
-            fill = self.webull.place_order(
-                action="STC", quantity=signal.quantity, paper=self.paper
-            )
+            fill = self._execute_stc(pos, signal.quantity, reason="Manual STC")
             with self._lock:
-                pos = self._positions.get(position_key)
-                if pos and fill:
+                if fill:
                     self.log_trade(pos, fill, reason="Manual STC")
                 self._positions.pop(position_key, None)
 
     _POSITIONS_FILE = "open_positions.json"
 
+    _save_lock = threading.Lock()   # serializes concurrent save calls
+
     def _save_positions(self):
-        """Persist open positions to disk so they survive restarts."""
-        import json as _json
-        try:
-            data = {}
-            with self._lock:
-                for key, pos in self._positions.items():
-                    data[key] = {
-                        "ticker":      pos.signal.ticker,
-                        "strike":      pos.signal.strike,
-                        "option_type": pos.signal.option_type,
-                        "expiry":      pos.signal.expiry,
-                        "quantity":    pos.signal.quantity,
-                        "entry_price": pos.entry_price,
-                        "paper":       pos.paper,
-                        "scaled_out":  pos.scaled_out,
-                        "highest_pnl": pos.highest_pnl,
-                    }
-            with open(self._POSITIONS_FILE, "w") as f:
-                _json.dump(data, f)
-        except Exception as e:
-            log.debug("_save_positions error: %s", e)
+        """Persist open positions atomically (write temp -> rename)."""
+        import json as _json, tempfile
+        with self._save_lock:
+            try:
+                data = {}
+                with self._lock:
+                    for key, pos in self._positions.items():
+                        data[key] = {
+                            "ticker":        pos.signal.ticker,
+                            "strike":        pos.signal.strike,
+                            "option_type":   pos.signal.option_type,
+                            "expiry":        pos.signal.expiry,
+                            "quantity":      pos.signal.quantity,
+                            "entry_price":   pos.entry_price,
+                            "paper":         pos.paper,
+                            "scaled_out":    pos.scaled_out,
+                            "highest_pnl":   pos.highest_pnl,
+                            "gilbert_owned": True,
+                            "order_id":      getattr(self.webull, "_last_order_id", None),
+                        }
+                # Atomic write: write temp file then rename
+                import tempfile as _tf
+                _dir = os.path.dirname(os.path.abspath(self._POSITIONS_FILE))
+                with _tf.NamedTemporaryFile(
+                        mode="w", dir=_dir, suffix=".tmp",
+                        delete=False, encoding="utf-8"
+                ) as _tmp_f:
+                    _json.dump(data, _tmp_f, indent=2)
+                    _tmp_name = _tmp_f.name
+                os.replace(_tmp_name, self._POSITIONS_FILE)
+                log.debug("Positions saved atomically: %d open", len(data))
+            except Exception as e:
+                log.debug("_save_positions error: %s", e)
 
     def _load_positions(self):
         """
-        On startup, reload any positions saved to disk.
-        Resumes P&L monitoring with the original entry price.
+        On startup, reconcile locally saved positions with Webull.
+
+        Three cases (GPT's reconciliation model):
+          LOCAL + BROKER -> resume monitoring (position still open)
+          LOCAL only     -> mark stale, do NOT monitor or send STC
+          BROKER only    -> skip (not tagged as Gilbert-owned)
+
+        Gilbert tags its own positions with gilbert_owned=True in the
+        saved file so restart reconciliation knows what it opened.
         """
         import json as _json
+
+        # Fetch live Webull positions for reconciliation
+        broker_keys = set()
+        try:
+            _wb = self.webull.get_open_positions_from_webull() or []
+            for _p in _wb:
+                _tk  = str(_p.get("ticker", "")).upper()
+                _str = str(_p.get("strike", ""))
+                _ot  = str(_p.get("optionType", "C"))[:1].upper()
+                _exp = str(_p.get("expiry", "") or _p.get("expireDate", ""))
+                broker_keys.add(f"{_tk}_{_str}{_ot}_{_exp}")
+        except Exception as e:
+            log.warning("Could not fetch Webull positions for reconciliation: %s", e)
+
         if not os.path.exists(self._POSITIONS_FILE):
             return
+
         try:
             with open(self._POSITIONS_FILE) as f:
                 data = _json.load(f)
             if not data:
                 return
-            log.info("Resuming %d position(s) from open_positions.json", len(data))
+            log.info("Reconciling %d saved position(s) with Webull", len(data))
             for key, d in data.items():
+                # Only resume Gilbert-owned positions
+                if not d.get("gilbert_owned", True):
+                    continue
+
+                in_broker = key in broker_keys
+
+                if not in_broker:
+                    # LOCAL only -- position closed while bot was down
+                    log.info("Stale local position (closed in Webull): %s -- skipping", key)
+                    console.print(f"  [dim]Position {key} closed while offline -- not resuming[/dim]")
+                    continue
+
+                # LOCAL + BROKER -- resume monitoring
+                # order_id is persisted for future ownership verification
+                # (currently informational -- use it to query fill details on restart)
+                _saved_order_id = d.get("order_id")
+                if _saved_order_id:
+                    log.debug("Resuming position %s with order_id=%s", key, _saved_order_id)
                 try:
                     sig = TradeSignal(
                         ticker=d["ticker"], strike=d["strike"],
@@ -617,16 +846,16 @@ class TradeEngine:
                     with self._lock:
                         self._positions[key] = pos
                     console.print(
-                        f"  [cyan]↩ Resumed monitoring: {key} "
-                        f"entry=${d['entry_price']:.2f}[/cyan]"
+                        f"  [cyan]Resumed: {key} entry=${d['entry_price']:.2f} "
+                        f"(confirmed open in Webull)[/cyan]"
                     )
                     self._start_monitor(key, pos)
                 except Exception as e:
                     log.warning("Could not resume position %s: %s", key, e)
+
         except Exception as e:
             log.warning("_load_positions error: %s", e)
         finally:
-            # Clear the file after loading so stale positions don't persist forever
             try:
                 os.remove(self._POSITIONS_FILE)
             except Exception:
@@ -824,20 +1053,17 @@ class TradeEngine:
 
             if not pos.scaled_out and not trailing_tp_active                     and pnl_pct >= self.scale_out_trigger_pct:
                 half_qty = max(1, pos.signal.quantity // 2)
-                console.print(f"  [bold cyan]\U0001f4b0 SCALE-OUT: Selling {half_qty}x @ {pnl_pct:+.1f}%[/bold cyan]")
+                _full_close = half_qty >= pos.signal.quantity
+                _action_label = "TP CLOSE" if _full_close else f"SCALE-OUT {half_qty}/{pos.signal.quantity}"
+                console.print(f"  [bold cyan]\U0001f4b0 {_action_label}: Selling {half_qty}x @ {pnl_pct:+.1f}%[/bold cyan]")
                 ok = self.webull.navigate_to_option(
                     pos.signal.ticker, pos.signal.expiry,
                     pos.signal.strike, pos.signal.option_type,
                 )
                 if ok:
-                    quote = self.webull.get_option_quote(pos.signal.ticker)
-                    lp    = None
-                    if quote and quote.get("bid") and quote.get("ask"):
-                        lp = round((quote["bid"] + quote["ask"]) / 2, 2)
-                    fill = self.webull.place_order(
-                        action="STC", quantity=half_qty,
-                        limit_price=lp, paper=pos.paper,
-                    )
+                    # Route through _execute_stc -- same limit/walker as auto_close
+                    # Prevents market order on quote failure (what happened with PLTR)
+                    fill = self._execute_stc(pos, half_qty, reason="Scale-Out 50%")
                     if fill:
                         self.log_trade(pos, fill, reason="Scale-Out 50%", qty_override=half_qty)
                     pos.scaled_out      = True
@@ -977,24 +1203,38 @@ class TradeEngine:
                                 elif extreme_oversold and time_in_stop < 600:
                                     should_hold = True
                                     hold_reason = f"RSI1m={_rsi1m:.1f} extreme oversold — bounce likely"
-                                elif time_in_stop > 600:
+                                elif time_in_stop > 180:
                                     should_close = True
-                                    close_reason = f"10 min below stop, RSI={_rsi1m:.1f} no recovery"
+                                    close_reason = f"3 min below stop, RSI={_rsi1m:.1f} no recovery"
                                 elif not rsi_turning_up and not price_recovering:
-                                    if pos._sl_checks >= 4:  # 4 checks × 15s = 1 min
+                                    if pos._sl_checks >= 2:  # 2 checks × 15s = 30s
                                         should_close = True
                                         close_reason = f"RSI still falling, price not recovering"
                             else:
                                 # No data — fall back to time-based after 3 min
                                 if time_in_stop > 180:
+                                    # 3 min with no market data -- alert and close
                                     should_close = True
                                     close_reason = "no market data, 3min elapsed"
+                                elif time_in_stop % 60 < 7:
+                                    log.warning("No market data for %s, %ds in stop",
+                                                position_key, time_in_stop)
 
                         except Exception as e:
                             log.debug("Smart SL check error: %s", e)
-                            if time_in_stop > 300:
+                            # Data error -- do NOT close, we don't know if price recovered
+                            # Alert and keep watching; _execute_stc will handle exit when we do close
+                            if time_in_stop > 120 and time_in_stop % 60 < 7:
+                                log.warning("Smart SL data error for %s, %ds in stop -- watching",
+                                            position_key, time_in_stop)
+                                if self.listener:
+                                    self.listener.send_status_update(
+                                        f"WARN: {position_key} stop triggered but market data "
+                                        f"unavailable. Watching {time_in_stop:.0f}s. Check manually."
+                                    )
+                            if time_in_stop > 300:  # 5 min with no data -- close as last resort
                                 should_close = True
-                                close_reason = "data error, 5min elapsed"
+                                close_reason = "data error, 5min elapsed -- manual check needed"
 
                         if should_hold:
                             console.print(
@@ -1035,26 +1275,240 @@ class TradeEngine:
                     pos._sl_checks         = 0
 
 
-    def _auto_close(self, position_key: str, pos: OpenPosition, reason: str):
-        close_signal = TradeSignal(
-            ticker=pos.signal.ticker, strike=pos.signal.strike,
-            option_type=pos.signal.option_type, expiry=pos.signal.expiry,
-            action="STC", quantity=pos.signal.quantity,
-        )
-        ok = self.webull.navigate_to_option(
-            close_signal.ticker, close_signal.expiry,
-            close_signal.strike, close_signal.option_type,
-        )
-        if ok:
-            fill = self.webull.place_order(
-                action="STC", quantity=close_signal.quantity, paper=pos.paper
+
+    def _execute_stc(self, pos: "OpenPosition", qty: int,
+                     reason: str = "close") -> float:
+        """
+        Centralized STC executor. ALL exits route through here.
+
+        Rules (GPT spec):
+          - NEVER sends a market order. Limit orders only, always.
+          - Pre-flight: validate OCC symbol, bid>0, ask>=bid, qty>0
+          - Attempts: mid -> mid-tick -> bid -> requote+bid -> requote+bid ...
+          - Quote failure: retry quote, alert if stuck. Never silently market.
+          - Logs every attempt: occ, order_id, bid, ask, lp, filled_qty, remaining
+
+        Returns weighted avg fill price, or 0.0 if nothing filled.
+        """
+        import time as _t
+
+        is_urgent  = reason in ("Stop Loss", "STOP_LOSS", "Stop Loss Confirmed")
+        step_wait  = 1 if is_urgent else 2
+        MAX_ATTEMPTS = 8   # enough for any normal fill; alerts after 3 failed
+
+        remaining  = qty
+        fills      = []   # [(qty_filled, fill_price)]
+
+        if remaining <= 0:
+            log.warning("STC [%s]: qty=%d invalid -- skipping", reason, qty)
+            return 0.0
+
+        # ── Expected OCC symbol for validation ───────────────────────────────
+        try:
+            from tradier_execution import _get_option_symbol as _get_occ
+            _exp_occ = _get_occ(
+                pos.signal.ticker, float(pos.signal.strike),
+                pos.signal.option_type, pos.signal.expiry,
             )
-            if fill:
-                self.log_trade(pos, fill, reason=reason)
-            console.print(f"  [cyan]Auto-close [{reason}] fill: ${fill or '?'}[/cyan]")
+        except Exception:
+            _exp_occ = None
+
+        for attempt in range(1, MAX_ATTEMPTS + 1):
+            if remaining <= 0:
+                break
+
+            # ── Fresh quote every attempt ─────────────────────────────────────
+            _bid = _ask = _mid = None
+            _quote_ts = datetime.utcnow().isoformat()
+            _quoted_occ = None
+            try:
+                _q = self.webull.get_option_quote(pos.signal.ticker)
+                if _q:
+                    _bid        = float(_q.get("bid") or 0) or None
+                    _ask        = float(_q.get("ask") or 0) or None
+                    _quoted_occ = _q.get("symbol") or _q.get("occ_symbol")
+            except Exception as _qe:
+                log.debug("STC quote error attempt %d: %s", attempt, _qe)
+
+            # ── Pre-flight validation ─────────────────────────────────────────
+            _preflight_ok = True
+            if _bid is None or _ask is None:
+                log.warning("STC [%s] attempt %d: quote unavailable -- retrying",
+                            reason, attempt)
+                _preflight_ok = False
+            elif _ask < _bid:
+                log.warning("STC [%s] attempt %d: ask($%.4f) < bid($%.4f) -- stale quote",
+                            reason, attempt, _ask, _bid)
+                _preflight_ok = False
+            elif _bid <= 0:
+                log.warning("STC [%s] attempt %d: bid=$%.4f -- no buyers", reason, attempt, _bid)
+                _preflight_ok = False
+
+            # OCC symbol mismatch check
+            if _exp_occ and _quoted_occ and _exp_occ != _quoted_occ:
+                log.error("STC OCC MISMATCH: expected=%s quoted=%s -- aborting attempt",
+                          _exp_occ, _quoted_occ)
+                _preflight_ok = False
+
+            if not _preflight_ok:
+                # Alert after 3 consecutive failures -- never send market order
+                if attempt == 3 and self.listener:
+                    self.listener.send_status_update(
+                        f"ALERT: Cannot get valid quote for {pos.signal.ticker} STC "
+                        f"[{reason}] after {attempt} attempts. "
+                        f"Position still open. Retrying every {step_wait}s."
+                    )
+                _t.sleep(step_wait)
+                continue
+
+            _mid = (_bid + _ask) / 2
+
+            # ── Limit price per attempt ───────────────────────────────────────
+            # Attempt 1: mid
+            # Attempt 2: mid - tick
+            # Attempt 3+: current bid (fresh each time via requote)
+            tick = max(0.01, round(_mid * 0.005, 2))
+            if attempt == 1:
+                lp = round(_mid, 2)
+            elif attempt == 2:
+                lp = round(max(_bid, _mid - tick), 2)
+            else:
+                lp = round(_bid, 2)   # bid is already a limit -- not a market order
+
+            _order_id = None
+            log.info(
+                "STC attempt %d/%d [%s]: occ=%s bid=%.4f ask=%.4f lp=%.4f qty=%d",
+                attempt, MAX_ATTEMPTS, reason,
+                _quoted_occ or _exp_occ or "?", _bid, _ask, lp, remaining
+            )
+            console.print(
+                f"  [dim]STC {attempt}/{MAX_ATTEMPTS} [{reason}]: "
+                f"${lp:.2f} (bid={_bid:.2f} mid={_mid:.2f}) qty={remaining}[/dim]"
+            )
+
+            # ── Place limit order ─────────────────────────────────────────────
+            _fp = self.webull.place_order(
+                action="STC", quantity=remaining,
+                limit_price=lp, paper=pos.paper,
+            )
+            _order_id = getattr(self.webull, "_last_order_id", None)
+
+            if not self.webull.last_order_confirmed:
+                log.warning("STC attempt %d: order not confirmed", attempt)
+                _t.sleep(step_wait)
+                continue
+
+            # ── Fill detection: order status first, position fallback ─────────
+            _filled_qty = 0
+            try:
+                if _order_id and hasattr(self.webull, "get_order_status"):
+                    _os = self.webull.get_order_status(_order_id) or {}
+                    _filled_qty = int(
+                        _os.get("filledQuantity") or
+                        _os.get("filled_quantity") or 0
+                    )
+            except Exception:
+                pass
+
+            if _filled_qty == 0:
+                _t.sleep(1.0)   # wait for API lag
+                try:
+                    _wb = self.webull.get_open_positions_from_webull() or []
+                    _match = next(
+                        (p for p in _wb
+                         if pos.signal.ticker in str(p.get("ticker", ""))
+                         and str(pos.signal.strike) in str(p.get("strike", ""))),
+                        None
+                    )
+                    _filled_qty = remaining - int(_match.get("quantity", 0)) if _match else remaining
+                except Exception:
+                    _filled_qty = remaining   # assume full fill
+
+            log.info(
+                "STC attempt %d result: order_id=%s filled=%d remaining_after=%d avg_fill=%.4f",
+                attempt, _order_id, _filled_qty, remaining - _filled_qty, _fp or 0
+            )
+
+            # Fix 13: If broker says qty=0, stop -- don't keep selling
+            if _filled_qty < 0:
+                log.error("STC: broker reports negative remaining qty -- stopping")
+                break
+
+            if _filled_qty >= remaining:
+                fills.append((remaining, _fp or lp))
+                remaining = 0
+                break
+            elif _filled_qty > 0:
+                fills.append((_filled_qty, _fp or lp))
+                remaining -= _filled_qty
+                log.info("STC partial: %d filled, %d remaining", _filled_qty, remaining)
+                # Cancel resting order before next attempt
+                try:
+                    if _order_id and hasattr(self.webull, "cancel_order"):
+                        _cancelled = self.webull.cancel_order(_order_id)
+                        log.info("STC cancel %s: %s", _order_id,
+                                 "confirmed" if _cancelled else "unconfirmed")
+                        if not _cancelled:
+                            _t.sleep(0.5)
+                except Exception as _ce:
+                    log.debug("Cancel error: %s", _ce)
+                continue
+            else:
+                # Nothing filled -- cancel and reprice
+                try:
+                    if _order_id and hasattr(self.webull, "cancel_order"):
+                        self.webull.cancel_order(_order_id)
+                except Exception:
+                    pass
+                _t.sleep(step_wait)
+
+        # ── Final alert if position not fully closed ──────────────────────────
+        if remaining > 0:
+            log.error("STC [%s]: %d contracts UNFILLED after %d attempts",
+                      reason, remaining, MAX_ATTEMPTS)
+            if self.listener:
+                self.listener.send_status_update(
+                    f"ALERT: {pos.signal.ticker} STC [{reason}] -- "
+                    f"{remaining} contracts UNFILLED after {MAX_ATTEMPTS} attempts. "
+                    f"CHECK WEBULL IMMEDIATELY."
+                )
+
+        if not fills:
+            return 0.0
+
+        total_qty = sum(q for q, _ in fills)
+        avg_fill  = sum(q * p for q, p in fills) / total_qty if total_qty > 0 else 0.0
+        if len(fills) > 1:
+            log.info("STC multi-fill: %s -> avg=$%.4f", fills, avg_fill)
+        return round(avg_fill, 4)
+
+
+    def _auto_close(self, position_key: str, pos: OpenPosition, reason: str):
+        # Concurrent exit guard — only one exit runs at a time per position
         with self._lock:
-            self._positions.pop(position_key, None)
-        self._save_positions()   # update file after close
+            if getattr(pos, "exit_in_progress", False):
+                log.warning("Exit already in progress for %s -- skipping duplicate", position_key)
+                return
+            pos.exit_in_progress = True
+
+        try:
+            ok = self.webull.navigate_to_option(
+                pos.signal.ticker, pos.signal.expiry,
+                pos.signal.strike, pos.signal.option_type,
+            )
+            if ok:
+                fill = self._execute_stc(pos, pos.signal.quantity, reason=reason)
+                if fill:
+                    self.log_trade(pos, fill, reason=reason)
+                console.print(
+                    f"  [cyan]Auto-close [{reason}] avg fill: "
+                    f"${fill:.2f}[/cyan]" if fill else
+                    f"  [yellow]Auto-close [{reason}]: no fill confirmed[/yellow]"
+                )
+        finally:
+            with self._lock:
+                self._positions.pop(position_key, None)
+            self._save_positions()
 
     def print_status(self):
         with self._lock:

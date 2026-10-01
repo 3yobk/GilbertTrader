@@ -1,7 +1,8 @@
 import time
 import threading
+import uuid
 """
-research_scanner.py — Upgraded Scanner with All 5 Improvements
+research_scanner.py -- Upgraded Scanner with All 5 Improvements
 ==============================================================
 Upgrade 1: Real-time Tradier data integration
 Upgrade 2: Options flow confirmation (unusual volume on calls/puts)
@@ -24,7 +25,7 @@ log = logging.getLogger("research_scanner")
 # ── GEX trend tracker ──────────────────────────────────────────────────────────
 # Requires >= 3 readings before reporting a trend (avoids noisy single-scan drops).
 # Only tracks positive GEX (the kind that blocks trades).
-# These overrides bypass GEX gate ONLY — spread, IV, budget, flow unchanged.
+# These overrides bypass GEX gate ONLY -- spread, IV, budget, flow unchanged.
 _gex_history: dict = {}   # ticker -> list of last 5 raw GEX float values (millions)
 
 def _update_gex_history(ticker: str, gex_value: float):
@@ -67,7 +68,7 @@ def _get_gex_volume_ratio(gex_dollars_m: float, avg_daily_volume_m: float) -> fl
 # ── Dynamic Slippage Cache ─────────────────────────────────────────────────────
 # Tracks per-ticker execution friction learned from real fills.
 # Format: {"TICKER": {"rolling_slippage_multiplier": 1.0, "sample_count": 0}}
-# EWMA alpha=0.2 — new fills count for 20%, history for 80%
+# EWMA alpha=0.2 -- new fills count for 20%, history for 80%
 _slippage_cache: dict = {}
 _SLIPPAGE_ALPHA = 0.2
 
@@ -109,13 +110,13 @@ def update_slippage(ticker: str, avg_filled_price: float, est_mid_price: float):
         _slippage_blocked.add(ticker)
         log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold -> BLOCKED for session",
                     ticker, slip_pct, _SLIPPAGE_BLOCK_THRESHOLD * 100)
-        print(f"  [Slippage-BLOCK] {ticker}: {slip_pct:+.1f}% slippage — "
+        print(f"  [Slippage-BLOCK] {ticker}: {slip_pct:+.1f}% slippage -- "
               f"blocked for rest of session (toxic spread)")
     elif slip_pct > _SLIPPAGE_TESTER_THRESHOLD * 100:
         _slippage_tester.add(ticker)
         log.warning("[Slippage] %s: slip=%.1f%% > %.0f%% threshold -> TESTER-only",
                     ticker, slip_pct, _SLIPPAGE_TESTER_THRESHOLD * 100)
-        print(f"  [Slippage-TESTER] {ticker}: {slip_pct:+.1f}% slippage — "
+        print(f"  [Slippage-TESTER] {ticker}: {slip_pct:+.1f}% slippage -- "
               f"demoted to 1-contract tester only")
 
 def get_slippage_multiplier(ticker: str) -> float:
@@ -128,7 +129,7 @@ def _broadcast(entry: dict):
         from api_server import broadcast_scanner
         broadcast_scanner(entry)
     except Exception:
-        pass   # api_server not running — silent fail
+        pass   # api_server not running -- silent fail
 
 # New modules
 try:
@@ -143,15 +144,15 @@ try:
 except ImportError:
     _HAS_VWAP = False
 
-# ── Watchlist — expanded with large caps + ETFs ───────────────────────────────
+# ── Watchlist -- expanded with large caps + ETFs ───────────────────────────────
 MY_SMALL_STOCKS = [
-    # Mega-cap tech (highest options liquidity — needs $300+ budget)
+    # Mega-cap tech (highest options liquidity -- needs $300+ budget)
     "NVDA", "AAPL", "MSFT", "AMZN", "META", "GOOGL", "TSLA",
 
     # High-beta momentum names (needs $200-500 budget)
     "AMD", "PLTR", "ARM", "AVGO", "MU", "SMCI",
 
-    # Fintech / growth — affordable range ($50-150 options)
+    # Fintech / growth -- affordable range ($50-150 options)
     "SOFI", "HOOD", "COIN", "AFRM", "UPST", "HIMS",
 
     # Retail / consumer ($50-150 options)
@@ -187,7 +188,7 @@ MY_SMALL_STOCKS = [
 # Maps account budget to the max stock price whose options are tradeable.
 # Rule: ATM option ≈ stock_price × 0.05 × 100 = stock_price × 5
 # So max_stock_price = budget / 5 (conservative; gives 1 affordable contract)
-# Tiers are generous — we want to err toward inclusion not exclusion.
+# Tiers are generous -- we want to err toward inclusion not exclusion.
 _BUDGET_TIERS = [
     (500,  999999),   # $500+  -> all tickers
     (300,  200),      # $300+  -> stocks under $200
@@ -205,7 +206,7 @@ def filter_tickers_by_budget(tickers: list, budget: float, market=None) -> list:
     Logs a one-time summary so the user can see what's active.
     """
     if budget >= 500:
-        return tickers   # full list — no filtering needed
+        return tickers   # full list -- no filtering needed
 
     # Determine max affordable stock price for this budget
     max_price = next(
@@ -264,7 +265,7 @@ _ALPHA_CANDIDATE_POOL = [
 def run_alpha_sieve_pre_filter(top_n: int = 5,
                                listener=None) -> list:
     """
-    UPGRADE 2: Pre-Market Alpha Sieve — runs at 9:15 AM ET.
+    UPGRADE 2: Pre-Market Alpha Sieve -- runs at 9:15 AM ET.
     """
     global MY_SMALL_STOCKS
 
@@ -279,7 +280,7 @@ def run_alpha_sieve_pre_filter(top_n: int = 5,
             except Exception:
                 pass
 
-    _msg(f"🔍 **Alpha Sieve** running — scoring {len(_ALPHA_CANDIDATE_POOL)} candidates...")
+    _msg(f"🔍 **Alpha Sieve** running -- scoring {len(_ALPHA_CANDIDATE_POOL)} candidates...")
 
     scores: list[tuple[str, float]] = []
 
@@ -315,7 +316,7 @@ def run_alpha_sieve_pre_filter(top_n: int = 5,
             continue
 
     if not scores:
-        _msg("⚠️ Alpha Sieve found no qualifying tickers — keeping current watchlist.")
+        _msg("[WARN] Alpha Sieve found no qualifying tickers -- keeping current watchlist.")
         return MY_SMALL_STOCKS
 
     scores.sort(key=lambda x: x[1], reverse=True)
@@ -324,7 +325,7 @@ def run_alpha_sieve_pre_filter(top_n: int = 5,
 
     score_str = " | ".join(f"{t} ({s:.2f})" for t, s in scores[:top_n])
     _msg(
-        f"✅ **Alpha Sieve complete** — today's focus list ({top_n} tickers):\n"
+        f"[OK] **Alpha Sieve complete** -- today's focus list ({top_n} tickers):\n"
         f"`{', '.join(top_tickers)}`\n"
         f"Scores: {score_str}"
     )
@@ -365,7 +366,7 @@ def get_realtime_price(ticker: str) -> Optional[float]:
         return None
 
 
-# ── Upgrade 2: Options flow — check for unusual call/put volume ───────────────
+# ── Upgrade 2: Options flow -- check for unusual call/put volume ───────────────
 def check_options_flow(ticker: str, option_type: str = "C") -> dict:
     """
     Returns unusual options activity score (0-100) and supporting data.
@@ -423,12 +424,53 @@ def check_options_flow(ticker: str, option_type: str = "C") -> dict:
             vol_ratio = put_vol / (call_vol + 1)
             score = min(100, int(50 + (vol_ratio - 1) * 20 + (30 if unusual else 0)))
 
+        # Find ATM bid/ask — None means unavailable (not zero)
+        # This is a pre-check snapshot only. Execution always re-quotes.
+        atm_bid = atm_ask = atm_mid = atm_symbol = None
+        atm_quote_ts = None
+        try:
+            spot_r = requests.get(
+                "https://api.tradier.com/v1/markets/quotes",
+                headers=_tradier_headers(),
+                params={"symbols": ticker}, timeout=3,
+            )
+            spot = float(
+                spot_r.json().get("quotes", {}).get("quote", {}).get("last") or 0
+            ) if spot_r.ok else 0
+            if spot > 0:
+                otype_str = "call" if option_type == "C" else "put"
+                candidates = [
+                    o for o in chain
+                    if o.get("option_type") == otype_str
+                       and float(o.get("bid") or 0) > 0
+                ]
+                if candidates:
+                    atm_opt = min(
+                        candidates,
+                        key=lambda o: abs(float(o.get("strike", 0)) - spot),
+                    )
+                    _bid = float(atm_opt.get("bid") or 0)
+                    _ask = float(atm_opt.get("ask") or 0)
+                    if _bid > 0 and _ask > 0:
+                        atm_bid      = _bid
+                        atm_ask      = _ask
+                        atm_mid      = round((_bid + _ask) / 2, 4)
+                        atm_symbol   = atm_opt.get("symbol")
+                        atm_quote_ts = datetime.now().strftime("%H:%M:%S")
+        except Exception:
+            pass  # atm fields stay None -- downstream must handle
+
         result = {
-            "score":    max(0, min(100, score)),
-            "call_vol": call_vol,
-            "put_vol":  put_vol,
-            "pcr":      round(pcr, 2),
-            "unusual":  unusual,
+            "score":        max(0, min(100, score)),
+            "call_vol":     call_vol,
+            "put_vol":      put_vol,
+            "pcr":          round(pcr, 2),
+            "unusual":      unusual,
+            "atm_bid":      atm_bid,      # None if unavailable
+            "atm_ask":      atm_ask,      # None if unavailable
+            "atm_mid":      atm_mid,      # None if unavailable
+            "atm_symbol":   atm_symbol,   # OCC symbol for contract-match verification
+            "atm_quote_ts": atm_quote_ts, # timestamp so caller knows quote age
         }
     except Exception:
         pass
@@ -460,7 +502,7 @@ def get_iv_rank(ticker: str) -> float:
     IV Rank = (current_IV - 52wk_low) / (52wk_high - 52wk_low) * 100
 
     Falls back to 30-day realized vol proxy if Tradier unavailable.
-    True IV rank is critical — fake rank was blocking AVGO (74 vs likely ~45 real).
+    True IV rank is critical -- fake rank was blocking AVGO (74 vs likely ~45 real).
     """
     if _HAS_TRADIER:
         try:
@@ -526,7 +568,7 @@ def get_iv_rank(ticker: str) -> float:
         except Exception as e:
             log.debug("Tradier IV rank error for %s: %s", ticker, e)
 
-    # Original fallback — 30-day realized vol proxy
+    # Original fallback -- 30-day realized vol proxy
     return _get_iv_rank_fallback(ticker)
 
 
@@ -608,8 +650,8 @@ def _get_iv_rank_fallback(ticker: str) -> float:
 def get_gex(ticker: str, current_price: float) -> dict:
     """
     Calculate Net Gamma Exposure (GEX) from Tradier options chain.
-    GEX > 0 (positive): stock gets PINNED — bad for scalping
-    GEX < 0 (negative): stock moves MORE aggressively — good for scalping
+    GEX > 0 (positive): stock gets PINNED -- bad for scalping
+    GEX < 0 (negative): stock moves MORE aggressively -- good for scalping
     """
     neutral = {"gex": 0.0, "gex_signal": "neutral",
                "gex_ok": True, "pin_level": 0.0, "available": False}
@@ -721,7 +763,7 @@ def has_earnings_soon(ticker: str, days: int = 2) -> bool:
                     earnings = [earnings]
                 for e in (earnings if isinstance(earnings, list) else [earnings]):
                     if str(e.get("symbol", "")).upper() == ticker.upper():
-                        log.info("Earnings found for %s on %s — skipping", ticker, day_date)
+                        log.info("Earnings found for %s on %s -- skipping", ticker, day_date)
                         return True
         return False
     except Exception as e:
@@ -746,7 +788,7 @@ def get_spy_intraday_change() -> float:
 def rsi_is_turning_up(df, current_rsi: float, lookback: int = 3,
                       rsi_threshold: float = 30.0) -> bool:
     """
-    Strong entry confirmation — requires ALL of:
+    Strong entry confirmation -- requires ALL of:
     1. RSI has risen at least 1pt from its recent low
     2. RSI is rising for at least 2 consecutive bars OR price made higher low
     3. Stock price made a higher low
@@ -858,7 +900,7 @@ def _flatten(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _download_intraday(ticker: str) -> pd.DataFrame:
-    # Check preheat cache first — avoids blocking sequential yf.download calls
+    # Check preheat cache first -- avoids blocking sequential yf.download calls
     _cached = _get_cached_df(ticker)
     if _cached is not None and not _cached.empty:
         log.debug("[Preheat] Cache hit for %s", ticker)
@@ -1026,7 +1068,7 @@ def check_contract_exists(ticker: str, strike: float,
              "volume": 0, "oi": 0}
 
     if not _HAS_TRADIER:
-        return {**empty, "exists": True}  # can't verify — assume exists
+        return {**empty, "exists": True}  # can't verify -- assume exists
 
     try:
         from datetime import datetime as _dt
@@ -1050,7 +1092,7 @@ def check_contract_exists(ticker: str, strike: float,
         if isinstance(chain, dict):
             chain = [chain]
         if not chain:
-            log.debug("No chain returned for %s on %s — contract does not exist",
+            log.debug("No chain returned for %s on %s -- contract does not exist",
                       ticker, expiry_full)
             return empty
 
@@ -1071,7 +1113,7 @@ def check_contract_exists(ticker: str, strike: float,
                 vega   = float(greeks.get("vega", 0) or 0)
                 iv     = float(greeks.get("smv_vol", 0) or 0) * 100
 
-                # Contract exists but has no market — treat as non-tradeable
+                # Contract exists but has no market -- treat as non-tradeable
                 if bid == 0 and ask == 0:
                     log.debug("%s %s%s %s: contract exists but no market (bid=ask=0)",
                               ticker, strike, option_type, expiry_str)
@@ -1092,7 +1134,7 @@ def check_contract_exists(ticker: str, strike: float,
                     "oi":       oi,
                 }
 
-        # Strike not found in chain — contract doesn't exist for this expiry
+        # Strike not found in chain -- contract doesn't exist for this expiry
         log.debug("%s %.0f%s %s: strike not found in chain",
                   ticker, strike, option_type, expiry_str)
         return empty
@@ -1126,7 +1168,7 @@ def get_macro_events_today() -> list:
         date(2026, 9, 17): "FOMC Decision",
         date(2026, 11, 5): "FOMC Decision",
         date(2026, 12, 17):"FOMC Decision",
-        # CPI release dates 2026 (approx — 2nd week of each month)
+        # CPI release dates 2026 (approx -- 2nd week of each month)
         date(2026, 1, 15): "CPI Release",
         date(2026, 2, 12): "CPI Release",
         date(2026, 3, 12): "CPI Release",
@@ -1139,7 +1181,7 @@ def get_macro_events_today() -> list:
         date(2026, 10, 14):"CPI Release",
         date(2026, 11, 12):"CPI Release",
         date(2026, 12, 10):"CPI Release",
-        # NFP (Non-Farm Payrolls) — first Friday of each month
+        # NFP (Non-Farm Payrolls) -- first Friday of each month
         date(2026, 1, 9):  "NFP Report",
         date(2026, 2, 6):  "NFP Report",
         date(2026, 3, 6):  "NFP Report",
@@ -1193,7 +1235,7 @@ _SPY_RSI_TTL = 120   # refresh every 2 minutes
 def get_spy_rsi() -> float:
     """
     Get SPY's current 5-min RSI. Cached 2 minutes.
-    Used for relative RSI calculation — if SPY is at RSI 75 and
+    Used for relative RSI calculation -- if SPY is at RSI 75 and
     a stock is at RSI 38, it's relatively -37 pts = very oversold.
     """
     now = time.time()
@@ -1221,7 +1263,7 @@ def get_spy_rsi() -> float:
 # Result: scan completes in ~1-2s instead of 10-20s. Cache refreshes automatically.
 _preheat_cache: dict = {}    # {ticker: (df, fetched_ts)}
 _preheat_lock         = threading.Lock()
-_PREHEAT_TTL          = 90   # seconds — refresh if data older than 90s
+_PREHEAT_TTL          = 90   # seconds -- refresh if data older than 90s
 _preheat_executor     = None  # ThreadPoolExecutor, initialized on first use
 
 def _fetch_one(ticker: str):
@@ -1239,7 +1281,7 @@ def preheat_data(tickers: list):
     """
     Concurrently pre-fetch 5-min data for all tickers using a thread pool.
     Call this ~60s before scan_markets() runs.
-    Runs in background — returns immediately, doesn't block the main loop.
+    Runs in background -- returns immediately, doesn't block the main loop.
     """
     global _preheat_executor
     if _preheat_executor is None:
@@ -1272,16 +1314,16 @@ def get_atr_adjustment(df, base_threshold):
     """
     Volatility-adaptive RSI threshold scaling.
 
-    ATR/price > 2% (high vol — LUNR, RIOT, SOUN):
-        Tighten by 5 pts — require deeper oversold before entry.
+    ATR/price > 2% (high vol -- LUNR, RIOT, SOUN):
+        Tighten by 5 pts -- require deeper oversold before entry.
         Penny/high-beta stocks mean-revert less reliably.
 
-    ATR/price < 1% (low vol — AAPL, MSFT, AMZN):
-        Loosen by 7 pts — mega-cap dips are shallower but equally valid.
+    ATR/price < 1% (low vol -- AAPL, MSFT, AMZN):
+        Loosen by 7 pts -- mega-cap dips are shallower but equally valid.
         RSI 32 on AAPL is as oversold as RSI 25 on RIOT.
 
     ATR/price 1-2% (normal):
-        No adjustment — use base threshold.
+        No adjustment -- use base threshold.
     """
     try:
         atr = ta.atr(df["High"], df["Low"], df["Close"], length=14)
@@ -1293,17 +1335,17 @@ def get_atr_adjustment(df, base_threshold):
             return base_threshold
         atr_ratio = atr_val / price
 
-        if atr_ratio > 0.02:          # high volatility — tighten
+        if atr_ratio > 0.02:          # high volatility -- tighten
             adj = base_threshold - 5
             log.debug("ATR adj %s: high vol (%.2f%%) -> threshold %d",
                       df.index[-1], atr_ratio*100, adj)
             return adj
-        elif atr_ratio < 0.01:        # low volatility — loosen
+        elif atr_ratio < 0.01:        # low volatility -- loosen
             adj = base_threshold + 7
             log.debug("ATR adj: low vol (%.2f%%) -> threshold %d",
                       atr_ratio*100, adj)
             return adj
-        return base_threshold         # normal range — no adjustment
+        return base_threshold         # normal range -- no adjustment
     except Exception:
         return base_threshold
 
@@ -1315,8 +1357,8 @@ def find_delta_targeted_strike(ticker: str, current_price: float,
     Scan the live options chain to find the strike whose Delta falls
     within the target range. Replaces static price-bracket logic.
 
-    Normal IV (iv_rank <= 60): target Delta 0.40 – 0.52 (near ATM)
-    High IV   (iv_rank >  60): target Delta 0.35 – 0.42 (slightly OTM,
+    Normal IV (iv_rank <= 60): target Delta 0.40 - 0.52 (near ATM)
+    High IV   (iv_rank >  60): target Delta 0.35 - 0.42 (slightly OTM,
                                 cheaper premium, insulates budget)
 
     Falls back to static price-bracket logic if Tradier unavailable
@@ -1328,10 +1370,10 @@ def find_delta_targeted_strike(ticker: str, current_price: float,
     # Choose target Delta range based on IV environment
     if iv_rank > 60:
         delta_lo, delta_hi = 0.35, 0.42
-        log.debug("Delta target (high IV=%d): %.2f–%.2f", iv_rank, delta_lo, delta_hi)
+        log.debug("Delta target (high IV=%d): %.2f-%.2f", iv_rank, delta_lo, delta_hi)
     else:
         delta_lo, delta_hi = 0.40, 0.52
-        log.debug("Delta target (normal IV=%d): %.2f–%.2f", iv_rank, delta_lo, delta_hi)
+        log.debug("Delta target (normal IV=%d): %.2f-%.2f", iv_rank, delta_lo, delta_hi)
 
     try:
         from datetime import datetime as _dt
@@ -1408,14 +1450,14 @@ def find_delta_targeted_strike(ticker: str, current_price: float,
         pure_delta_strike = top3[0][3]
         if best_strike != pure_delta_strike:
             log.info("[Strike Sieve] %s %s: delta-best=%.1f (spread %.1f%%) -> "
-                     "spread-best=%.1f (spread %.1f%%) — chose tighter spread",
+                     "spread-best=%.1f (spread %.1f%%) -- chose tighter spread",
                      ticker, option_type, pure_delta_strike, top3[0][1],
                      best_strike, best_spread_pct)
             print(f"    [Strike Sieve] {ticker}/{option_type}: "
                   f"spread sieve picked {best_strike} ({best_spread_pct:.1f}% spread) "
-                  f"over {pure_delta_strike} ({top3[0][1]:.1f}% spread) ✅")
+                  f"over {pure_delta_strike} ({top3[0][1]:.1f}% spread) [OK]")
         else:
-            log.info("[Delta Target] %s %s: Δ range %.2f–%.2f -> strike %.1f "
+            log.info("[Delta Target] %s %s: delta range %.2f-%.2f -> strike %.1f "
                      "(spread=%.1f%% dist=%.4f)",
                      ticker, option_type, delta_lo, delta_hi,
                      best_strike, best_spread_pct, best_delta_dist)
@@ -1455,23 +1497,23 @@ def _build_signal(ticker: str, current_price: float,
     _et      = _pytz.timezone("America/New_York")
     today    = datetime.now(_et)
     weekday  = today.weekday()
-    _hour_et = today.hour
 
     theta_rolled = False
     use_0dte     = False
 
-    if weekday == 4:
-        exp_dt   = today
-        use_0dte = True
-    elif weekday == 3:
-        exp_dt       = today + timedelta(days=8)
-        theta_rolled = True
-    elif _hour_et < 14:
-        exp_dt   = today
-        use_0dte = True
-    else:
-        days_to_fri = (4 - weekday) % 7
-        exp_dt      = today + timedelta(days=days_to_fri)
+    # ── Never buy same-day (0DTE) contracts ──────────────────────────────────
+    # Always target at minimum the NEXT available expiry (1 DTE minimum).
+    # 0DTE theta decay accelerates dramatically after noon.
+    if weekday == 0:   # Monday   -> this Friday (4 DTE)
+        exp_dt = today + timedelta(days=4)
+    elif weekday == 1: # Tuesday  -> this Friday (3 DTE)
+        exp_dt = today + timedelta(days=3)
+    elif weekday == 2: # Wednesday -> this Friday (2 DTE)
+        exp_dt = today + timedelta(days=2)
+    elif weekday == 3: # Thursday -> tomorrow Friday (1 DTE)
+        exp_dt = today + timedelta(days=1)
+    else:              # Friday   -> next Monday (3 DTE)
+        exp_dt = today + timedelta(days=3)
 
     expiry = f"{exp_dt.month}/{exp_dt.day}"
     qty    = f" x{contracts}" if contracts > 1 else ""
@@ -1490,8 +1532,23 @@ def _build_signal(ticker: str, current_price: float,
     if use_0dte:
         log.info("0DTE routing: %s %s%s exp %s", ticker, strike, option_type, expiry)
     if theta_rolled:
-        log.info("Thursday — expiry rolled to next Friday: %s %s%s %s",
+        log.info("Thursday -- expiry rolled to next Friday: %s %s%s %s",
                  ticker, strike, option_type, expiry)
+
+    # ── DTE hard cap: reject if expiry is > 5 calendar days away ─────────────
+    # This strategy is 0-5 DTE only. Never silently reroute into a 7-DTE weekly
+    # just because nearer contracts don't exist (the MARA problem).
+    try:
+        from datetime import date as _dtcap
+        _parts = expiry.split("/")
+        _exp_date = _dtcap(_dtcap.today().year, int(_parts[0]), int(_parts[1]))
+        _dte = (_exp_date - _dtcap.today()).days
+        if _dte > 5:
+            log.warning("DTE cap: %s %s%s exp %s is %d DTE > 5 -- signal blocked",
+                        ticker, strike, option_type, expiry, _dte)
+            return f"NO_CONTRACT {ticker} {strike}{option_type} DTE={_dte}>5", False
+    except Exception as _dtce:
+        log.debug("DTE cap check error: %s", _dtce)
 
     # ── Check Webull's actual available expiries first ────────────────────────
     # Webull and Tradier don't always list the same dates.
@@ -1513,7 +1570,7 @@ def _build_signal(ticker: str, current_price: float,
                         log.info("Webull expiry reroute: %s %s%s %s -> %s",
                                  ticker, strike, option_type, target_full, best_wb)
                 else:
-                    # All available expiries are before our target — use latest
+                    # All available expiries are before our target -- use latest
                     latest_wb = wb_expiries[-1]
                     _wb_dt = _dtw.strptime(latest_wb, "%Y-%m-%d")
                     expiry = f"{_wb_dt.month}/{_wb_dt.day}"
@@ -1551,8 +1608,8 @@ def _build_signal(ticker: str, current_price: float,
                              ticker, strike, option_type, expiry, nn_expiry)
                     expiry = nn_expiry
                 else:
-                    # No valid expiry found — signal will be blocked downstream
-                    log.warning("No valid contract found for %s %s%s — all expiries checked",
+                    # No valid expiry found -- signal will be blocked downstream
+                    log.warning("No valid contract found for %s %s%s -- all expiries checked",
                                 ticker, strike, option_type)
                     return f"NO_CONTRACT {ticker} {strike}{option_type}", theta_rolled
 
@@ -1570,9 +1627,11 @@ def print_session_stats():
 def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                  market=None, budget: float = 300.0,
                  tp_pct: float = 30.0, sl_pct: float = 20.0,
-                 execution_mode: dict = None, webull_engine=None):
+                 execution_mode: dict = None, webull_engine=None,
+                 direction_filter: str = None):
+    # direction_filter: "C" = calls only, "P" = puts only, None = AUTO
     """
-    Eight-Gate Verified Scanner — Bi-directional with smart overrides.
+    Eight-Gate Verified Scanner -- Bi-directional with smart overrides.
     """
     _session_stats["scans"] += 1
     # Store webull engine so _build_signal can query real expiries
@@ -1610,19 +1669,19 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     macro_events = get_macro_events_today()
     if macro_events:
         event_str = ", ".join(macro_events)
-        print(f"  [⚠️ MACRO] {event_str} today — IV elevated, sizing reduced to 1 contract max")
+        print(f"  [[WARN] MACRO] {event_str} today -- IV elevated, sizing reduced to 1 contract max")
         if listener:
             listener.send_status_update(
-                f"⚠️ **MACRO EVENT**: {event_str} today\n"
+                f"[WARN] **MACRO EVENT**: {event_str} today\n"
                 f"Options premiums will be inflated. Max 1 contract per signal."
             )
 
     vix_level = _get_vix()
     if vix_level:
         if vix_level > 30:
-            print(f"  [VIX] VIX={vix_level:.1f} HIGH — size reduced to 1 contract max")
+            print(f"  [VIX] VIX={vix_level:.1f} HIGH -- size reduced to 1 contract max")
         elif vix_level > 25:
-            print(f"  [VIX] VIX={vix_level:.1f} elevated — tightening RSI threshold by 3pts")
+            print(f"  [VIX] VIX={vix_level:.1f} elevated -- tightening RSI threshold by 3pts")
         else:
             print(f"  [VIX] VIX={vix_level:.1f} normal")
     else:
@@ -1633,14 +1692,49 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     _now = datetime.now(_et)
     _hm  = _now.hour * 60 + _now.minute
     if _hm < 9 * 60 + 35:
-        print("  [Time] First 5 min after open — skipping scan (chop zone)")
+        print("  [Time] First 5 min after open -- skipping scan (chop zone)")
         return []
-    if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
-        print("  [Time] Lunch chop zone (11:45–1:30 ET) — skipping scan")
-        return []
+    #if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
+        #print("  [Time] Lunch chop zone (11:45-1:30 ET) -- skipping scan")
+        #return []
 
     skip_reasons: dict = {}
     skip_reasons_detail: dict = {"rsi_values": [], "closest_rsi": []}
+    # Candidate log -- every ticker evaluated (fired OR rejected) with all measurements
+    # This is the research dataset that will eventually calibrate thresholds
+    _candidate_log: list = []
+
+    def _log_rejected(ticker, direction, reason, rsi, rvol, adx=None,
+                      iv_rank=None, flow_score=None, news_score=None,
+                      spread_pct=None, pcr=None):
+        """Log a rejected candidate for counterfactual research."""
+        try:
+            _candidate_log.append({
+                "candidate_id":  str(uuid.uuid4()),
+                "config_hash":   "3b12149e",
+                "ts":            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "ticker":        ticker,
+                "direction":     direction,
+                "rsi":           round(rsi, 2),
+                "rsi_rel":       None,
+                "adx":           round(adx, 2) if adx else None,
+                "rvol":          round(rvol, 2),
+                "iv_rank":       iv_rank,
+                "flow_score":    flow_score,
+                "pcr":           pcr,
+                "news_score":    news_score,
+                "spread_pct":    spread_pct,
+                "sma200_dist":   None,
+                "vix":           vix_level,
+                "regime":        regime,
+                "spy_rsi":       None,
+                "eff_threshold": rsi_threshold,
+                "outcome":       f"rejected: {reason}",
+                "strategy_v":  "v2.4.1",
+                "dte":         None,
+            })
+        except Exception:
+            pass
 
     signals = []
 
@@ -1696,16 +1790,36 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
 
             if _rel_call_gate and not _abs_gate:
                 print(f"    [Relative RSI] {ticker}: RSI={current_rsi:.1f} "
-                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} -> relatively oversold ✅")
+                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} -> relatively oversold [OK]")
             if _rel_put_gate:
                 print(f"    [Relative RSI] {ticker}: RSI={current_rsi:.1f} "
-                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} -> relatively overbought ✅")
+                      f"SPY={_spy_rsi:.1f} rel={_rel_rsi:+.1f} -> relatively overbought [OK]")
 
             vol          = df["Volume"].dropna()
-            avg_vol      = float(vol.rolling(20).mean().iloc[-2]) if len(vol) >= 21 else float(vol.mean())
-            current_vol  = float(vol.iloc[-2]) if len(vol) >= 2 else float(vol.iloc[-1])
-            volume_surge = current_vol > avg_vol * 0.3 if avg_vol > 0 else False
-            vol_ratio    = round(current_vol / avg_vol, 1) if avg_vol > 0 else 1
+            current_vol  = float(vol.iloc[-1]) if len(vol) >= 1 else 0
+
+            # Time-adjusted RVOL: compare current bar against same time-of-day
+            # bars from earlier in the session (not a flat 20-bar average).
+            # This corrects for the natural volume spike at open.
+            try:
+                _now_bar   = df.index[-1]
+                _bar_min   = _now_bar.hour * 60 + _now_bar.minute
+                # Find bars from the prior day at the same ±15-min window
+                _same_time = df[df.index.map(
+                    lambda t: abs(t.hour * 60 + t.minute - _bar_min) <= 15
+                              and t.date() < _now_bar.date()
+                )]["Volume"].dropna()
+                if len(_same_time) >= 3:
+                    avg_vol   = float(_same_time.mean())
+                else:
+                    # Fallback: 20-bar rolling mean
+                    avg_vol   = float(vol.rolling(20).mean().dropna().iloc[-1]) if len(vol) >= 20 else float(vol.mean())
+            except Exception:
+                avg_vol   = float(vol.rolling(20).mean().dropna().iloc[-1]) if len(vol) >= 20 else float(vol.mean())
+
+            rvol         = round(current_vol / avg_vol, 2) if avg_vol > 0 else 1.0
+            vol_ratio    = rvol   # keep variable name for gate compatibility
+            volume_surge = rvol > 0.3
 
             rt_tag = "[RT]" if (_HAS_TRADIER and rt_price) else "[DL]"
             print(f"  [Scanner] {ticker.ljust(5)} | RSI: {current_rsi:.1f} "
@@ -1721,14 +1835,17 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
 
             _directions_to_check = []
             call_threshold = eff_threshold
-            put_threshold  = min(100 - rsi_threshold, 65)  # cap at 65 — RSI 65+ is overbought enough for puts
+            put_threshold  = min(100 - rsi_threshold, 65)  # cap at 65 -- RSI 65+ is overbought enough for puts
 
             # _rsi_passes: absolute RSI OR relatively oversold vs SPY (calls)
             # _rel_put_gate: relatively overbought vs SPY (puts)
-            if current_rsi < call_threshold or _rsi_passes:
-                _directions_to_check.append("C")
-            if current_rsi > put_threshold or _rel_put_gate:
-                _directions_to_check.append("P")
+            # direction_filter: "C"=calls only, "P"=puts only, None=AUTO
+            if (current_rsi < call_threshold or _rsi_passes):
+                if direction_filter in (None, "C"):
+                    _directions_to_check.append("C")
+            if (current_rsi > put_threshold or _rel_put_gate):
+                if direction_filter in (None, "P"):
+                    _directions_to_check.append("P")
 
             if not _directions_to_check:
                 _session_stats["skipped"] += 1
@@ -1739,28 +1856,28 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 # ── Gate 1a: RSI upturn confirmation (calls only) ─────────────
                 # Thresholds scale with RSI severity:
                 # RSI <= 15: bypass entirely (extreme capitulation)
-                # RSI 15-20: looser check (lookback=2) — open moves fast
+                # RSI 15-20: looser check (lookback=2) -- open moves fast
                 # RSI > 20:  normal check (lookback=3 + higher low)
                 if target_option_type == "C":
                     if current_rsi <= 15:
-                        print(f"    [Gate1a-EXTREME] {ticker}/C: RSI={current_rsi:.1f} — extreme, skipping upturn check")
+                        print(f"    [Gate1a-EXTREME] {ticker}/C: RSI={current_rsi:.1f} -- extreme, skipping upturn check")
                     elif current_rsi <= 20:
                         if not rsi_is_turning_up(df, current_rsi,
                                                  lookback=2, rsi_threshold=float(rsi_threshold)):
                             skip_reasons["RSI still falling"] = skip_reasons.get("RSI still falling", 0) + 1
-                            print(f"    [Skip] {ticker}/C: RSI still falling — waiting for upturn + higher low")
+                            print(f"    [Skip] {ticker}/C: RSI still falling -- waiting for upturn + higher low")
                             _session_stats["skipped"] += 1
                             continue
                         else:
-                            print(f"    [Gate1a] {ticker}/C: RSI={current_rsi:.1f} upturn confirmed ✅")
+                            print(f"    [Gate1a] {ticker}/C: RSI={current_rsi:.1f} upturn confirmed [OK]")
                     else:
                         if not rsi_is_turning_up(df, current_rsi,
                                                  lookback=3, rsi_threshold=float(rsi_threshold)):
                             skip_reasons["RSI still falling"] = skip_reasons.get("RSI still falling", 0) + 1
-                            print(f"    [Skip] {ticker}/C: RSI still falling — waiting for upturn + higher low")
+                            print(f"    [Skip] {ticker}/C: RSI still falling -- waiting for upturn + higher low")
                             _session_stats["skipped"] += 1
                             continue
-                # (For puts, we want RSI to keep falling — no upturn check)
+                # (For puts, we want RSI to keep falling -- no upturn check)
 
                 # ── Gate 1b: SPY intraday correlation ─────────────────────────
                 _spy_chg = getattr(scan_markets, "_spy_intraday_cache", None)
@@ -1771,14 +1888,14 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     scan_markets._spy_intraday_cache_t = time.time()
                 if target_option_type == "C" and _spy_chg < -0.5:
                     skip_reasons["SPY falling"] = skip_reasons.get("SPY falling", 0) + 1
-                    print(f"    [Skip] {ticker}: SPY down {_spy_chg:.2f}% today — avoiding calls")
+                    print(f"    [Skip] {ticker}: SPY down {_spy_chg:.2f}% today -- avoiding calls")
                     _session_stats["skipped"] += 1
                     continue
 
                 # ── Gate 1c: Earnings calendar check ──────────────────────────
                 if has_earnings_soon(ticker, days=2):
                     skip_reasons["Earnings soon"] = skip_reasons.get("Earnings soon", 0) + 1
-                    print(f"    [Skip] {ticker}: Earnings within 48h — skipping")
+                    print(f"    [Skip] {ticker}: Earnings within 48h -- skipping")
                     _session_stats["skipped"] += 1
                     continue
 
@@ -1787,27 +1904,27 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 if target_option_type == "C":
                     if not _is_bullish:
                         if current_rsi < 20:
-                            print(f"    [Override] {ticker}/C: Below SMA-200 but RSI={current_rsi:.1f} extreme — allowing")
+                            print(f"    [Override] {ticker}/C: Below SMA-200 but RSI={current_rsi:.1f} extreme -- allowing")
                         else:
                             skip_reasons["Below SMA-200"] = skip_reasons.get("Below SMA-200", 0) + 1
-                            print(f"    [Skip] {ticker}/C: Below SMA-200 — no calls on weak stocks")
+                            print(f"    [Skip] {ticker}/C: Below SMA-200 -- no calls on weak stocks")
                             _session_stats["skipped"] += 1
                             continue
                 else:
                     if not _is_bullish:
-                        print(f"    [✅ SMA-200] {ticker}/P: Below SMA-200 — structurally weak, put confirmed")
+                        print(f"    [[OK] SMA-200] {ticker}/P: Below SMA-200 -- structurally weak, put confirmed")
                     elif current_rsi < 75:
                         # RSI 75+ above SMA-200 = overextended enough to fade regardless of trend
                         skip_reasons["Above SMA-200 not extreme"] = skip_reasons.get("Above SMA-200 not extreme", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Above SMA-200, RSI={current_rsi:.1f} — not extreme enough for puts")
+                        print(f"    [Skip] {ticker}/P: Above SMA-200, RSI={current_rsi:.1f} -- not extreme enough for puts")
                         _session_stats["skipped"] += 1
                         continue
                     else:
-                        print(f"    [SMA-Override] {ticker}/P: Above SMA-200 but RSI={current_rsi:.1f} ≥ 75 — overextended, put allowed ✅")
+                        print(f"    [SMA-Override] {ticker}/P: Above SMA-200 but RSI={current_rsi:.1f} ≥ 75 -- overextended, put allowed [OK]")
 
                 # ── Gate 3: Volume surge ──────────────────────────────────────
                 # Volume bypass: at extreme RSI (>85 or <15) the move is valid
-                # regardless of volume — panic/covering happens on thin tape too.
+                # regardless of volume -- panic/covering happens on thin tape too.
                 _vol_extreme = (current_rsi > 85 or current_rsi < 15)
                 if not volume_surge and not _vol_extreme:
                     skip_reasons["Weak volume"] = skip_reasons.get("Weak volume", 0) + 1
@@ -1815,8 +1932,8 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     _session_stats["skipped"] += 1
                     continue
                 elif not volume_surge and _vol_extreme:
-                    print(f"    [Vol-EXTREME] {ticker}: RSI={current_rsi:.1f} extreme — "
-                          f"bypassing volume gate ({vol_ratio:.1f}x) ✅")
+                    print(f"    [Vol-EXTREME] {ticker}: RSI={current_rsi:.1f} extreme -- "
+                          f"bypassing volume gate ({vol_ratio:.1f}x) [OK]")
 
                 # ── Gate ADX: Trend Intensity Filter ─────────────────────────
                 # ADX measures trend STRENGTH (not direction).
@@ -1851,29 +1968,31 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                                     _adx_block = True
                                     skip_reasons["Strong trend (ADX)"] = \
                                         skip_reasons.get("Strong trend (ADX)", 0) + 1
-                                    print(f"    [Skip] {ticker}/C: ADX={_adx_val:.1f} > 30 — "
+                                    print(f"    [Skip] {ticker}/C: ADX={_adx_val:.1f} > 30 -- "
                                           f"strong trend, mean reversion risky")
+                                    _log_rejected(ticker, "C", f"ADX={_adx_val:.1f}>30",
+                                                  current_rsi, vol_ratio, adx=_adx_val)
                                     _session_stats["skipped"] += 1
                                 elif target_option_type == "P" and _adx_val > 30 and _put_trend_down:
                                     _adx_block = True
                                     skip_reasons["Strong trend (ADX)"] = \
                                         skip_reasons.get("Strong trend (ADX)", 0) + 1
                                     print(f"    [Skip] {ticker}/P: ADX={_adx_val:.1f} > 30 "
-                                          f"in downtrend (RSI={current_rsi:.0f}) — "
+                                          f"in downtrend (RSI={current_rsi:.0f}) -- "
                                           f"fading momentum risky")
                                     _session_stats["skipped"] += 1
                                 elif target_option_type == "P" and _adx_val > 30:
                                     print(f"    [ADX-Confirm] {ticker}/P: ADX={_adx_val:.1f} "
-                                          f"— strong uptrend confirms put exhaustion setup ✅")
+                                          f"-- strong uptrend confirms put exhaustion setup [OK]")
                                 elif _adx_val > 25:
                                     print(f"    [ADX] {ticker}/{target_option_type}: "
-                                          f"ADX={_adx_val:.1f} — trend weakening ⚠️")
+                                          f"ADX={_adx_val:.1f} -- trend weakening [WARN]")
                                 else:
                                     print(f"    [ADX] {ticker}/{target_option_type}: "
-                                          f"ADX={_adx_val:.1f} < 25 — trend exhausted ✅")
+                                          f"ADX={_adx_val:.1f} < 25 -- trend exhausted [OK]")
                     else:
                         print(f"    [ADX-EXTREME] {ticker}/{target_option_type}: "
-                              f"RSI={current_rsi:.1f} extreme — bypassing ADX filter ✅")
+                              f"RSI={current_rsi:.1f} extreme -- bypassing ADX filter [OK]")
                 except Exception as _adx_e:
                     log.debug("ADX error for %s: %s", ticker, _adx_e)
 
@@ -1892,20 +2011,20 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                             _session_stats["skipped"] += 1
                             continue
                         else:
-                            print(f"    [News] {ticker}/C: score={news_score} {news_verdict} ✅")
+                            print(f"    [News] {ticker}/C: score={news_score} {news_verdict} [OK]")
                     else:
                         if news_score > 80:
                             # Only block puts on genuine euphoria (3+ strong positive stories).
-                            # Score 75 = one good headline — stock can still roll over.
+                            # Score 75 = one good headline -- stock can still roll over.
                             skip_reasons["Good news blocks put"] = skip_reasons.get("Good news blocks put", 0) + 1
-                            print(f"    [Skip] {ticker}/P: Euphoric news score={news_score} — puts unlikely to work")
+                            print(f"    [Skip] {ticker}/P: Euphoric news score={news_score} -- puts unlikely to work")
                             _session_stats["skipped"] += 1
                             continue
                         else:
                             mood = "tailwind" if news_score < 40 else ("caution" if news_score > 70 else "neutral")
-                            print(f"    [News] {ticker}/P: score={news_score} {news_verdict} ✅ ({mood})")
+                            print(f"    [News] {ticker}/P: score={news_score} {news_verdict} [OK] ({mood})")
 
-                # ── Gate 4: 1-hour RSI — direction-aware, skip before 10 AM ───
+                # ── Gate 4: 1-hour RSI -- direction-aware, skip before 10 AM ───
                 # RSI <= 15: bypass Gate 4 entirely (extreme capitulation)
                 # RSI 15-20: bypass Gate 4 (still extreme, hourly less relevant)
                 # RSI > 20:  normal Gate 4 check applies
@@ -1918,7 +2037,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                         print(f"    [Gate4] {ticker}: skipping hourly RSI before 10 AM")
                     elif current_rsi <= 20:
                         _skip_gate4 = True
-                        print(f"    [Gate4-EXTREME] {ticker}/{target_option_type}: RSI={current_rsi:.1f} — bypassing hourly gate")
+                        print(f"    [Gate4-EXTREME] {ticker}/{target_option_type}: RSI={current_rsi:.1f} -- bypassing hourly gate")
                 except Exception:
                     pass
 
@@ -1931,25 +2050,25 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                                 _rsi1h = float(_rsi1h_s.dropna().iloc[-1])
                                 if target_option_type == "C" and _rsi1h <= 40:
                                     skip_reasons["1hr RSI too weak"] = skip_reasons.get("1hr RSI too weak", 0) + 1
-                                    print(f"    [Skip] {ticker}/C: 1hr RSI={_rsi1h:.1f} ≤ 40 — hourly downtrend")
+                                    print(f"    [Skip] {ticker}/C: 1hr RSI={_rsi1h:.1f} ≤ 40 -- hourly downtrend")
                                     _session_stats["skipped"] += 1
                                     continue
                                 elif target_option_type == "P" and _rsi1h >= 70:
                                     # Hourly RSI 65-69 = overbought but can still roll over.
                                     # Only block if hourly RSI ≥ 70 (still in full momentum).
                                     skip_reasons["1hr RSI too strong"] = skip_reasons.get("1hr RSI too strong", 0) + 1
-                                    print(f"    [Skip] {ticker}/P: 1hr RSI={_rsi1h:.1f} ≥ 70 — hourly still full momentum")
+                                    print(f"    [Skip] {ticker}/P: 1hr RSI={_rsi1h:.1f} ≥ 70 -- hourly still full momentum")
                                     _session_stats["skipped"] += 1
                                     continue
                                 else:
-                                    print(f"    [Gate4] {ticker}/{target_option_type}: 1hr RSI={_rsi1h:.1f} ✅")
+                                    print(f"    [Gate4] {ticker}/{target_option_type}: 1hr RSI={_rsi1h:.1f} [OK]")
                     except Exception as _g4e:
                         log.debug("Gate 4 hourly RSI error: %s", _g4e)
 
                 # ── Gate 4b: 15-minute RSI multi-timeframe ────────────────────
                 rsi_15m       = get_15min_rsi(ticker)
                 mtf_confirmed = rsi_15m < (rsi_threshold + 5)
-                mtf_tag       = f"✅15m={rsi_15m:.1f}" if mtf_confirmed else f"⚠️15m={rsi_15m:.1f}"
+                mtf_tag       = f"[OK]15m={rsi_15m:.1f}" if mtf_confirmed else f"[WARN]15m={rsi_15m:.1f}"
 
                 # ── Gate 4c: Sector correlation ───────────────────────────────
                 sector_chg = get_sector_change(ticker)
@@ -1958,35 +2077,35 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                         # Extreme RSI override: at RSI < 15, individual stock liquidation
                         # exhaustion overrides macro sector drag up to -1.5%
                         if current_rsi < 15.0 and sector_chg >= -1.5:
-                            print(f"    [Sector-OVERRIDE] {ticker}/C: RSI={current_rsi:.1f} extreme — "
-                                  f"sector {sector_chg:.2f}% drag overridden by capitulation ✅")
+                            print(f"    [Sector-OVERRIDE] {ticker}/C: RSI={current_rsi:.1f} extreme -- "
+                                  f"sector {sector_chg:.2f}% drag overridden by capitulation [OK]")
                         else:
                             skip_reasons["Sector falling"] = skip_reasons.get("Sector falling", 0) + 1
-                            print(f"    [Skip] {ticker}/C: Sector down {sector_chg:.2f}% — headwind for calls")
+                            print(f"    [Skip] {ticker}/C: Sector down {sector_chg:.2f}% -- headwind for calls")
                             _session_stats["skipped"] += 1
                             continue
                     elif sector_chg < -0.3:
-                        print(f"    [⚠️ Sector] {ticker}/C: Sector soft {sector_chg:.2f}%")
+                        print(f"    [[WARN] Sector] {ticker}/C: Sector soft {sector_chg:.2f}%")
                 else:
                     if sector_chg > 1.5:
                         # Only block puts when sector is genuinely ripping (> 1.5%).
                         # Sector up 0.8-1.4% while stock is at RSI 85+ = stock has
                         # outrun its sector and is due for mean reversion regardless.
                         skip_reasons["Sector rising"] = skip_reasons.get("Sector rising", 0) + 1
-                        print(f"    [Skip] {ticker}/P: Sector up {sector_chg:.2f}% > 1.5% — sector too strong for puts")
+                        print(f"    [Skip] {ticker}/P: Sector up {sector_chg:.2f}% > 1.5% -- sector too strong for puts")
                         _session_stats["skipped"] += 1
                         continue
                     elif sector_chg > 0.8:
-                        print(f"    [⚠️ Sector] {ticker}/P: Sector up {sector_chg:.2f}% — mild headwind noted")
+                        print(f"    [[WARN] Sector] {ticker}/P: Sector up {sector_chg:.2f}% -- mild headwind noted")
                     elif sector_chg < -0.8:
-                        print(f"    [✅ Sector] {ticker}/P: Sector down {sector_chg:.2f}% — tailwind for puts")
+                        print(f"    [[OK] Sector] {ticker}/P: Sector down {sector_chg:.2f}% -- tailwind for puts")
 
                 # ── Options flow check ────────────────────────────────────────
                 # PCR threshold scales with RSI severity:
-                #   RSI <= 15: PCR < 2.0 (extreme panic — put buying is hedging)
+                #   RSI <= 15: PCR < 2.0 (extreme panic -- put buying is hedging)
                 #   RSI 15-20: PCR < 1.5 (very oversold)
                 #   RSI 20-25: PCR < 1.2 (oversold)
-                #   RSI > 25:  PCR < 1.0 (standard — must be bullish flow)
+                #   RSI > 25:  PCR < 1.0 (standard -- must be bullish flow)
                 flow     = check_options_flow(ticker, target_option_type)
                 flow_tag = f"flow={flow['score']} {'UNUSUAL' if flow['unusual'] else ''}"
                 print(f"    [Flow] {ticker}: {flow_tag} | PCR={flow['pcr']:.2f} "
@@ -2001,7 +2120,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     _pcr_limit = 999.0
 
                 # For puts at extreme overbought (RSI > 80): flow gate is advisory.
-                # At RSI 87-91 the put buying hasn't loaded yet — that's the entry point.
+                # At RSI 87-91 the put buying hasn't loaded yet -- that's the entry point.
                 # Only bypass if stock is structurally weak (below SMA-200).
                 _put_rsi_extreme = (target_option_type == "P" and current_rsi > 80)
 
@@ -2018,29 +2137,34 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     skip_reasons[label] = skip_reasons.get(label, 0) + 1
                     print(f"    [Skip] {ticker}: {label} "
                           f"(score={flow['score']} PCR={flow['pcr']:.2f} limit={_pcr_limit:.1f})")
+                    _log_rejected(ticker, target_option_type, f"{label} score={flow['score']} PCR={flow['pcr']:.2f}",
+                                  current_rsi, vol_ratio, adx=_adx_val, iv_rank=iv_rank if "iv_rank" in dir() else None,
+                                  flow_score=flow["score"], pcr=flow["pcr"])
                     _session_stats["skipped"] += 1
                     continue
                 elif _put_rsi_extreme and flow["pcr"] < 0.6:
-                    print(f"    [Flow-EXTREME] {ticker}/P: RSI={current_rsi:.1f} > 80 — "
-                          f"bypassing flow gate (PCR={flow['pcr']:.2f} lagging) ✅")
+                    print(f"    [Flow-EXTREME] {ticker}/P: RSI={current_rsi:.1f} > 80 -- "
+                          f"bypassing flow gate (PCR={flow['pcr']:.2f} lagging) [OK]")
 
                 # ── Gate 6b: IV Rank filter ───────────────────────────────────
                 iv_rank  = get_iv_rank(ticker)
-                # Puts: allow up to IV rank 80 — bear days have elevated vol by definition.
-                # Calls: strict 60 cap — buying calls in high IV is doubly punitive.
+                # Puts: allow up to IV rank 80 -- bear days have elevated vol by definition.
+                # Calls: strict 60 cap -- buying calls in high IV is doubly punitive.
                 _iv_limit = 80 if target_option_type == "P" else 60
                 if iv_rank > _iv_limit:
                     skip_reasons["IV too high"] = skip_reasons.get("IV too high", 0) + 1
-                    print(f"    [Skip] {ticker}: IV Rank={iv_rank:.0f} > {_iv_limit} — "
+                    print(f"    [Skip] {ticker}: IV Rank={iv_rank:.0f} > {_iv_limit} -- "
                           f"premium too expensive for {target_option_type}")
+                    _log_rejected(ticker, target_option_type, f"IV Rank={iv_rank:.0f}>{_iv_limit}",
+                                  current_rsi, vol_ratio, adx=_adx_val, iv_rank=iv_rank)
                     _session_stats["skipped"] += 1
                     continue
                 else:
                     _iv_note = "elevated but ok for puts" if (target_option_type == "P" and iv_rank > 60) else "fair premium"
-                    print(f"    [IV] {ticker}: IV Rank={iv_rank:.0f} ✅ (<={_iv_limit} — {_iv_note})")
+                    print(f"    [IV] {ticker}: IV Rank={iv_rank:.0f} [OK] (<={_iv_limit} -- {_iv_note})")
 
                 # ── Gate 7: GEX (Gamma Exposure) ─────────────────────────────
-                # Smart overrides — bypass pin if ANY of these are true:
+                # Smart overrides -- bypass pin if ANY of these are true:
                 #   1. RSI <= 15 AND price below pin (MM buying toward pin)
                 #   2. GEX declining >= 20% across scans (pin weakening)
                 #   3. GEX < 0.5% of daily dollar volume (pin negligible)
@@ -2070,29 +2194,29 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                             override_reason = (
                                 f"RSI={current_rsi:.1f} extreme + "
                                 f"${current_price:.2f} below pin ${pin_level:.0f} "
-                                f"— MM buying toward pin"
+                                f"-- MM buying toward pin"
                             )
                         elif gex_trend == "declining" and abs(gex_pct) >= 20:
                             override_reason = (
                                 f"GEX declining {abs(gex_pct):.0f}% over "
-                                f"{len(_gex_history.get(ticker, []))} scans — pin loosening"
+                                f"{len(_gex_history.get(ticker, []))} scans -- pin loosening"
                             )
                         elif gex_significance < 0.5:
                             override_reason = (
                                 f"GEX ${gex_val_m:.1f}M = {gex_significance:.2f}% of volume "
-                                f"— pin negligible"
+                                f"-- pin negligible"
                             )
 
                         if override_reason:
-                            print(f"    [GEX-OVERRIDE] {ticker}/C: {override_reason} ✅")
+                            print(f"    [GEX-OVERRIDE] {ticker}/C: {override_reason} [OK]")
                         else:
                             trend_note = ""
                             if gex_trend == "growing":
-                                trend_note = f" [↑{gex_pct:.0f}% — strengthening]"
+                                trend_note = f" [↑{gex_pct:.0f}% -- strengthening]"
                             elif gex_trend == "stable":
                                 trend_note = " [stable]"
                             elif gex_trend == "declining" and abs(gex_pct) < 20:
-                                trend_note = f" [↓{abs(gex_pct):.0f}% weakening — watch next scan]"
+                                trend_note = f" [↓{abs(gex_pct):.0f}% weakening -- watch next scan]"
                             skip_reasons["GEX pinned"] = skip_reasons.get("GEX pinned", 0) + 1
                             print(f"    [Skip] {ticker}: GEX positive ${gex_val_m:.1f}M{trend_note}")
                             _session_stats["skipped"] += 1
@@ -2132,7 +2256,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 max_affordable = max(1, int(budget / est_cost))
                 if est_cost > budget:
                     if est_cost <= budget * 2.0:
-                        print(f"    [Budget] {ticker}: ${est_cost:.0f}/contract > ${budget:.0f} — forcing 1 contract")
+                        print(f"    [Budget] {ticker}: ${est_cost:.0f}/contract > ${budget:.0f} -- forcing 1 contract")
                         max_affordable = 1
                     else:
                         print(f"    [Skip] {ticker}: Est. option cost ${est_cost:.0f} > 2x budget ${budget * 2:.0f}")
@@ -2154,49 +2278,97 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     option_price=est_option_price,
                 )
                 contracts = min(contracts, max_affordable)
-                # On macro event days (FOMC/CPI/NFP) cap to 1 contract — IV is inflated
+                # On macro event days (FOMC/CPI/NFP) cap to 1 contract -- IV is inflated
                 if macro_events:
                     contracts = 1
 
-                _dir_icon = "📈CALL" if target_option_type == "C" else "📉PUT"
-                print(f"  🔥 [HIGH CONVICTION] {ticker} {_dir_icon} | RSI={current_rsi:.1f} "
+                _dir_icon = "[CALL]CALL" if target_option_type == "C" else "[PUT]PUT"
+                print(f"  [HOT] [HIGH CONVICTION] {ticker} {_dir_icon} | RSI={current_rsi:.1f} "
                       f"flow={flow['score']} regime={regime}({_kelly_regime}) -> {contracts}x contracts | {mtf_tag}")
 
                 # Pass iv_rank so _build_signal can choose correct delta range
-                # ── Slippage tester demotion ──────────────────────────────
-                # If this ticker has shown >5% slippage in prior fills today,
-                # force tester sizing regardless of conviction score.
-                if ticker in _slippage_tester:
-                    print(f"    [Slippage-TESTER] {ticker}: demoted to x1 "
-                          f"(slippage history: {get_slippage_multiplier(ticker):.3f}x)")
+                # -- Pre-check spread using ATM option from flow data ------
+                # Avoids wasting time on delta strike lookup and chain fetch
+                # when spread is already known to be wide (SHOP pattern).
+                try:
+                    _atm_bid = flow.get("atm_bid")   # None = unavailable
+                    _atm_ask = flow.get("atm_ask")
+                    _atm_mid = flow.get("atm_mid")
+                    if _atm_bid is not None and _atm_ask is not None and _atm_mid:
+                        _atm_spread = (_atm_ask - _atm_bid) / _atm_mid * 100
+                        if _atm_spread > 20.0:
+                            skip_reasons["Spread too wide"] = skip_reasons.get("Spread too wide", 0) + 1
+                            print(f"    [Skip] {ticker}/{target_option_type}: "
+                                  f"Pre-check spread {_atm_spread:.1f}% -- skipping chain fetch")
+                            _session_stats["skipped"] += 1
+                            continue
+                except Exception:
+                    pass
 
-                # ── Conviction score — count gates cleared ──────────────
-                # Used for fractionated entry sizing:
-                # Full Kelly: 8+ gates  | Tester (x1): 6-7 gates
-                _gates_passed = 0
-                _gates_passed += 1  # RSI gate (already cleared to get here)
-                _gates_passed += 1  # Volume gate (cleared above)
-                _gates_passed += 1  # News gate (cleared above)
-                _gates_passed += 1  # Flow gate (cleared above)
-                _gates_passed += 1  # IV Rank (cleared above)
-                _gates_passed += 1  # Spread gate (cleared above)
-                # Optional extra gates — SMA-200 and sector add conviction
+                # ── Log candidate measurements for research dataset ────────
+                # Log every ticker that cleared all gates (about to fire)
+                # AND every ticker that was rejected at any gate (logged below at rejection)
+                # This accumulates the counterfactual dataset for later analysis.
+                try:
+                    _candidate_entry = {
+                        "candidate_id": str(uuid.uuid4()),
+                        "config_hash":  "3b12149e",  # auto from outcome_tracker
+                        "ts":          datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "ticker":      ticker,
+                        "direction":   target_option_type,
+                        "rsi":         round(current_rsi, 2),
+                        "rsi_rel":     round(_rel_rsi, 2),
+                        "adx":         round(_adx_val, 2) if _adx_val else None,
+                        "rvol":        round(rvol, 2),
+                        "iv_rank":     iv_rank if "iv_rank" in dir() else None,
+                        "flow_score":  flow["score"] if "flow" in dir() and flow else None,
+                        "pcr":         flow["pcr"] if "flow" in dir() and flow else None,
+                        "news_score":  news_score if "news_score" in dir() else None,
+                        "spread_pct":  spread_pct if "spread_pct" in dir() else None,
+                        "sma200_dist": round((current_price - float(df["Close"].rolling(200).mean().iloc[-1])) / float(df["Close"].rolling(200).mean().iloc[-1]) * 100, 2) if len(df) >= 200 else None,
+                        "vix":         vix_level,
+                        "regime":      regime,
+                        "spy_rsi":     round(_spy_rsi, 1),
+                        "eff_threshold": eff_threshold,
+                        "outcome":     "fired",   # will be overwritten if rejected
+                        "strategy_v":  "v2.4.1",
+                        "dte":         None,  # filled at signal build
+                    }
+                    _candidate_log.append(_candidate_entry)
+                except Exception as _cle:
+                    log.debug("Candidate log error: %s", _cle)
+
+                # ── Conviction scoring ────────────────────────────────────────
+                # A signal reaching this point has already cleared all mandatory
+                # gates (RSI, RVOL, ADX, news, flow, IV, spread, VWAP).
+                # That IS full conviction. Optional bonus gates (SMA-200 alignment,
+                # sector tailwind) can only ADD confidence, not subtract it.
+                #
+                # Tester = slippage-demoted tickers only.
+                # Full conviction = everything else that cleared all gates.
+                _gates_passed = 6  # minimum -- all mandatory gates cleared to reach here
+
+                # Optional bonus gates -- extra confidence but not required
                 try:
                     if target_option_type == "C":
-                        _sma200_ok = current_price > float(df["Close"].rolling(200).mean().iloc[-1])
-                        if _sma200_ok: _gates_passed += 1
-                        if sector_chg > -0.3: _gates_passed += 1
-                    else:
                         _sma200_ok = current_price < float(df["Close"].rolling(200).mean().iloc[-1])
-                        if _sma200_ok: _gates_passed += 1
-                        if sector_chg < 0.3: _gates_passed += 1
+                        if _sma200_ok: _gates_passed += 1       # below SMA-200 = structurally weak
+                        if sector_chg < -0.3: _gates_passed += 1  # sector tailwind for calls
+                    else:
+                        _sma200_ok = current_price > float(df["Close"].rolling(200).mean().iloc[-1])
+                        if _sma200_ok: _gates_passed += 1       # above SMA-200 = structurally strong
+                        if sector_chg > 0.3: _gates_passed += 1   # sector tailwind for puts
                 except Exception:
-                    _gates_passed += 1  # can't check, assume pass
+                    pass  # bonus gates unavailable -- stays at 6, still full conviction
 
-                _is_tester = _gates_passed < 8 or ticker in _slippage_tester
+                # Tester ONLY for slippage-flagged tickers (proven bad fills)
+                _is_tester = ticker in _slippage_tester
                 if _is_tester:
                     print(f"    [Tester] {ticker}/{target_option_type}: "
-                          f"{_gates_passed}/8+ gates — entering 1-contract tester position")
+                          f"slippage-demoted -- entering tester position")
+                else:
+                    print(f"    [Full] {ticker}/{target_option_type}: "
+                          f"{_gates_passed} gates -- full conviction")
 
                 _build_signal._last_iv_rank = iv_rank
                 signal_str, theta_rolled = _build_signal(
@@ -2207,18 +2379,62 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 # ── Block if no valid contract found ──────────────────────────
                 if signal_str.startswith("NO_CONTRACT"):
                     skip_reasons["No contract"] = skip_reasons.get("No contract", 0) + 1
-                    print(f"    [Skip] {ticker}: No tradeable contract found for any expiry — "
+                    print(f"    [Skip] {ticker}: No tradeable contract found for any expiry -- "
                           f"ticker may not have active options (try adding to watchlist exclusion)")
                     _session_stats["skipped"] += 1
                     continue
 
-                # Force x1 and tag tester entries (6-7 gates passed)
+                # ── Price-aware contract sizing ───────────────────────────────
+                # When a contract is very cheap (< $0.50), scale up quantity
+                # so the bot actually deploys meaningful capital.
+                # Rules:
+                #   Tester:         max $50 risk  (e.g. $0.18 -> 2 contracts = $36)
+                #   Full conviction: max $budget   (e.g. $0.18 -> up to 16 at $300)
+                #   Hard cap:       10 contracts max regardless of price
+                #   Slippage tester: stays at 1 always
+                import re as _re_t
+                try:
+                    _opt_px = flow.get("atm_mid")  # None if unavailable
+                    if _opt_px is None:
+                        _b = flow.get("atm_bid")
+                        _a = flow.get("atm_ask")
+                        _opt_px = (_b + _a) / 2 if (_b is not None and _a is not None) else None
+                    if _opt_px is not None and _opt_px > 0:
+                        if ticker in _slippage_tester:
+                            _sized_qty    = 1
+                            _conv_label   = "slippage-demoted"
+                        else:
+                            # ── Conviction-scaled sizing ───────────────────────
+                            # 6 gates (mandatory only):  75% of budget
+                            # 7 gates (one bonus):      100% of budget
+                            # 8 gates (both bonuses):   125% of budget
+                            if _gates_passed >= 8:
+                                _conv_mult  = 1.25
+                                _conv_label = f"HIGH ({_gates_passed} gates)"
+                            elif _gates_passed == 7:
+                                _conv_mult  = 1.00
+                                _conv_label = f"NORMAL ({_gates_passed} gates)"
+                            else:
+                                _conv_mult  = 0.75
+                                _conv_label = f"BASE ({_gates_passed} gates)"
+
+                            _eff_budget = budget * _conv_mult
+                            _sized_qty  = max(1, min(10, int(_eff_budget / (_opt_px * 100))))
+
+                        # Rewrite quantity in signal string
+                        signal_str = _re_t.sub(r" x[0-9]+", f" x{_sized_qty}", signal_str)
+                        if f" x{_sized_qty}" not in signal_str:
+                            signal_str += f" x{_sized_qty}"
+                        print(f"    [Sized] {ticker}: ${_opt_px:.2f}/contract -> "
+                              f"x{_sized_qty} "
+                              f"(${_opt_px * 100 * _sized_qty:.0f} risk | {_conv_label})")
+                except Exception as _se:
+                    log.debug("Price-aware sizing error: %s", _se)
+
+                # Tag tester entries
                 if _is_tester:
-                    import re as _re_t
-                    signal_str = _re_t.sub(r" x[0-9]+", " x1", signal_str)
-                    if " x1" not in signal_str:
-                        signal_str += " x1"
-                    signal_str += " [TESTER]"
+                    if "[TESTER]" not in signal_str:
+                        signal_str += " [TESTER]"
 
                 # ── Pull full contract data: Greeks + depth ───────────────────
                 # Extract expiry from signal for contract lookup
@@ -2236,19 +2452,31 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                         _vega  = _contract_data["vega"]
                         _bsize = _contract_data["bid_size"]
                         _asize = _contract_data["ask_size"]
-                        print(f"    [Greeks] {ticker}: Δ={_delta:.3f} Θ={_theta:.3f} "
+                        print(f"    [Greeks] {ticker}: delta={_delta:.3f} Θ={_theta:.3f} "
                               f"V={_vega:.3f} | Depth: {_bsize}x{_asize}")
                         # Extra safety: skip if delta is extremely low (deep OTM, no gamma)
                         if target_option_type == "C" and 0 < _delta < 0.05:
                             skip_reasons["Delta too low"] = skip_reasons.get("Delta too low", 0) + 1
-                            print(f"    [Skip] {ticker}: Delta={_delta:.3f} too low — "
+                            print(f"    [Skip] {ticker}: Delta={_delta:.3f} too low -- "
                                   f"contract is deep OTM, no practical gamma")
                             _session_stats["skipped"] += 1
                             continue
-                        # Skip if bid/ask depth is paper-thin (< 5 contracts on either side)
-                        if _bsize > 0 and _asize > 0 and min(_bsize, _asize) < 3:
-                            print(f"    [⚠️ Depth] {ticker}: thin market "
-                                  f"({_bsize}x{_asize}) — fill risk high")
+                        # Skip if ask side is paper-thin (we're buying so need ask liquidity)
+                        # Bid side of 1 is fine -- market maker will reprice.
+                        # Only block if ask side has < 2 contracts (truly no sellers).
+                        # Exception: if flow_score > 60, the institutional volume is real
+                        # regardless of displayed depth (large orders refresh depth quickly).
+                        _flow_score = flow.get("score", 0) if "flow" in dir() and flow else 0
+                        if _asize > 0 and _asize < 2 and _flow_score < 60:
+                            skip_reasons["Spread too wide"] = skip_reasons.get("Spread too wide", 0) + 1
+                            print(f"    [Skip] {ticker}: ask too thin "
+                                  f"({_bsize}x{_asize}) -- no fill possible")
+                            _session_stats["skipped"] += 1
+                            continue
+                        elif _bsize > 0 and _asize > 0 and min(_bsize, _asize) < 3:
+                            # Thin but not empty -- warn and allow
+                            print(f"    [[WARN] Depth] {ticker}: thin market "
+                                  f"({_bsize}x{_asize}) -- fill risk noted")
                 except Exception as _ge:
                     log.debug("Greeks fetch error: %s", _ge)
 
@@ -2263,10 +2491,15 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     if spread_pct > 15.0:
                         skip_reasons["Spread too wide"] = skip_reasons.get("Spread too wide", 0) + 1
                         print(f"    [Skip] {ticker}: Bid/ask spread {spread_pct:.1f}% > 15%")
+                        _log_rejected(ticker, target_option_type,
+                                      f"spread={spread_pct:.1f}%>15",
+                                      current_rsi, vol_ratio, adx=_adx_val,
+                                      iv_rank=iv_rank if "iv_rank" in dir() else None,
+                                      spread_pct=spread_pct)
                         _session_stats["skipped"] += 1
                         continue
                     elif spread_pct > 0:
-                        print(f"    [Spread] {ticker}: {spread_pct:.1f}% bid/ask spread ✅")
+                        print(f"    [Spread] {ticker}: {spread_pct:.1f}% bid/ask spread [OK]")
                 except Exception as e:
                     log.debug("Spread check error: %s", e)
 
@@ -2274,21 +2507,21 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                 # Upgraded from passive distance check to active bounce confirmation.
                 # Calls: price must touch VWAP and bounce above (green bar = institutions stepping in)
                 # Puts:  price must touch VWAP and reject below (red bar = institutions fading the level)
-                # At RSI extremes (<20 calls, >80 puts) bypass — exhaustion overrides timing.
+                # At RSI extremes (<20 calls, >80 puts) bypass -- exhaustion overrides timing.
                 if _HAS_VWAP:
                     # Use full bounce detection for normal setups
                     _vwap_extreme = (target_option_type == "C" and current_rsi < 20.0) or                                     (target_option_type == "P" and current_rsi > 80.0)
 
                     if _vwap_extreme:
-                        # RSI extreme — timing matters less, exhaustion is the signal
+                        # RSI extreme -- timing matters less, exhaustion is the signal
                         vwap_r = check_vwap_entry(ticker, require_bounce=False)
                         vwap_dist  = vwap_r.get("distance_pct", 0)
                         above_vwap = vwap_r.get("above_vwap", True)
                         print(f"    [VWAP-EXTREME] {ticker}/{target_option_type}: "
-                              f"RSI={current_rsi:.1f} extreme — bypassing bounce requirement, "
-                              f"dist={vwap_dist:+.2f}% ✅")
+                              f"RSI={current_rsi:.1f} extreme -- bypassing bounce requirement, "
+                              f"dist={vwap_dist:+.2f}% [OK]")
                     else:
-                        # Standard setup — require active touch-and-reversal confirmation
+                        # Standard setup -- require active touch-and-reversal confirmation
                         vwap_r = check_vwap_entry(ticker, require_bounce=True)
                         vwap_dist  = vwap_r.get("distance_pct", 0)
                         above_vwap = vwap_r.get("above_vwap", True)
@@ -2298,10 +2531,10 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
 
                         if target_option_type == "C":
                             if not above_vwap and abs(vwap_dist) > 0.5:
-                                # Below VWAP — need bounce confirmation
+                                # Below VWAP -- need bounce confirmation
                                 if bounce_confirmed:
                                     print(f"    [VWAP-Bounce] {ticker}/C: "
-                                          f"Touch & reversal confirmed ({vwap_note}) ✅")
+                                          f"Touch & reversal confirmed ({vwap_note}) [OK]")
                                 elif bounce_detected:
                                     # Bounce detected but not yet fully confirmed (no green bar yet)
                                     # Allow as tester-quality signal
@@ -2314,19 +2547,19 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                                     _session_stats["skipped"] += 1
                                     continue
                             else:
-                                # Already above VWAP — clean entry
+                                # Already above VWAP -- clean entry
                                 print(f"    [VWAP] {ticker}/C: "
-                                      f"dist={vwap_dist:+.2f}% above VWAP ✅")
+                                      f"dist={vwap_dist:+.2f}% above VWAP [OK]")
 
                         else:  # PUT
                             if above_vwap and abs(vwap_dist) > 0.5:
-                                # Above VWAP — need rejection confirmation
+                                # Above VWAP -- need rejection confirmation
                                 # Check for red bar at/near VWAP (price rejected downward)
                                 _vwap_rejected = (vwap_r.get("green_bar") == False and
                                                   abs(vwap_dist) < 1.0)
                                 if _vwap_rejected or bounce_detected:
                                     print(f"    [VWAP-Reject] {ticker}/P: "
-                                          f"VWAP rejection confirmed ({vwap_note}) ✅")
+                                          f"VWAP rejection confirmed ({vwap_note}) [OK]")
                                 else:
                                     skip_reasons["No VWAP rejection"] = skip_reasons.get("No VWAP rejection", 0) + 1
                                     print(f"    [Skip] {ticker}/P: Above VWAP, no rejection yet "
@@ -2335,7 +2568,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                                     continue
                             else:
                                 print(f"    [VWAP] {ticker}/P: "
-                                      f"dist={vwap_dist:+.2f}% below VWAP ✅")
+                                      f"dist={vwap_dist:+.2f}% below VWAP [OK]")
 
                 _session_stats["signals"] += 1
                 _broadcast({
@@ -2358,14 +2591,14 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                         news_line = f"**News**: score={news_r['score']} {news_r['verdict']}\n"
                     if _HAS_VWAP and 'vwap_r' in dir():
                         vwap_line = (f"**VWAP**: ${vwap_r.get('vwap','?')} | "
-                                     f"dist={vwap_r.get('distance_pct','?')}% ✅\n")
+                                     f"dist={vwap_r.get('distance_pct','?')}% [OK]\n")
 
                     listener.send_status_update(
                         f"🚀 **HIGH CONVICTION SIGNAL**{unusual_tag}\n"
                         f"**Ticker**: ${ticker}\n"
                         f"**Price**: ${current_price:.2f} -> Strike: {strike}  "
                         f"Expiry: {expiry}"
-                        + (" ⏰ *Next-week rolled — Thu theta protection*"
+                        + (" ⏰ *Next-week rolled -- Thu theta protection*"
                            if theta_rolled else "") + "\n"
                                                       f"**RSI**: {current_rsi:.1f} (target <{eff_threshold}) | "
                                                       f"Vol: {vol_ratio:.1f}x avg\n"
@@ -2387,7 +2620,7 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
         except Exception as e:
             print(f"  [Scanner] {ticker.ljust(5)} | Error: {e}")
 
-    # ── Scan complete — explain results ──────────────────────────────────────
+    # ── Scan complete -- explain results ──────────────────────────────────────
     total_scanned = len(tickers)
 
     if skip_reasons:
@@ -2395,41 +2628,41 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             f"{r}:{n}" for r, n in sorted(skip_reasons.items(), key=lambda x: -x[1])))
 
     if not signals:
-        lines = ["\n  ⚠️  No signals this scan. Here's why:"]
+        lines = ["\n  [WARN]  No signals this scan. Here's why:"]
 
         rsi_above = sum(1 for r in skip_reasons_detail.get("rsi_values", []) if r >= rsi_threshold)
         if rsi_above:
             lines.append(f"  • {rsi_above}/{total_scanned} tickers have RSI above {rsi_threshold} "
-                         f"— market is NOT oversold enough yet")
+                         f"-- market is NOT oversold enough yet")
 
         top_reasons = sorted(skip_reasons.items(), key=lambda x: -x[1])[:4]
         reason_map = {
             "1hr RSI too weak":        "still falling on hourly chart (downtrend not done)",
-            "Below SMA-200":           "long-term downtrend — bot avoids weak stocks",
+            "Below SMA-200":           "long-term downtrend -- bot avoids weak stocks",
             "Weak volume":             "not enough trader interest to confirm the move",
             "Options flow too bearish":"institutions are buying puts, not calls",
-            "GEX pinned":              "market makers pinning price — won't move enough",
+            "GEX pinned":              "market makers pinning price -- won't move enough",
             "Bad news":                "recent negative news on the ticker",
         }
         for reason, count in top_reasons:
             explanation = reason_map.get(reason, "filter threshold not met")
-            lines.append(f"  • {count} ticker(s) skipped: {reason} — {explanation}")
+            lines.append(f"  • {count} ticker(s) skipped: {reason} -- {explanation}")
 
         if regime == "bear":
-            lines.append(f"  • Bear market detected — scanning for RSI > {100-rsi_threshold} "
+            lines.append(f"  • Bear market detected -- scanning for RSI > {100-rsi_threshold} "
                          f"(overbought) to buy PUTS")
         elif regime == "bull" and spy_vs_sma > 1.5:
             lines.append(f"  • Market is strongly bullish (+{spy_vs_sma:.1f}% vs SMA20) "
-                         f"— everything is overbought, RSI < {rsi_threshold} is rare today")
+                         f"-- everything is overbought, RSI < {rsi_threshold} is rare today")
         if vix_level and vix_level < 15:
-            lines.append(f"  • VIX={vix_level:.1f} very low — low volatility means smaller moves")
+            lines.append(f"  • VIX={vix_level:.1f} very low -- low volatility means smaller moves")
 
         closest = skip_reasons_detail.get("closest_rsi", [])
         if closest:
             closest_str = ", ".join(
                 f"{t} (RSI {r:.1f})" for t, r in sorted(closest, key=lambda x: x[1])[:3])
             lines.append(f"  • Closest to triggering: {closest_str}")
-            lines.append(f"    -> Watch these — if RSI drops below {rsi_threshold} next scan they fire")
+            lines.append(f"    -> Watch these -- if RSI drops below {rsi_threshold} next scan they fire")
 
         lines.append(f"\n  💡 Tip: This is normal on strong bull days. "
                      f"Wait for a dip or use !scan to check again in 5 min.")
@@ -2441,4 +2674,23 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
             listener.send_status_update(no_signal_msg)
 
     print_session_stats()
+
+    # ── Persist candidate log ─────────────────────────────────────────────────
+    # Write every evaluated candidate (fired + rejected) to candidates.csv.
+    # This is the research dataset for later threshold calibration.
+    if _candidate_log:
+        try:
+            import csv as _csv
+            _cpath = os.path.join(os.path.dirname(__file__), "candidates.csv")
+            _write_header = not os.path.exists(_cpath)
+            with open(_cpath, "a", newline="", encoding="utf-8") as _cf:
+                _writer = _csv.DictWriter(_cf, fieldnames=_candidate_log[0].keys())
+                if _write_header:
+                    _writer.writeheader()
+                _writer.writerows(_candidate_log)
+            log.debug("Candidate log: wrote %d entries to candidates.csv",
+                      len(_candidate_log))
+        except Exception as _cwe:
+            log.debug("Candidate log write error: %s", _cwe)
+
     return signals
