@@ -1,2 +1,0 @@
-date,ticker,strike,option_type,expiry,quantity,entry_price,exit_price,outcome,profit_amt,cumulative_profit,reason,mode
-2026-10-15 14:40,SOFI,15.0,P,2026-10-16,1,0.21,0.14,Loss,-7.0,-7.0,Extension Stop,live
