@@ -1,7 +1,2 @@
 date,ticker,strike,option_type,expiry,quantity,entry_price,exit_price,outcome,profit_amt,cumulative_profit,reason,mode
-2026-05-20 11:47,AAPL,300.0,C,2026-05-22,1,2.07,2.07,Break-even,0.0,0.0,Bot,live
-2026-05-20 12:18,AAPL,300.0,C,2026-05-22,1,2.09,2.54,Win,45.0,45.0,Bot,live
-2026-05-20 13:02,GOOGL,390.0,C,2026-05-22,1,2.68,2.72,Win,4.0,49.0,Bot,live
-2026-05-21 09:59,CVNA,64.0,C,2026-05-22,1,0.97,1.3,Win,33.0,82.0,Bot,live
-2026-05-21 11:08,TQQQ,76.0,C,2026-05-22,2,0.92,0.7,Loss,-44.0,38.0,Bot,live
-2026-05-21 13:10,NVDA,220.0,C,2026-05-22,3,2.4167,2.8,Win,115.0,153.0,Bot,live2026-09-22 08:45,SOFI,17.0,P,2026-09-25,1,0.14,0.17,Win,3.0,156.0,Scale-Out 50%,live
+2026-10-15 14:40,SOFI,15.0,P,2026-10-16,1,0.21,0.14,Loss,-7.0,-7.0,Extension Stop,live

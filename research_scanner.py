@@ -977,6 +977,19 @@ _SECTOR_MAP = {
     "ZM":   "XLK",  "SPOT": "XLK",
 }
 
+
+# Leveraged ETF parent map — used for correlated confirmation (Imp 4) and tighter stops (Imp 5)
+_LEVERAGED_ETF = {
+    "TQQQ": "QQQ",   # 3x Nasdaq
+    "SOXL": "SOXX",  # 3x Semis
+    "SPXL": "SPY",   # 3x S&P
+    "UPRO": "SPY",   # 3x S&P
+    "LABU": "XBI",   # 3x Biotech
+    "FNGU": "QQQ",   # 3x FAANG
+}
+# Tighter stop for leveraged ETFs (they move 3x — -20% global stop is too loose)
+_LEVERAGED_SL_OVERRIDE = -12.0   # pct — replaces profile sl for these tickers
+
 _sector_cache: dict = {}
 
 def get_sector_change(ticker: str) -> float:
@@ -1618,6 +1631,9 @@ def _build_signal(ticker: str, current_price: float,
 
 _session_stats: dict = {"scans": 0, "signals": 0, "skipped": 0}
 
+# Power-hour filter toggle — can be flipped via !powerhour on/off Discord command
+power_hour_enabled: bool = True
+
 
 def print_session_stats():
     s = _session_stats
@@ -1679,7 +1695,8 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     vix_level = _get_vix()
     if vix_level:
         if vix_level > 30:
-            print(f"  [VIX] VIX={vix_level:.1f} HIGH -- size reduced to 1 contract max")
+            print(f"  [VIX] VIX={vix_level:.1f} HIGH -- pausing new entries (too expensive)")
+            return []
         elif vix_level > 25:
             print(f"  [VIX] VIX={vix_level:.1f} elevated -- tightening RSI threshold by 3pts")
         else:
@@ -1694,9 +1711,20 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
     if _hm < 9 * 60 + 35:
         print("  [Time] First 5 min after open -- skipping scan (chop zone)")
         return []
-    #if 11 * 60 + 45 <= _hm <= 13 * 60 + 30:
-        #print("  [Time] Lunch chop zone (11:45-1:30 ET) -- skipping scan")
-        #return []
+    # Power-hour filter: trade 9:35-10:30 AM and 2:45-3:45 PM ET only
+    # Toggle with !powerhour on/off in Discord
+    if power_hour_enabled:
+        _power_morning = _hm <= 10 * 60 + 30
+        _power_afternoon = 14 * 60 + 45 <= _hm <= 15 * 60 + 45
+        if not (_power_morning or _power_afternoon):
+            _remaining = ""
+            if _hm < 14 * 60 + 45:
+                _remaining = f" (~{14*60+45 - _hm}min until PM session)"
+            print(f"  [Time] Chop zone -- waiting for power hours (9:35-10:30 or 2:45-3:45 ET){_remaining}")
+            print(f"  [Time] Tip: use !powerhour off in Discord to scan all day")
+            return []
+    else:
+        print(f"  [Time] Power-hour filter OFF -- scanning all day")
 
     skip_reasons: dict = {}
     skip_reasons_detail: dict = {"rsi_values": [], "closest_rsi": []}
@@ -1899,6 +1927,29 @@ def scan_markets(tickers=MY_SMALL_STOCKS, rsi_threshold=30, listener=None,
                     _session_stats["skipped"] += 1
                     continue
 
+
+                # ── Gate 1c: Leveraged ETF parent confirmation ────────────────────────
+                if ticker.upper() in _LEVERAGED_ETF:
+                    _parent = _LEVERAGED_ETF[ticker.upper()]
+                    try:
+                        import yfinance as _yf2
+                        _p_hist = _yf2.download(_parent, period="2d", interval="1h",
+                                                progress=False, auto_adjust=True)
+                        if not _p_hist.empty:
+                            _p_close = _p_hist["Close"].squeeze()
+                            _p_rsi   = _compute_rsi(_p_close, 14)
+                            _p_rsi_val = float(_p_rsi.iloc[-1]) if len(_p_rsi) > 0 else 50
+                            # For calls: parent RSI must also be oversold (< 45)
+                            # For puts: parent RSI must also be overbought (> 55)
+                            if direction == "C" and _p_rsi_val > 50:
+                                print(f"    [Skip] {ticker}/C: Leveraged ETF -- parent {_parent} RSI={_p_rsi_val:.1f} not oversold")
+                                continue
+                            if direction == "P" and _p_rsi_val < 50:
+                                print(f"    [Skip] {ticker}/P: Leveraged ETF -- parent {_parent} RSI={_p_rsi_val:.1f} not overbought")
+                                continue
+                            print(f"    [Corr] {ticker}/{direction}: parent {_parent} RSI={_p_rsi_val:.1f} confirmed [OK]")
+                    except Exception:
+                        pass  # skip check if data unavailable
                 # ── Gate 2: SMA-200 trend ─────────────────────────────────────
                 _is_bullish = is_trend_bullish(ticker)
                 if target_option_type == "C":

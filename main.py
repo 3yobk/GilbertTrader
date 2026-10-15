@@ -1,5 +1,5 @@
-"""
-main.py — GilbertTrader: AI Brain Trading System
+﻿"""
+main.py â€” GilbertTrader: AI Brain Trading System
 =================================================
 Fixes applied:
   - Tradier token passed to MarketFeed (real-time data)
@@ -78,7 +78,7 @@ AI_PC_KEY = os.getenv("AI_PC_KEY", "sk-7d643db8")
 
 
 def get_risk_profile():
-    console.print("\n[bold yellow]🛡️  SELECT RISK PROFILE[/bold yellow]")
+    console.print("\n[bold yellow]ðŸ›¡ï¸  SELECT RISK PROFILE[/bold yellow]")
     table = Table(show_header=True, header_style="bold magenta")
     table.add_column("Option", style="dim")
     table.add_column("Profile")
@@ -111,11 +111,11 @@ def get_risk_profile():
 def select_execution_mode() -> dict:
     """
     Prompt user to select trading direction.
-    CALLS — buys calls on oversold dips only
-    PUTS  — buys puts on overbought peaks only
-    AUTO  — scanner decides based on market regime (default)
+    CALLS â€” buys calls on oversold dips only
+    PUTS  â€” buys puts on overbought peaks only
+    AUTO  â€” scanner decides based on market regime (default)
     """
-    console.print("\n[bold yellow]📈  SELECT TRADING DIRECTION[/bold yellow]")
+    console.print("\n[bold yellow]ðŸ“ˆ  SELECT TRADING DIRECTION[/bold yellow]")
     dir_table = Table(show_header=True, header_style="bold cyan")
     dir_table.add_column("Option", style="dim", width=6)
     dir_table.add_column("Mode",    width=12)
@@ -127,17 +127,17 @@ def select_execution_mode() -> dict:
     console.print(dir_table)
     d = input("\nSelect Direction (1/2/3) [default=1]: ").strip() or "1"
     if d == "2":
-        return {"mode": "CALLS", "label": "CALLS ONLY — Oversold Dip Bounces",
+        return {"mode": "CALLS", "label": "CALLS ONLY â€” Oversold Dip Bounces",
                 "option_type": "C", "auto": False}
     if d == "3":
-        return {"mode": "PUTS",  "label": "PUTS ONLY  — Overbought Fade Plays",
+        return {"mode": "PUTS",  "label": "PUTS ONLY  â€” Overbought Fade Plays",
                 "option_type": "P", "auto": False}
-    return {"mode": "AUTO",  "label": "AUTO — Bot selects Calls or Puts by regime",
+    return {"mode": "AUTO",  "label": "AUTO â€” Bot selects Calls or Puts by regime",
             "option_type": None, "auto": True}
 
 
 def ask_ai_for_verdict(signal_text, budget, stock_price: float = None, raw_text: str = None):
-    # ── Pull live adaptive metrics from cache layers ───────────────────────────
+    # â”€â”€ Pull live adaptive metrics from cache layers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     learned_slippage = 1.0
     ml_context       = ""
     try:
@@ -158,7 +158,7 @@ def ask_ai_for_verdict(signal_text, budget, stock_price: float = None, raw_text:
     except Exception:
         pass
 
-    # ── Compute strike distance for explicit context ───────────────────────────
+    # â”€â”€ Compute strike distance for explicit context â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     strike_context = ""
     if stock_price:
         try:
@@ -185,21 +185,21 @@ def ask_ai_for_verdict(signal_text, budget, stock_price: float = None, raw_text:
             f"You are a software submodule inside an automated execution loop. "
             f"Your output is parsed by a strict regex. Any markdown, backticks, "
             f"bolding, prose, or extra lines will corrupt the parser and cost real capital. "
-            f"Behave like a compiled binary utility — one line of raw text only.\n\n"
+            f"Behave like a compiled binary utility â€” one line of raw text only.\n\n"
             f"INPUT SIGNAL: '{signal_text}'\n"
             f"BUDGET: Max ${budget} total premium. 1 contract = premium * 100.\n"
             f"MARKET CONTEXT: {_spot}\n\n"
             f"MANDATORY RULES:\n"
-            f"1. TICKER IS SACROSANCT — never modify the ticker symbol. "
+            f"1. TICKER IS SACROSANCT â€” never modify the ticker symbol. "
             f"Output ticker must match input character-for-character.\n"
-            f"2. BUDGET & SLIPPAGE — if quantity * premium * slippage_factor > ${budget}, "
-            f"reduce x[QTY] until it fits. Never reject purely for size — downsize instead.\n"
-            f"3. STRIKE — options strikes are NOT the stock price. Approve any strike within "
-            f"20% OTM of spot. A $610C on a $606 stock = 0.7% OTM — APPROVE immediately. "
+            f"2. BUDGET & SLIPPAGE â€” if quantity * premium * slippage_factor > ${budget}, "
+            f"reduce x[QTY] until it fits. Never reject purely for size â€” downsize instead.\n"
+            f"3. STRIKE â€” options strikes are NOT the stock price. Approve any strike within "
+            f"20% OTM of spot. A $610C on a $606 stock = 0.7% OTM â€” APPROVE immediately. "
             f"Only reject if strike is more than 20% from spot.\n"
-            f"4. ML CONTEXT — if win-probability is provided and below 50%, prefer minimum "
+            f"4. ML CONTEXT â€” if win-probability is provided and below 50%, prefer minimum "
             f"contract size (x1) over full Kelly sizing.\n"
-            f"5. NO FORMATTING — no backticks, no markdown, no explanations, no extra lines.\n\n"
+            f"5. NO FORMATTING â€” no backticks, no markdown, no explanations, no extra lines.\n\n"
             f"OUTPUT (pick exactly one):\n"
             f"Approved -> output only: BTO [TICKER] [STRIKE][C/P] [EXPIRY] x[QTY]\n"
             f"Rejected -> output only: Rejected: [5-word reason]"
@@ -253,13 +253,13 @@ def register_graceful_shutdown_handlers(webull_ref, market_ref,
 
     def _shutdown(signum, frame):
         sig_name = "SIGINT (Ctrl+C)" if signum == signal.SIGINT else "SIGTERM"
-        console.print(f"\n[bold yellow]🛑 {sig_name} received — graceful shutdown starting...[/bold yellow]")
+        console.print(f"\n[bold yellow]ðŸ›‘ {sig_name} received â€” graceful shutdown starting...[/bold yellow]")
 
         # Step 1: pause new entries immediately
         try:
             if listener_ref and hasattr(listener_ref, "paused"):
                 listener_ref.paused = True
-                console.print("  [dim]✓ New entries paused[/dim]")
+                console.print("  [dim]âœ“ New entries paused[/dim]")
         except Exception:
             pass
 
@@ -269,20 +269,20 @@ def register_graceful_shutdown_handlers(webull_ref, market_ref,
                 with engine_ref._lock:
                     open_pos = dict(engine_ref._positions)
                 if open_pos:
-                    console.print(f"  [yellow]⚠️  {len(open_pos)} open position(s) left unmonitored:[/yellow]")
+                    console.print(f"  [yellow]âš ï¸  {len(open_pos)} open position(s) left unmonitored:[/yellow]")
                     for key, pos in open_pos.items():
                         console.print(f"      {key} | entry=${pos.entry_price:.2f} | peak={pos.highest_pnl:+.1f}%")
                     log.warning("SHUTDOWN with %d open positions: %s",
                                 len(open_pos), list(open_pos.keys()))
                 else:
-                    console.print("  [dim]✓ No open positions[/dim]")
+                    console.print("  [dim]âœ“ No open positions[/dim]")
         except Exception as e:
             log.debug("Shutdown position log error: %s", e)
 
         # Step 3: flush trade_log.csv (it's written per-trade so just verify)
         try:
             if os.path.exists("trade_log.csv"):
-                console.print("  [dim]✓ trade_log.csv verified[/dim]")
+                console.print("  [dim]âœ“ trade_log.csv verified[/dim]")
         except Exception:
             pass
 
@@ -291,7 +291,7 @@ def register_graceful_shutdown_handlers(webull_ref, market_ref,
             for handler in logging.root.handlers:
                 handler.flush()
                 handler.close()
-            console.print("  [dim]✓ brain.log flushed[/dim]")
+            console.print("  [dim]âœ“ brain.log flushed[/dim]")
         except Exception:
             pass
 
@@ -299,7 +299,7 @@ def register_graceful_shutdown_handlers(webull_ref, market_ref,
         try:
             if market_ref:
                 market_ref.stop()
-                console.print("  [dim]✓ Market feed stopped[/dim]")
+                console.print("  [dim]âœ“ Market feed stopped[/dim]")
         except Exception as e:
             log.debug("Market stop error: %s", e)
 
@@ -307,7 +307,7 @@ def register_graceful_shutdown_handlers(webull_ref, market_ref,
         try:
             if listener_ref:
                 listener_ref.stop()
-                console.print("  [dim]✓ Discord listener stopped[/dim]")
+                console.print("  [dim]âœ“ Discord listener stopped[/dim]")
         except Exception as e:
             log.debug("Listener stop error: %s", e)
 
@@ -315,11 +315,11 @@ def register_graceful_shutdown_handlers(webull_ref, market_ref,
         try:
             if webull_ref:
                 webull_ref.close()
-                console.print("  [dim]✓ Chromium browser closed[/dim]")
+                console.print("  [dim]âœ“ Chromium browser closed[/dim]")
         except Exception as e:
             log.debug("Webull close error: %s", e)
 
-        console.print("[bold green]✓ Shutdown complete.[/bold green]")
+        console.print("[bold green]âœ“ Shutdown complete.[/bold green]")
         _shutdown_event.set()
         sys.exit(0)
 
@@ -350,7 +350,7 @@ def _maybe_run_alpha_sieve(listener=None):
                         os.remove(old)
                     except Exception:
                         pass
-            console.print("[bold cyan]⏰ 9:15 AM — Running Alpha Sieve...[/bold cyan]")
+            console.print("[bold cyan]â° 9:15 AM â€” Running Alpha Sieve...[/bold cyan]")
             try:
                 from research_scanner import run_alpha_sieve_pre_filter
                 run_alpha_sieve_pre_filter(top_n=5, listener=listener)
@@ -377,7 +377,7 @@ def _maybe_run_premarket_scan(listener=None):
         return
     open(flag_file, "w").close()
 
-    console.print("[bold cyan]🌅 9:00 AM — Running Pre-Market Scan...[/bold cyan]")
+    console.print("[bold cyan]ðŸŒ… 9:00 AM â€” Running Pre-Market Scan...[/bold cyan]")
     try:
         import yfinance as yf
         from research_scanner import MY_SMALL_STOCKS
@@ -404,17 +404,17 @@ def _maybe_run_premarket_scan(listener=None):
         gaps_up.sort(key=lambda x: -x[1])
         gaps_down.sort(key=lambda x: x[1])
 
-        msg_lines = ["🌅 **PRE-MARKET SCAN** — Gap Analysis\n"]
+        msg_lines = ["ðŸŒ… **PRE-MARKET SCAN** â€” Gap Analysis\n"]
         if gaps_up:
-            msg_lines.append("📈 **Gap Ups** (potential call setups if RSI oversold on open):")
+            msg_lines.append("ðŸ“ˆ **Gap Ups** (potential call setups if RSI oversold on open):")
             for t, g, p in gaps_up[:5]:
-                msg_lines.append(f"  • {t} +{g:.1f}% -> ${p:.2f}")
+                msg_lines.append(f"  â€¢ {t} +{g:.1f}% -> ${p:.2f}")
         if gaps_down:
-            msg_lines.append("\n📉 **Gap Downs** (potential put setups if RSI overbought):")
+            msg_lines.append("\nðŸ“‰ **Gap Downs** (potential put setups if RSI overbought):")
             for t, g, p in gaps_down[:5]:
-                msg_lines.append(f"  • {t} {g:.1f}% -> ${p:.2f}")
+                msg_lines.append(f"  â€¢ {t} {g:.1f}% -> ${p:.2f}")
         if not gaps_up and not gaps_down:
-            msg_lines.append("No significant gaps today (all within ±2%).")
+            msg_lines.append("No significant gaps today (all within Â±2%).")
 
         msg_lines.append("\n_Scanner will begin at 9:30 AM open._")
         msg = "\n".join(msg_lines)
@@ -458,7 +458,7 @@ def _maybe_send_daily_report(listener=None, engine=None):
         if not today_trades:
             if listener:
                 listener.send_status_update(
-                    f"📊 **Daily Report** — {today}\n"
+                    f"ðŸ“Š **Daily Report** â€” {today}\n"
                     f"No trades today. Market was quiet or no signals fired."
                 )
             return
@@ -482,24 +482,24 @@ def _maybe_send_daily_report(listener=None, engine=None):
         except Exception:
             pass
 
-        emoji  = "🟢" if total >= 0 else "🔴"
+        emoji  = "ðŸŸ¢" if total >= 0 else "ðŸ”´"
         report = (
-            f"📊 **Daily Report** — {today}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"ðŸ“Š **Daily Report** â€” {today}\n"
+            f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
             f"{emoji} **Net P&L**: ${total:+.2f}\n"
-            f"🏆 **Win Rate**: {wr:.0f}% ({len(wins)}W / {len(losses)}L)\n"
-            f"📈 **Best Trade**: ${best:+.2f}\n"
-            f"📉 **Worst Trade**: ${worst:+.2f}\n"
-            f"🔢 **Trades Taken**: {len(today_trades)}\n"
-            f"💰 **Account Balance**: {balance}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"ðŸ† **Win Rate**: {wr:.0f}% ({len(wins)}W / {len(losses)}L)\n"
+            f"ðŸ“ˆ **Best Trade**: ${best:+.2f}\n"
+            f"ðŸ“‰ **Worst Trade**: ${worst:+.2f}\n"
+            f"ðŸ”¢ **Trades Taken**: {len(today_trades)}\n"
+            f"ðŸ’° **Account Balance**: {balance}\n"
+            f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
         )
 
         # Add trade breakdown
         for t in today_trades:
             pnl    = float(t.get("profit_amt", 0) or 0)
             ticker = t.get("ticker", "?")
-            e      = "✅" if pnl > 0 else "❌"
+            e      = "âœ…" if pnl > 0 else "âŒ"
             report += f"{e} {ticker} {t.get('strike','')}{t.get('option_type','')} "
             report += f"-> ${pnl:+.2f}\n"
 
@@ -527,7 +527,7 @@ def _maybe_run_paper_shadow(engine=None, signal_str: str = "",
         parsed = engine.parse_signal(signal_str)
         if not parsed:
             return
-        # Log the shadow entry — P&L will be tracked separately
+        # Log the shadow entry â€” P&L will be tracked separately
         file_exists = os.path.exists(shadow_log)
         with open(shadow_log, "a", newline="", encoding="utf-8") as f:
             writer = _csv.writer(f)
@@ -587,13 +587,13 @@ def run_health_check(discord_token, discord_channel_id):
     if tradier_token:
         console.print("  [green]v[/green] Tradier token loaded (live options feed)")
     else:
-        console.print("  [yellow]![/yellow] No TRADIER_TOKEN — using yfinance (delayed)")
+        console.print("  [yellow]![/yellow] No TRADIER_TOKEN â€” using yfinance (delayed)")
 
     webull_email = os.getenv("WEBULL_EMAIL", "")
     if webull_email:
         console.print("  [green]v[/green] Webull API credentials set")
     else:
-        console.print("  [yellow]![/yellow] No WEBULL_EMAIL — browser-only mode")
+        console.print("  [yellow]![/yellow] No WEBULL_EMAIL â€” browser-only mode")
 
     if not all_ok:
         console.print("\n[bold red]Health check FAILED.[/bold red]")
@@ -628,25 +628,25 @@ def load_adaptive_bounds(profile: dict) -> dict:
 
 def optimize_strategy_thresholds(profile: dict, listener=None):
     """
-    Post-mortem optimizer — runs Friday 4:30 PM ET.
+    Post-mortem optimizer â€” runs Friday 4:30 PM ET.
     Invokes reinforce_brain.py for gradient parameter mutations,
     then runs a trailing TP sieve pass before updating adaptive_bounds.json.
-    Single CSV read — no duplicate disk access.
+    Single CSV read â€” no duplicate disk access.
     """
     import json
     from pathlib import Path
     log.info("[Optimizer] Running post-mortem strategy analysis...")
     if listener:
-        listener.send_status_update("🔬 **Weekly Optimizer & Reinforcement Engine** running...")
+        listener.send_status_update("ðŸ”¬ **Weekly Optimizer & Reinforcement Engine** running...")
 
-    # ── Step 1: Reinforcement brain policy pass ───────────────────────────────
+    # â”€â”€ Step 1: Reinforcement brain policy pass â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     results = {}
     try:
         import reinforce_brain
         results = reinforce_brain.process_session_feedback("trade_log.csv")
         if results and listener:
             listener.send_status_update(
-                f"📊 **Reinforcement Complete**\n"
+                f"ðŸ“Š **Reinforcement Complete**\n"
                 f"Rec TP: +{results.get('recommended_tp_pct', 30)}% | "
                 f"Rec SL: -{results.get('recommended_sl_pct', 20)}% | "
                 f"Rec RSI: {results.get('recommended_rsi_threshold', 25)} | "
@@ -656,7 +656,7 @@ def optimize_strategy_thresholds(profile: dict, listener=None):
     except Exception as e:
         log.error("[Optimizer] Reinforcement loop error: %s", e)
 
-    # ── Step 2: Trailing TP sieve — single CSV read shared with Step 1 ────────
+    # â”€â”€ Step 2: Trailing TP sieve â€” single CSV read shared with Step 1 â”€â”€â”€â”€â”€â”€â”€â”€
     try:
         import pandas as pd
         from datetime import datetime, timedelta
@@ -690,7 +690,7 @@ def optimize_strategy_thresholds(profile: dict, listener=None):
     except Exception as e:
         log.error("[Optimizer] TP sieve verification error: %s", e)
 
-    # ── Step 3: Persist unified merged results ────────────────────────────────
+    # â”€â”€ Step 3: Persist unified merged results â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     if results:
         try:
             from datetime import datetime
@@ -704,7 +704,7 @@ def optimize_strategy_thresholds(profile: dict, listener=None):
             log.error("[Optimizer] Bounds file write error: %s", e)
 
 
-# ── New ticker position cap ───────────────────────────────────────────────────
+# â”€â”€ New ticker position cap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # Tickers added for budget-friendly trading have no fill history.
 # Cap at 1 contract until they build a track record in trade_log.csv.
 _NEW_TICKERS = {'SOUN', 'ACHR', 'RUM', 'LUNR', 'CLOV', 'KULR', 'IONQ', 'BBAI', 'JOBY'}
@@ -727,9 +727,9 @@ def get_regime_budget_cap(base_budget: float, regime: str,
     Apply macro regime scaling to the trade budget.
     Returns (capped_budget, force_tester, reason_str)
 
-    Bull + VIX < 20:  100% — full deployment
-    VIX 20-25:         60% — chop/elevated vol, trim size
-    Bear or VIX > 25:  35% — tester-only, tail risk protection
+    Bull + VIX < 20:  100% â€” full deployment
+    VIX 20-25:         60% â€” chop/elevated vol, trim size
+    Bear or VIX > 25:  35% â€” tester-only, tail risk protection
     """
     if vix is None:
         vix = 15.0  # assume normal if unavailable
@@ -737,17 +737,17 @@ def get_regime_budget_cap(base_budget: float, regime: str,
     if vix > 25 or (regime == "bear" and vix > 20):
         cap_pct     = 0.35
         force_tester = True
-        tier        = "🔴 HIGH-VOL/BEAR"
+        tier        = "ðŸ”´ HIGH-VOL/BEAR"
         reason      = f"VIX={vix:.1f} or bear+elevated-vol -> 35% budget, tester-only"
     elif vix > 20 or regime == "bear":
         cap_pct     = 0.60
         force_tester = False
-        tier        = "🟡 NEUTRAL/CHOP"
+        tier        = "ðŸŸ¡ NEUTRAL/CHOP"
         reason      = f"VIX={vix:.1f} or bear regime -> 60% budget"
     else:
         cap_pct     = 1.00
         force_tester = False
-        tier        = "🟢 BULL/CALM"
+        tier        = "ðŸŸ¢ BULL/CALM"
         reason      = f"VIX={vix:.1f} normal, {regime} regime -> 100% budget"
 
     capped = round(base_budget * cap_pct, 0)
@@ -771,26 +771,26 @@ def main():
             (f"Active Strategy: {profile['name']}\n", "bold green"),
             (f"Parameters: TP {profile['tp']}% | SL {profile['sl']}% | "
              f"RSI <{profile['rsi']} | Budget ${profile['budget']}\n", "dim"),
-            ("Direction: AUTO — Calls in bull market, Puts in bear market", "bold cyan"),
+            ("Direction: AUTO â€” Calls in bull market, Puts in bear market", "bold cyan"),
         ),
         border_style="bright_blue", padding=(1, 4),
     ))
 
-    # ── Webull engine — auto-detect paper vs live from .env ──────────────────
+    # â”€â”€ Webull engine â€” auto-detect paper vs live from .env â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     live_enabled = os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true"
     paper_mode   = not live_enabled
     if live_enabled:
-        console.print("[bold red]⚠️  LIVE TRADING ENABLED — real money at risk![/bold red]")
+        console.print("[bold red]âš ï¸  LIVE TRADING ENABLED â€” real money at risk![/bold red]")
     else:
         console.print("[bold yellow]Paper mode active (LIVE_TRADING_ENABLED=false)[/bold yellow]")
     webull = WebullEngine(paper=paper_mode)
     webull.open_browser()
 
-    # ── Market feed — Tradier if token set, yfinance fallback ───────────────
+    # â”€â”€ Market feed â€” Tradier if token set, yfinance fallback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     market = MarketFeed(api_key=tradier_token)
     market.start()
 
-    # ── Discord command handler ───────────────────────────────────────────────
+    # â”€â”€ Discord command handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     def handle_discord_command(cmd: str, args: str):
         """Handles !commands typed in Discord."""
         cmd = cmd.lower().strip()
@@ -799,13 +799,13 @@ def main():
             with engine._lock:
                 positions = dict(engine._positions)
             pnl        = engine.get_session_pnl()
-            paused_str = "⏸ PAUSED" if listener.paused else "▶ ACTIVE"
+            paused_str = "â¸ PAUSED" if listener.paused else "â–¶ ACTIVE"
             if consecutive_losses >= 1:
-                streak_str = f"🔴 {consecutive_losses} loss streak"
+                streak_str = f"ðŸ”´ {consecutive_losses} loss streak"
             elif consecutive_wins >= 1:
-                streak_str = f"🟢 {consecutive_wins} win streak"
+                streak_str = f"ðŸŸ¢ {consecutive_wins} win streak"
             else:
-                streak_str = "➖ No streak"
+                streak_str = "âž– No streak"
             header = f"**{paused_str}** | {streak_str} | P&L: ${pnl:.2f}"
             if not positions:
                 listener.send_status_update(f"{header}\nNo open positions.")
@@ -827,7 +827,7 @@ def main():
                 tp_pct=profile["tp"], sl_pct=profile["sl"],
                 webull_engine=webull)
             if not found:
-                listener.send_status_update("Scan complete — no signals found.")
+                listener.send_status_update("Scan complete â€” no signals found.")
 
         elif cmd == "close" and args.upper() == "ALL":
             with engine._lock:
@@ -887,20 +887,20 @@ def main():
             if arg == "off":
                 engine.stop_loss_pct = 999.0   # effectively disabled
                 listener.send_status_update(
-                    "⚠️ **Stop loss DISABLED** — positions will not auto-close on loss. "
+                    "âš ï¸ **Stop loss DISABLED** â€” positions will not auto-close on loss. "
                     "Use `!sl on` or `!sl <pct>` to re-enable."
                 )
             elif arg == "on":
                 engine.stop_loss_pct = profile["sl"]
                 listener.send_status_update(
-                    f"✅ **Stop loss re-enabled** at -{profile['sl']:.0f}%."
+                    f"âœ… **Stop loss re-enabled** at -{profile['sl']:.0f}%."
                 )
             else:
                 try:
                     pct = float(arg.replace("%", ""))
                     engine.stop_loss_pct = pct
                     listener.send_status_update(
-                        f"✅ **Stop loss set to -{pct:.0f}%**."
+                        f"âœ… **Stop loss set to -{pct:.0f}%**."
                     )
                 except ValueError:
                     listener.send_status_update(
@@ -913,20 +913,20 @@ def main():
             if arg == "off":
                 engine.profit_target_pct = 999.0   # effectively disabled
                 listener.send_status_update(
-                    "⚠️ **Take profit DISABLED** — positions will not auto-close on gain. "
+                    "âš ï¸ **Take profit DISABLED** â€” positions will not auto-close on gain. "
                     "Use `!tp on` or `!tp <pct>` to re-enable."
                 )
             elif arg == "on":
                 engine.profit_target_pct = profile["tp"]
                 listener.send_status_update(
-                    f"✅ **Take profit re-enabled** at +{profile['tp']:.0f}%."
+                    f"âœ… **Take profit re-enabled** at +{profile['tp']:.0f}%."
                 )
             else:
                 try:
                     pct = float(arg.replace("%", ""))
                     engine.profit_target_pct = pct
                     listener.send_status_update(
-                        f"✅ **Take profit set to +{pct:.0f}%**."
+                        f"âœ… **Take profit set to +{pct:.0f}%**."
                     )
                 except ValueError:
                     listener.send_status_update(
@@ -939,25 +939,25 @@ def main():
             if arg == "off":
                 engine.scale_out_trigger_pct = 999.0
                 listener.send_status_update(
-                    "⚠️ **Scale-out DISABLED** — bot will hold full position to TP/SL. "
+                    "âš ï¸ **Scale-out DISABLED** â€” bot will hold full position to TP/SL. "
                     "Use `!scaleout on` to re-enable."
                 )
             elif arg == "on":
                 engine.scale_out_trigger_pct = 20.0
-                listener.send_status_update("✅ **Scale-out re-enabled** at +20%.")
+                listener.send_status_update("âœ… **Scale-out re-enabled** at +20%.")
             else:
                 listener.send_status_update("Usage: `!scaleout off` | `!scaleout on`")
 
         elif cmd == "limiters":
-            # !limiters off — disable all exits (manual control)
-            # !limiters on  — restore all exits to profile defaults
+            # !limiters off â€” disable all exits (manual control)
+            # !limiters on  â€” restore all exits to profile defaults
             arg = args.strip().lower()
             if arg == "off":
                 engine.stop_loss_pct        = 999.0
                 engine.profit_target_pct    = 999.0
                 engine.scale_out_trigger_pct = 999.0
                 listener.send_status_update(
-                    "⚠️ **ALL LIMITERS DISABLED** — SL, TP, and scale-out are off. "
+                    "âš ï¸ **ALL LIMITERS DISABLED** â€” SL, TP, and scale-out are off. "
                     "You are in full manual control. Use `!limiters on` to restore."
                 )
             elif arg == "on":
@@ -965,18 +965,38 @@ def main():
                 engine.profit_target_pct    = profile["tp"]
                 engine.scale_out_trigger_pct = 20.0
                 listener.send_status_update(
-                    f"✅ **All limiters restored** — "
+                    f"âœ… **All limiters restored** â€” "
                     f"TP +{profile['tp']:.0f}% | SL -{profile['sl']:.0f}% | Scale-out +20%."
                 )
             else:
                 listener.send_status_update("Usage: `!limiters off` | `!limiters on`")
+
+        elif cmd == "powerhour":
+            arg = args.strip().lower()
+            if arg == "off":
+                research_scanner.power_hour_enabled = False
+                listener.send_status_update(
+                    "⏰ **Power-hour filter OFF** — bot will scan all day.\n"
+                    "Use `!powerhour on` to re-enable (recommended for best setups)."
+                )
+            elif arg == "on":
+                research_scanner.power_hour_enabled = True
+                listener.send_status_update(
+                    "⏰ **Power-hour filter ON** — scanning 9:35-10:30 AM and 2:45-3:45 PM ET only."
+                )
+            else:
+                status = "ON" if research_scanner.power_hour_enabled else "OFF"
+                listener.send_status_update(
+                    f"⏰ Power-hour filter is currently **{status}**.\n"
+                    f"Use `!powerhour on` or `!powerhour off` to toggle."
+                )
 
         elif cmd == "settings":
             sl_str = f"-{engine.stop_loss_pct:.0f}%" if engine.stop_loss_pct < 999 else "OFF"
             tp_str = f"+{engine.profit_target_pct:.0f}%" if engine.profit_target_pct < 999 else "OFF"
             so_str = f"+{engine.scale_out_trigger_pct:.0f}%" if engine.scale_out_trigger_pct < 999 else "OFF"
             listener.send_status_update(
-                f"⚙️ **Current Settings**\n"
+                f"âš™ï¸ **Current Settings**\n"
                 f"Stop Loss: **{sl_str}**\n"
                 f"Take Profit: **{tp_str}**\n"
                 f"Scale-out: **{so_str}**\n"
@@ -999,6 +1019,10 @@ def main():
         stop_loss_pct=profile['sl'],
         listener=listener
     )
+    # Ensure scale-out is active at startup (sell half at trigger, let rest run)
+    engine.scale_out_trigger_pct = 20.0   # sell 50% at +20%, trail the rest
+    engine._profile_sl = profile['sl']    # store for leveraged ETF stop restore
+    log.info("Scale-out enabled: sell 50%% at +20%%, trail remainder")
 
     # Sync any Webull orders from today that the bot may have missed
     try:
@@ -1023,7 +1047,7 @@ def main():
     except Exception as e:
         log.debug("Startup history sync error: %s", e)
 
-    # ── Thread-Safe Startup: start Discord listener ONLY after all state ──────
+    # â”€â”€ Thread-Safe Startup: start Discord listener ONLY after all state â”€â”€â”€â”€â”€â”€
     # syncs, position loads, and order history reads are complete.
     # Prevents RuntimeError: "dictionary changed size during iteration" if a
     # Discord signal arrives while engine._positions is being populated.
@@ -1034,17 +1058,17 @@ def main():
         _ot.start(base_dir=os.path.dirname(os.path.abspath(__file__)))
         log.info("Outcome tracker started")
     except ImportError:
-        log.debug("outcome_tracker.py not found — skipping")
+        log.debug("outcome_tracker.py not found â€” skipping")
 
-    log.info("Discord listener started (post-sync — thread-safe)")
+    log.info("Discord listener started (post-sync â€” thread-safe)")
 
-    # ── Accurate streak tracking via on_trade_closed callback ────────────────
+    # â”€â”€ Accurate streak tracking via on_trade_closed callback â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     consecutive_losses = 0
     consecutive_wins   = 0
-    # Same-session re-entry block: tickers stopped out today cannot re-enter
-    session_stopped_tickers: set = set()
+    last_loss_time     = 0   # reset scan faster after a loss
 
-    # ── UPGRADE 3: Register graceful shutdown handlers ────────────────────────
+
+    # â”€â”€ UPGRADE 3: Register graceful shutdown handlers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     register_graceful_shutdown_handlers(webull, market, listener, engine)
 
     # Sync paper/live mode to API server dashboard
@@ -1060,21 +1084,21 @@ def main():
     console.print("\n1. Discord | 2. Research | 3. Hybrid")
     mode_choice = input("\nSelect Operation Mode (1/2/3): ").strip()
 
-    # ── Direction + manual trade settings ────────────────────────────────────
+    # â”€â”€ Direction + manual trade settings â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     direction_mode = {"mode": "AUTO", "option_type": None, "auto": True}
     if mode_choice in ["2", "3"]:
         direction_mode = select_execution_mode()
 
-    console.print("\n[bold yellow]⚙️  SETTINGS[/bold yellow]")
+    console.print("\n[bold yellow]âš™ï¸  SETTINGS[/bold yellow]")
     _wm = input("Watch and auto-close your MANUAL trades? (y/n) [default=y]: ").strip().lower()
     watch_manual_trades = (_wm != "n")
     if watch_manual_trades:
-        console.print("[dim]  Manual trades: MONITORED — bot will apply SL/TP to positions you open yourself[/dim]")
+        console.print("[dim]  Manual trades: MONITORED â€” bot will apply SL/TP to positions you open yourself[/dim]")
     else:
-        console.print("[dim]  Manual trades: IGNORED — bot only manages trades it opens itself[/dim]")
+        console.print("[dim]  Manual trades: IGNORED â€” bot only manages trades it opens itself[/dim]")
 
     MAX_DAILY_LOSS_PCT  = 15.0
-    MAX_DAILY_TRADES    = 4      # max entries per day — prevents overtrading on choppy days
+    MAX_DAILY_TRADES    = 4      # max entries per day â€” prevents overtrading on choppy days
     _cache_path = os.path.join(os.path.dirname(__file__), "account_cache.json")
     try:
         import json as _json
@@ -1086,7 +1110,7 @@ def main():
         _unsettled       = _account_balance - _settled_cash
         if _unsettled > 10:
             console.print(
-                f"[yellow]⚠️  T+1 Settlement: ${_unsettled:.2f} unsettled from recent trades. "
+                f"[yellow]âš ï¸  T+1 Settlement: ${_unsettled:.2f} unsettled from recent trades. "
                 f"Using settled cash ${_settled_cash:.2f} for budget.[/yellow]"
             )
     except Exception:
@@ -1099,7 +1123,7 @@ def main():
         f"${_account_balance:.2f} = ${abs(MAX_DAILY_LOSS):.2f}[/dim]"
     )
 
-    # ── Profit streak scaling ─────────────────────────────────────────────────
+    # â”€â”€ Profit streak scaling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     # After 3 consecutive wins: +10% budget
     # After 2 consecutive losses: -20% budget (protect during drawdown)
     _base_budget      = float(profile['budget'])
@@ -1110,7 +1134,7 @@ def main():
     def _update_streak_budget(outcome: str, profit_amt: float = 0.0, ticker: str = ""):
         nonlocal _current_budget, _consecutive_wins, _consecutive_loss
         nonlocal consecutive_wins, consecutive_losses  # dashboard streak counters
-        # ── Streak counters (used by dashboard) ──────────────────────────────
+        # â”€â”€ Streak counters (used by dashboard) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         if outcome == "Win":
             consecutive_wins   += 1
             consecutive_losses  = 0
@@ -1124,32 +1148,30 @@ def main():
                     _current_budget = round(new_budget, 0)
                     if listener:
                         listener.send_status_update(
-                            f"📈 **STREAK BONUS**: {_consecutive_wins} wins in a row! "
+                            f"ðŸ“ˆ **STREAK BONUS**: {_consecutive_wins} wins in a row! "
                             f"Budget raised to ${_current_budget:.0f}"
                         )
         else:
             consecutive_losses += 1
             consecutive_wins    = 0
+            last_loss_time = time.time()
+            last_research_time = 0  # scan again in 60s, not 300s
+            console.print("[yellow]Loss â€” re-scanning for new opportunities in 60s...[/yellow]")
             _consecutive_loss  += 1
             _consecutive_wins   = 0
-            # ── Same-session re-entry block ───────────────────────────────────
+            # â”€â”€ Same-session re-entry block â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             # A ticker stopped out today is blocked for the rest of the session.
             # Prevents revenge trading the same move twice.
             if ticker:
-                session_stopped_tickers.add(ticker.upper())
-                log.info("Re-entry blocked for %s for rest of session (stop loss)", ticker)
-                if listener:
-                    listener.send_status_update(
-                        f"🚫 **RE-ENTRY BLOCKED**: {ticker} stopped out — "
-                        f"no new signals on this ticker today."
-                    )
+                trade_cooldowns[ticker.upper()] = time.time()
+                log.info("Re-entry cooldown: %s blocked for 30 min (stop loss)", ticker)
             if _consecutive_loss >= 2:
                 new_budget = max(_current_budget * 0.80, _base_budget * 0.5)
                 if new_budget != _current_budget:
                     _current_budget = round(new_budget, 0)
                     if listener:
                         listener.send_status_update(
-                            f"📉 **DRAWDOWN PROTECTION**: {_consecutive_loss} losses. "
+                            f"ðŸ“‰ **DRAWDOWN PROTECTION**: {_consecutive_loss} losses. "
                             f"Budget reduced to ${_current_budget:.0f}"
                         )
 
@@ -1168,19 +1190,19 @@ def main():
     last_vix_alert_lvl  = 0
     webull_refresh_fails = 0
 
-    # ── Position sync on startup ─────────────────────────────────────────────
+    # â”€â”€ Position sync on startup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     try:
         open_pos = webull._wb.get_positions() if webull._wb else []
         if open_pos:
             if watch_manual_trades:
-                console.print(f"[yellow]Found {len(open_pos)} existing positions from Webull — "
+                console.print(f"[yellow]Found {len(open_pos)} existing positions from Webull â€” "
                               f"monitoring will resume.[/yellow]")
                 listener.send_status_update(
-                    f"⚠️ Startup: Found {len(open_pos)} open positions. "
-                    f"Manual trade monitoring ACTIVE — bot will apply SL/TP."
+                    f"âš ï¸ Startup: Found {len(open_pos)} open positions. "
+                    f"Manual trade monitoring ACTIVE â€” bot will apply SL/TP."
                 )
             else:
-                console.print(f"[dim]Found {len(open_pos)} existing positions — "
+                console.print(f"[dim]Found {len(open_pos)} existing positions â€” "
                               f"manual trade watch is OFF, ignoring.[/dim]")
     except Exception:
         pass
@@ -1202,7 +1224,7 @@ def main():
             except Exception:
                 pass
             if daily_pnl <= MAX_DAILY_LOSS:
-                msg = (f"🚨 CIRCUIT BREAKER: Daily loss ${daily_pnl:.2f} hit "
+                msg = (f"ðŸš¨ CIRCUIT BREAKER: Daily loss ${daily_pnl:.2f} hit "
                        f"-{MAX_DAILY_LOSS_PCT:.0f}% limit "
                        f"(${abs(MAX_DAILY_LOSS):.2f}). Closing all positions and stopping.")
                 listener.send_status_update(msg)
@@ -1214,20 +1236,20 @@ def main():
                     engine._auto_close(key, pos, reason="Circuit Breaker")
                 break
 
-            # ── Streak check: auto-pause after 2 consecutive losses ──────────
-            if consecutive_losses >= 2 and not listener.paused:
+            # â”€â”€ Streak check: auto-pause after 3 consecutive losses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+            if consecutive_losses >= 3 and not listener.paused:
                 listener.paused = True
                 listener.send_status_update(
-                    f"⚠️ STREAK PAUSE: {consecutive_losses} losses in a row. "
+                    f"âš ï¸ STREAK PAUSE: {consecutive_losses} losses in a row. "
                     f"New entries paused. Type !resume to continue."
                 )
                 alert_streak_pause(consecutive_losses)
                 console.print(
-                    f"[bold red]STREAK PAUSE: {consecutive_losses} consecutive losses — "
+                    f"[bold red]STREAK PAUSE: {consecutive_losses} consecutive losses â€” "
                     f"pausing new entries.[/bold red]"
                 )
 
-            # ── Sync manual trades from Webull ───────────────────────────
+            # â”€â”€ Sync manual trades from Webull â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if watch_manual_trades:
                 try:
                     _wb_pos = webull.get_open_positions_from_webull() or []
@@ -1244,8 +1266,6 @@ def main():
                         if not _already and _tk and _str:
                             # Don't re-add tickers that were stopped out this session
                             # or that the bot just closed (Webull API lag protection)
-                            if _tk.upper() in session_stopped_tickers:
-                                continue
                             try:
                                 from trade_engine import TradeSignal, OpenPosition
                                 _cost = float(_wp.get("avgCost") or _wp.get("cost") or 0)
@@ -1267,7 +1287,7 @@ def main():
                                     f"@ ${_cost:.2f} -- now monitored[/cyan]"
                                 )
                                 listener.send_status_update(
-                                    f"👁️ Manual trade detected: {_key} "
+                                    f"ðŸ‘ï¸ Manual trade detected: {_key} "
                                     f"@ ${_cost:.2f} -- SL/TP active"
                                 )
                             except Exception as _mte:
@@ -1308,16 +1328,16 @@ def main():
                     now_ts = time.time()
                     if now_ts - last_heat_alert_ts >= 120:
                         listener.send_status_update(
-                            f"🔥 Portfolio heat: {len(_open_pos)} position(s) | "
+                            f"ðŸ”¥ Portfolio heat: {len(_open_pos)} position(s) | "
                             f"${_deployed:.0f} deployed. Waiting for close."
                         )
                         last_heat_alert_ts = now_ts
                     main._prev_blocked = True   # track that we were blocked
                     time.sleep(10)
                     continue
-                # Has positions but all profitable — allow scan through
+                # Has positions but all profitable â€” allow scan through
             else:
-                # No open positions — if we were blocked, scan immediately
+                # No open positions â€” if we were blocked, scan immediately
                 if getattr(main, "_prev_blocked", False):
                     last_research_time = 0
                     console.print("[dim]All positions closed -- scanning now[/dim]")
@@ -1331,11 +1351,11 @@ def main():
             if _today_str != _last_trade_date:
                 _last_trade_date     = _today_str
                 daily_trades_count   = 0
-                session_stopped_tickers.clear()
-                log.info("New trading day — daily counters reset")
+                trade_cooldowns.clear()
+                log.info("New trading day â€” daily counters reset")
 
             if mode_choice in ["2", "3"]:
-                # ── Market closed: sleep until 9:25 AM next session ──────────
+                # â”€â”€ Market closed: sleep until 9:25 AM next session â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                 try:
                     import pytz as _pytz_si
                     _et_si = datetime.now(_pytz_si.timezone("America/New_York"))
@@ -1351,10 +1371,10 @@ def main():
                     try:
                         _wake_min = 9 * 60 + 25   # 9:25 AM
                         if _hm_si >= _market_close:
-                            # After close — sleep until tomorrow 9:25 AM
+                            # After close â€” sleep until tomorrow 9:25 AM
                             _sleep_sec = (_wake_min - _hm_si + 24 * 60) * 60
                         else:
-                            # Before open — sleep until today 9:25 AM
+                            # Before open â€” sleep until today 9:25 AM
                             _sleep_sec = (_wake_min - _hm_si) * 60
                         _sleep_sec = max(60, min(_sleep_sec, 3600))  # cap 1hr chunks
                         _wake_et = _et_si.replace(
@@ -1393,11 +1413,11 @@ def main():
                         now_ts = time.time()
                         if now_ts - last_heat_alert_ts >= 600:
                             console.print(
-                                f"[yellow]📊 Daily trade limit reached ({daily_trades_count}/{MAX_DAILY_TRADES}) "
-                                f"— no new entries today.[/yellow]"
+                                f"[yellow]ðŸ“Š Daily trade limit reached ({daily_trades_count}/{MAX_DAILY_TRADES}) "
+                                f"â€” no new entries today.[/yellow]"
                             )
                             listener.send_status_update(
-                                f"📊 **DAILY LIMIT**: {daily_trades_count}/{MAX_DAILY_TRADES} trades taken. "
+                                f"ðŸ“Š **DAILY LIMIT**: {daily_trades_count}/{MAX_DAILY_TRADES} trades taken. "
                                 f"No new entries until tomorrow."
                             )
                             last_heat_alert_ts = now_ts
@@ -1408,7 +1428,7 @@ def main():
                             else f"Oversold Dips (RSI < {profile['rsi']})"
                         ) if 'regime_data' in dir() else f"Oversold Dips (RSI < {profile['rsi']})"
 
-                        # ── Macro regime budget cap ───────────────────────────
+                        # â”€â”€ Macro regime budget cap â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         _force_tester     = False   # safe default if regime check fails
                         _effective_budget = _current_budget
                         try:
@@ -1426,7 +1446,7 @@ def main():
                             log.debug("Regime budget error: %s", _rbe)
 
                         console.print(f"[dim]Scanning for {direction_label} [{daily_trades_count}/{MAX_DAILY_TRADES} trades today]...[/dim]")
-                        # Apply direction filter — None means AUTO (scanner decides)
+                        # Apply direction filter â€” None means AUTO (scanner decides)
                         _dir_filter = direction_mode.get("option_type") if not direction_mode.get("auto", True) else None
                         found_signals = research_scanner.scan_markets(
                             rsi_threshold=profile['rsi'], listener=listener,
@@ -1437,8 +1457,8 @@ def main():
 
                     # Iterate through every signal found in the scan one by one
                     for raw_text in found_signals:
-                        # ── Strip [TESTER] tag FIRST before any parsing ───────
-                        # parse_signal uses a strict tokenizer — [TESTER] at the
+                        # â”€â”€ Strip [TESTER] tag FIRST before any parsing â”€â”€â”€â”€â”€â”€â”€
+                        # parse_signal uses a strict tokenizer â€” [TESTER] at the
                         # end causes it to return None, making ticker = "UNK" and
                         # dropping the trade before it reaches the AI or Webull.
                         _is_tester = "[TESTER]" in raw_text or _force_tester
@@ -1450,25 +1470,18 @@ def main():
                         parsed_te = engine.parse_signal(raw_text)
                         ticker = parsed_te.ticker if parsed_te else "UNK"
 
-                        # Block tickers stopped out earlier today — no revenge trades
-                        if ticker.upper() in session_stopped_tickers:
-                            console.print(
-                                f"[yellow]🚫 {ticker} blocked — stopped out earlier today. "
-                                f"No re-entry until tomorrow.[/yellow]"
-                            )
-                            continue
 
                         # Skip if the ticker is on a 30-min cooldown
                         if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
                             continue
 
                         if _is_tester:
-                            console.print(f"\n[bold yellow]📋 [TESTER PROBE] {ticker}: "
-                                          f"partial-confluence entry — 1 contract probe[/bold yellow]")
-                        console.print(f"\n[bold cyan]▶ Sending to AI Risk Manager:[/bold cyan] {ticker} ({raw_text[:40]})")
+                            console.print(f"\n[bold yellow]ðŸ“‹ [TESTER PROBE] {ticker}: "
+                                          f"partial-confluence entry â€” 1 contract probe[/bold yellow]")
+                        console.print(f"\n[bold cyan]â–¶ Sending to AI Risk Manager:[/bold cyan] {ticker} ({raw_text[:40]})")
                         console.print("[dim]Waiting for AI response before proceeding...[/dim]")
 
-                        # ── ML Win-Probability Gate ───────────────────────────
+                        # â”€â”€ ML Win-Probability Gate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                         if _HAS_ML and _ml_sieve_mod:
                             try:
                                 _parsed = engine.parse_signal(raw_text)
@@ -1482,11 +1495,11 @@ def main():
                                 if _ml_block:
                                     console.print(
                                         f"[bold red][ML BLOCK] {ticker} matching negative historical "
-                                        f"distribution patterns — Trade Aborted[/bold red]\n"
+                                        f"distribution patterns â€” Trade Aborted[/bold red]\n"
                                         f"  {_ml_reason}"
                                     )
                                     listener.send_status_update(
-                                        f"🤖 **ML BLOCK**: {ticker}\n{_ml_reason}")
+                                        f"ðŸ¤– **ML BLOCK**: {ticker}\n{_ml_reason}")
                                     time.sleep(2)
                                     continue
                                 else:
@@ -1501,21 +1514,21 @@ def main():
                         except Exception:
                             pass
 
-                        # Cap new tickers to 1 contract — no fill history to calibrate
+                        # Cap new tickers to 1 contract â€” no fill history to calibrate
                         raw_text = _cap_contracts_new_ticker(ticker, raw_text)
                         verdict = ask_ai_for_verdict(raw_text, profile['budget'], stock_price)
 
                         if "BTO" in verdict:
-                            # ── Ticker validation — AI must not change the ticker ──
+                            # â”€â”€ Ticker validation â€” AI must not change the ticker â”€â”€
                             verdict_parts  = verdict.strip().split()
                             verdict_ticker = verdict_parts[1].upper() if len(verdict_parts) > 1 else ""
                             if verdict_ticker != ticker.upper():
                                 console.print(
-                                    f"[bold red]⚠️  AI changed ticker {ticker} -> {verdict_ticker} "
-                                    f"— REJECTING and using original signal[/bold red]")
+                                    f"[bold red]âš ï¸  AI changed ticker {ticker} -> {verdict_ticker} "
+                                    f"â€” REJECTING and using original signal[/bold red]")
                                 verdict = raw_text
 
-                            # Enforce x1 on tester entries — AI may have upsized
+                            # Enforce x1 on tester entries â€” AI may have upsized
                             if _is_tester:
                                 import re as _re_v
                                 verdict = _re_v.sub(r" x[0-9]+", " x1", verdict)
@@ -1523,9 +1536,16 @@ def main():
                                     verdict += " x1"
 
                             tester_label = " (TESTER)" if _is_tester else ""
-                            listener.send_status_update(f"✅ AI APPROVED{tester_label}: `{verdict}` — executing now")
+                            listener.send_status_update(f"âœ… AI APPROVED{tester_label}: `{verdict}` â€” executing now")
                             console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                             trade_cooldowns[ticker] = time.time()
+                            # Tighter stop for leveraged ETFs (3x moves — -12% not profile default)
+                            _LEV_ETFS = {"TQQQ", "SOXL", "SPXL", "UPRO", "LABU", "FNGU"}
+                            if ticker.upper() in _LEV_ETFS:
+                                engine.stop_loss_pct = 12.0
+                                log.info("Leveraged ETF %s: stop tightened to -12%%", ticker)
+                            else:
+                                engine.stop_loss_pct = engine._profile_sl
                             # Store real bid/ask mid from Tradier for accurate slippage calc
                             # Falls back to spot * 0.04 proxy if Tradier unavailable
                             try:
@@ -1621,22 +1641,22 @@ def main():
                                     _sl_amt   = _cost * (sl_pct / 100)
                                     sl_amt_str = f"${_sl_amt:.2f}" if _cost > 0 else f"-{sl_pct:.0f}%"
                                     signal_card = (
-                                        f"🚀 **LIVE TRADE ALERT** — GilbertTrader\n"
-                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"ðŸš€ **LIVE TRADE ALERT** â€” GilbertTrader\n"
+                                        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
                                         f"**{t_tick}** {strike} {side} exp {t_exp}\n"
-                                        f"📥 **Entry**: {entry_str}\n"
-                                        f"🎯 **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
-                                        f"🛑 **Stop**: {sl_str} (-{sl_pct:.0f}%) | Max loss: {sl_amt_str}\n"
-                                        f"📦 **Size**: {t_qty.replace('x','')} contract(s)\n"
-                                        f"⚖️ **Scale-out**: sell half at +20%, trail remaining\n"
-                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                        f"*Powered by GilbertTrader v2.2 — automated options scanner*"
+                                        f"ðŸ“¥ **Entry**: {entry_str}\n"
+                                        f"ðŸŽ¯ **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
+                                        f"ðŸ›‘ **Stop**: {sl_str} (-{sl_pct:.0f}%) | Max loss: {sl_amt_str}\n"
+                                        f"ðŸ“¦ **Size**: {t_qty.replace('x','')} contract(s)\n"
+                                        f"âš–ï¸ **Scale-out**: sell half at +20%, trail remaining\n"
+                                        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
+                                        f"*Powered by GilbertTrader v2.2 â€” automated options scanner*"
                                     )
                                     listener.send_signal(signal_card)
                                 except Exception as e:
                                     log.debug("Signal card error: %s", e)
 
-                                # ── Write fill to SQLite DB ───────────────────
+                                # â”€â”€ Write fill to SQLite DB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
                                 if _HAS_DB and _DB:
                                     try:
                                         _fill_px  = getattr(webull, "_last_fill_price", None)
@@ -1654,15 +1674,15 @@ def main():
                                     except Exception as _dbe:
                                         log.debug("DB log_trade error: %s", _dbe)
 
-                                break  # Trade confirmed — stop processing other signals
+                                break  # Trade confirmed â€” stop processing other signals
                             else:
-                                # ── Tradier failover ──────────────────────────
-                                # Webull rejected — try Tradier backup execution
+                                # â”€â”€ Tradier failover â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+                                # Webull rejected â€” try Tradier backup execution
                                 _tradier_filled = False
                                 if _HAS_TRADIER_EXEC and _tradier_exec:
-                                    console.print(f"[yellow]⚠️  Webull rejected {ticker} — attempting Tradier failover...[/yellow]")
+                                    console.print(f"[yellow]âš ï¸  Webull rejected {ticker} â€” attempting Tradier failover...[/yellow]")
                                     listener.send_status_update(
-                                        f"⚠️ Webull rejected {ticker} — routing to Tradier backup")
+                                        f"âš ï¸ Webull rejected {ticker} â€” routing to Tradier backup")
                                     try:
                                         _t_fill = _tradier_exec.place_order(
                                             verdict, paper=paper_mode)
@@ -1670,27 +1690,27 @@ def main():
                                             daily_trades_count += 1
                                             webull_refresh_fails = 0
                                             console.print(
-                                                f"[bold green]✅ Tradier FAILOVER filled: "
+                                                f"[bold green]âœ… Tradier FAILOVER filled: "
                                                 f"{ticker} @ ${_t_fill:.2f}[/bold green]")
                                             listener.send_status_update(
-                                                f"✅ **Tradier Failover**: {verdict} filled @ ${_t_fill:.2f}")
+                                                f"âœ… **Tradier Failover**: {verdict} filled @ ${_t_fill:.2f}")
                                             _tradier_filled = True
                                             break
                                     except Exception as _te:
                                         log.error("Tradier failover error: %s", _te)
 
                                 if not _tradier_filled:
-                                    # Paper shadow — log what would have happened
+                                    # Paper shadow â€” log what would have happened
                                     _maybe_run_paper_shadow(
                                         engine=engine, signal_str=verdict,
                                         profile=profile, market=market, webull=webull
                                     )
                                     console.print(
-                                        f"[yellow]⚠️  Order rejected for {ticker} — "
+                                        f"[yellow]âš ï¸  Order rejected for {ticker} â€” "
                                         f"trying next signal if available[/yellow]")
                                     webull_refresh_fails += 1
                                     time.sleep(2)
-                                    continue  # ← move to next signal
+                                    continue  # â† move to next signal
                         else:
                             listener.send_status_update(f"AI REJECTED ${ticker}: {verdict}")
                             console.print(f"[bold red]REJECTED ${ticker}: {verdict}[/bold red]")
@@ -1706,13 +1726,7 @@ def main():
                     parsed_te = engine.parse_signal(raw_text)
                     ticker = parsed_te.ticker if parsed_te else "UNK"
 
-                    # Block tickers stopped out today (same rule as scanner path)
-                    if ticker.upper() in session_stopped_tickers:
-                        console.print(
-                            f"[yellow]🚫 {ticker} blocked (Discord signal) — "
-                            f"stopped out earlier today.[/yellow]"
-                        )
-                    elif ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
+                    if ticker in trade_cooldowns and (time.time() - trade_cooldowns[ticker] < 1800):
                         pass
                     else:
                         console.print(f"Signal: {raw_text[:60]}")
@@ -1721,16 +1735,16 @@ def main():
                         verdict = ask_ai_for_verdict(raw_text, profile['budget'])
 
                         if "BTO" in verdict:
-                            # Ticker validation — reject if AI changed the ticker
+                            # Ticker validation â€” reject if AI changed the ticker
                             v_parts  = verdict.strip().split()
                             v_ticker = v_parts[1].upper() if len(v_parts) > 1 else ""
                             if v_ticker != ticker.upper():
                                 console.print(
-                                    f"[bold red]⚠️  AI changed ticker {ticker} -> {v_ticker} "
-                                    f"— using original signal[/bold red]")
+                                    f"[bold red]âš ï¸  AI changed ticker {ticker} -> {v_ticker} "
+                                    f"â€” using original signal[/bold red]")
                                 verdict = raw_text
 
-                            listener.send_status_update(f"✅ AI APPROVED: `{verdict}` — executing now")
+                            listener.send_status_update(f"âœ… AI APPROVED: `{verdict}` â€” executing now")
                             console.print(f"[bold green]APPROVED: {verdict}[/bold green]")
                             trade_cooldowns[ticker] = time.time()
                             engine.on_raw_signal(verdict)
@@ -1769,23 +1783,23 @@ def main():
                                     sl_str  = f"-{sl_pct:.0f}% from entry" if not entry else f"${entry * (1 - sl_pct/100):.2f}"
                                     entry_str = f"${entry:.2f}" if entry else "market mid"
                                     signal_card = (
-                                        f"🚀 **LIVE TRADE ALERT** — GilbertTrader\n"
-                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                                        f"ðŸš€ **LIVE TRADE ALERT** â€” GilbertTrader\n"
+                                        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
                                         f"**{t_tick}** {strike} {side} exp {t_exp}\n"
-                                        f"📥 **Entry**: {entry_str}\n"
-                                        f"🎯 **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
-                                        f"🛑 **Stop**: {sl_str} (-{sl_pct:.0f}%)\n"
-                                        f"📦 **Size**: {t_qty.replace('x','')} contract(s)\n"
-                                        f"⚖️ **Scale-out**: sell half at +20%, trail remaining\n"
-                                        f"━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                        f"*Powered by GilbertTrader v2.2 — automated options scanner*"
+                                        f"ðŸ“¥ **Entry**: {entry_str}\n"
+                                        f"ðŸŽ¯ **Target**: {tp_str} (+{tp_pct:.0f}%)\n"
+                                        f"ðŸ›‘ **Stop**: {sl_str} (-{sl_pct:.0f}%)\n"
+                                        f"ðŸ“¦ **Size**: {t_qty.replace('x','')} contract(s)\n"
+                                        f"âš–ï¸ **Scale-out**: sell half at +20%, trail remaining\n"
+                                        f"â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”\n"
+                                        f"*Powered by GilbertTrader v2.2 â€” automated options scanner*"
                                     )
                                     listener.send_signal(signal_card)
                                 except Exception as e:
                                     log.debug("Signal card error: %s", e)
                             else:
                                 console.print(
-                                    f"[yellow]⚠️  Order rejected for {ticker} — "
+                                    f"[yellow]âš ï¸  Order rejected for {ticker} â€” "
                                     f"continuing to monitor for next signal[/yellow]")
                                 webull_refresh_fails += 1
                         else:
@@ -1859,11 +1873,11 @@ def main():
                 except Exception as e:
                     log.debug("History sync error: %s", e)
 
-            # ── UPGRADE 2: Alpha Sieve at 9:15 AM ET ─────────────────────────
+            # â”€â”€ UPGRADE 2: Alpha Sieve at 9:15 AM ET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _maybe_run_alpha_sieve(listener=listener)
-            # ── Pre-market scan at 9:00 AM ET ────────────────────────────────
+            # â”€â”€ Pre-market scan at 9:00 AM ET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _maybe_run_premarket_scan(listener=listener)
-            # ── Daily report at 4:15 PM ET ────────────────────────────────────
+            # â”€â”€ Daily report at 4:15 PM ET â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             _maybe_send_daily_report(listener=listener, engine=engine)
             try:
                 import pytz as _potz
@@ -1878,17 +1892,17 @@ def main():
             except Exception as _oe:
                 log.debug("Optimizer trigger error: %s", _oe)
 
-            # ── Webull session auto-refresh on repeated failures ─────────────
+            # â”€â”€ Webull session auto-refresh on repeated failures â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if webull_refresh_fails >= 3:
-                console.print("[yellow]Webull session appears stale — refreshing...[/yellow]")
+                console.print("[yellow]Webull session appears stale â€” refreshing...[/yellow]")
                 try:
                     webull.open_browser()
                     webull_refresh_fails = 0
-                    listener.send_status_update("🔄 Webull session refreshed automatically.")
+                    listener.send_status_update("ðŸ”„ Webull session refreshed automatically.")
                 except Exception as e:
                     log.error("Webull refresh failed: %s", e)
 
-            # ── VIX spike alert (check every 5 min) ──────────────────────────
+            # â”€â”€ VIX spike alert (check every 5 min) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             if int(time.time()) % 300 == 0:
                 try:
                     from research_scanner import _get_vix
@@ -1897,13 +1911,13 @@ def main():
                         if vix >= 30 and last_vix_alert_lvl < 30:
                             alert_vix_spike(vix)
                             listener.send_status_update(
-                                f"⚠️ VIX EXTREME: {vix:.1f} — sizing reduced to 1 contract max."
+                                f"âš ï¸ VIX EXTREME: {vix:.1f} â€” sizing reduced to 1 contract max."
                             )
                             last_vix_alert_lvl = 30
                         elif vix >= 25 and last_vix_alert_lvl < 25:
                             alert_vix_spike(vix)
                             listener.send_status_update(
-                                f"⚠️ VIX ELEVATED: {vix:.1f} — RSI thresholds tightened."
+                                f"âš ï¸ VIX ELEVATED: {vix:.1f} â€” RSI thresholds tightened."
                             )
                             last_vix_alert_lvl = 25
                         elif vix < 20:
@@ -1911,7 +1925,7 @@ def main():
                 except Exception:
                     pass
 
-            # ── Daily summary at market close (4:00 PM ET) ───────────────────
+            # â”€â”€ Daily summary at market close (4:00 PM ET) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             try:
                 import pytz
                 from datetime import time as dtime
@@ -1938,9 +1952,9 @@ def main():
                             best_str  = f"{best['ticker']} +${best['profit_amt']:.2f}"
                             worst_str = f"{worst['ticker']} -${abs(worst['profit_amt']):.2f}"
                             wr        = round(wins / total * 100) if total else 0
-                            mode_label = "💰 LIVE" if live_enabled else "📋 PAPER"
+                            mode_label = "ðŸ’° LIVE" if live_enabled else "ðŸ“‹ PAPER"
                             summary = (
-                                f"📊 **Daily Summary — {today_str}** ({mode_label})\n"
+                                f"ðŸ“Š **Daily Summary â€” {today_str}** ({mode_label})\n"
                                 f"Trades: {total} | Wins: {wins} | Losses: {losses} | "
                                 f"Win Rate: {wr}%\n"
                                 f"P&L: ${pnl:+.2f} | Best: {best_str} | Worst: {worst_str}"
@@ -1953,7 +1967,7 @@ def main():
     except KeyboardInterrupt:
         # SIGINT is now handled by register_graceful_shutdown_handlers().
         # This fallback fires only if the signal handler somehow doesn't catch it.
-        console.print("\n[yellow]Fallback shutdown — use Ctrl+C for graceful exit.[/yellow]")
+        console.print("\n[yellow]Fallback shutdown â€” use Ctrl+C for graceful exit.[/yellow]")
         try:
             webull.close()
             market.stop()

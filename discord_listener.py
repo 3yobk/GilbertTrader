@@ -235,6 +235,7 @@ class _SignalClient:
                         "`!watchlist`                — show scan tickers\n"
                         "`!add TICKER` / `!remove TICKER` — edit watchlist\n"
                         "────────────────────────────\n"
+                        "`!powerhour off|on`         — stop loss control\n"
                         "`!sl off|on|<pct>`          — stop loss control\n"
                         "`!tp off|on|<pct>`          — take profit control\n"
                         "`!scaleout off|on`          — scale-out control\n"
