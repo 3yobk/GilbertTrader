@@ -50,3 +50,8 @@ paper_shadow.csv
 
 # Local Development logs
 watchdog.log
+did.bin
+trade_log_rich.csv
+candidates.csv
+candidate_outcomes.csv
+*.bak*
